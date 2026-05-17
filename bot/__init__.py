@@ -4,7 +4,7 @@ import traceback
 from pyrogram import Client, filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from config.config import Config
-from api.jikan import jikan
+from api.anime_api import anime_api
 from database.db import db
 from utils.utils import slugify
 
@@ -95,27 +95,69 @@ def register_handlers(bot: Client):
         if not query:
             return await message.reply("❌ **Error:** Please provide an anime name.\nExample: `/search Naruto`")
 
-        msg = await message.reply("🔍 **Searching Jikan API...**")
+        msg = await message.reply("🔍 **Searching Multi-API (Jikan/AniList)...**")
         try:
-            results = await jikan.search_anime(query)
+            results = await anime_api.search_all(query)
         except Exception as e:
-            logger.error(f"Jikan Search Error: {e}")
-            return await msg.edit("❌ **Error fetching data from Jikan API.**")
+            logger.error(f"Search Error: {e}")
+            return await msg.edit(f"❌ **Error:** {e}")
 
         if not results:
-            return await msg.edit("😔 **No results found.** Try a different name.")
+            return await msg.edit("😔 **No results found in any API.**")
 
-        search_results[message.from_user.id] = results[:8]
+        # Normalize results
+        normalized = []
+        for res in results:
+            if "mal_id" in res: # Jikan
+                normalized.append({
+                    "mal_id": res["mal_id"],
+                    "title": res["title"],
+                    "year": res.get("year") or (res.get("aired", {}).get("from", "")[:4] if "aired" in res else None)
+                })
+            else: # AniList
+                normalized.append({
+                    "mal_id": res["id"], # Using AniList ID as mal_id for simple routing
+                    "title": res["title"]["romaji"],
+                    "year": res.get("seasonYear")
+                })
+
+        search_results[message.from_user.id] = normalized[:8]
 
         text = "📌 **Select the correct anime:**\n\n"
         for i, anime in enumerate(search_results[message.from_user.id], 1):
-            year = anime.get('year') or (anime.get('aired', {}).get('from', '')[:4])
-            text += f"**{i}.** {anime['title']} ({year if year else 'N/A'})\n"
+            text += f"**{i}.** {anime['title']} ({anime['year'] if anime['year'] else 'N/A'})\n"
 
         text += "\n*Reply with the number to continue.*"
 
         await msg.edit(text)
         user_state[message.from_user.id] = {"action": "select_anime"}
+
+    @bot.on_message(filters.all, group=-2)
+    async def auto_save_files(client, message):
+        """Automatically saves files to episodes database"""
+        if not message.document and not message.video: return
+
+        from utils.parser import parse_filename
+        name = message.document.file_name if message.document else "video.mp4"
+        parsed = parse_filename(name)
+
+        # Check if we can link it to an existing anime
+        anime = await db.anime.find_one({"title": {"$regex": parsed["title"], "$options": "i"}})
+        if anime:
+            await db.add_episode({
+                "mal_id": anime["mal_id"],
+                "season": parsed["season"],
+                "episode": parsed["episode"],
+                "quality": parsed["quality"],
+                "audio": parsed["audio"],
+                "codec": parsed["codec"],
+                "file_id": message.document.file_id if message.document else message.video.file_id,
+                "file_name": name,
+                "file_size": f"{round((message.document.file_size if message.document else message.video.file_size) / (1024*1024), 2)} MB",
+                "views": 0,
+                "downloads": 0
+            })
+            logger.info(f"Auto-grouped episode: {name} to {anime['title']}")
 
     @bot.on_message(filters.command("add_post"))
     async def add_post_auto(client, message):
@@ -137,15 +179,47 @@ def register_handlers(bot: Client):
 
         msg = await message.reply(f"🚀 **Auto-Posting: {query}...**")
         try:
-            results = await jikan.search_anime(query)
+            results = await anime_api.search_all(query)
             if not results:
                 return await msg.edit("😔 **No results found.**")
 
-            data = results[0] # Take first result
-            mal_id = data["mal_id"]
+            data = results[0]
 
-            # Fetch full details
-            details = await jikan.get_anime_details(mal_id)
+            if "mal_id" in data: # Jikan
+                mal_id = data["mal_id"]
+                details_raw = await anime_api.get_details(mal_id)
+                details = {
+                    "mal_id": mal_id,
+                    "title": details_raw.get("title", data["title"]),
+                    "synopsis": details_raw.get("synopsis"),
+                    "score": details_raw.get("score"),
+                    "image": image_url if image_url else details_raw.get('images', {}).get('jpg', {}).get('large_image_url'),
+                    "genres": [g['name'] for g in details_raw.get('genres', [])],
+                    "studios": [s['name'] for s in details_raw.get('studios', [])],
+                    "episodes": details_raw.get("episodes"),
+                    "rating": details_raw.get("rating"),
+                    "status": details_raw.get("status"),
+                    "aired": details_raw.get("aired", {}).get("string"),
+                    "year": details_raw.get("year"),
+                    "trailer": details_raw.get("trailer", {}).get("url")
+                }
+            else: # AniList
+                mal_id = data["id"]
+                details = {
+                    "mal_id": mal_id,
+                    "title": data["title"]["romaji"],
+                    "synopsis": data.get("description"),
+                    "score": data.get("averageScore"),
+                    "image": image_url if image_url else data.get('coverImage', {}).get('large'),
+                    "genres": data.get("genres", []),
+                    "studios": [],
+                    "episodes": data.get("episodes"),
+                    "rating": None,
+                    "status": data.get("status"),
+                    "aired": None,
+                    "year": data.get("seasonYear"),
+                    "trailer": None
+                }
 
             season = "1"
             slug = slugify(f"{details['title']} Season {season}")
@@ -155,22 +229,19 @@ def register_handlers(bot: Client):
                 "title": details["title"],
                 "slug": slug,
                 "season": season,
-                "synopsis": details.get("synopsis"),
-                "score": details.get("score"),
-                "image": image_url if image_url else details['images']['jpg']['large_image_url'],
-                "genres": [g['name'] for g in details.get('genres', [])],
-                "studios": [s['name'] for s in details.get('studios', [])],
-                "episodes": details.get("episodes"),
-                "rating": details.get("rating"),
-                "status": details.get("status"),
-                "aired": details.get("aired", {}).get("string"),
-                "year": details.get("year"),
-                "trailer": details.get("trailer", {}).get("url"),
+                "synopsis": details["synopsis"],
+                "score": details["score"],
+                "image": details["image"],
+                "genres": details["genres"],
+                "studios": details["studios"],
+                "episodes": details["episodes"],
+                "rating": details["rating"],
+                "status": details["status"],
+                "aired": details["aired"],
+                "year": details["year"],
+                "trailer": details["trailer"],
                 "links": {
-                    "480p": None,
-                    "720p": None,
-                    "1080p": None,
-                    "batch": None
+                    "480p": None, "720p": None, "1080p": None, "batch": None
                 }
             }
 
@@ -450,6 +521,38 @@ def register_handlers(bot: Client):
             "Search -> Pick -> Enter Season -> Links (480p, 720p, 1080p, Batch) -> Trailer -> AUTO PUBLISH."
         )
         await message.reply(text)
+
+    @bot.on_message(filters.command("edit"))
+    async def edit_cmd(client, message):
+        if not message.from_user: return
+        if not await is_authorized(message.from_user.id): return
+
+        args = message.command[1:]
+        if not args:
+            return await message.reply("❌ **Usage:** `/edit <MAL_ID or Slug>`")
+
+        identifier = args[0]
+        if identifier.isdigit():
+            anime = await db.get_anime_by_mal_id(int(identifier))
+        else:
+            anime = await db.get_anime_by_slug(identifier)
+
+        if not anime:
+            return await message.reply("❌ **Post not found.**")
+
+        # Generate secure login link
+        from utils.auth import create_access_token
+        token = create_access_token({"user_id": message.from_user.id, "is_admin": True})
+
+        login_url = f"{Config.BASE_URL}/admin/login?token={token}"
+        edit_url = f"{Config.BASE_URL}/admin/edit/{anime['mal_id']}"
+
+        await message.reply(
+            f"🛠 **Admin Panel for: {anime['title']}**\n\n"
+            f"You can edit metadata and buttons via the web interface.\n\n"
+            f"🔗 [Open Web Editor]({login_url})",
+            disable_web_page_preview=True
+        )
 
     @bot.on_message(filters.command("add_admin"))
     async def add_admin_cmd(client, message):

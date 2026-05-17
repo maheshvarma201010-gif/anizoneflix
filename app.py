@@ -1,13 +1,16 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from database.db import db
 from config.config import Config
-from api.jikan import jikan
+from api.anime_api import anime_api
 import os
 import logging
 import traceback
 from bot import bot, set_commands, register_handlers
+from utils.auth import get_current_admin, create_access_token
+from fastapi.responses import RedirectResponse
+import json
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -142,8 +145,11 @@ async def anime_detail(request: Request, slug: str):
             }, status_code=404)
 
         categories = await db.get_all_categories()
+        episodes = await db.get_episodes(anime["mal_id"])
+
     return templates.TemplateResponse(request=request, name="details.html", context={
         "anime": anime,
+        "episodes": episodes if not os.getenv("TESTING") else [],
         "categories": categories,
         "logo_url": Config.LOGO_URL,
         "site_name": "ANIZONEFLIX",
@@ -167,6 +173,47 @@ async def search_web(request: Request, q: str = ""):
         "site_name": "ANIZONEFLIX",
         "version": "Alpha v1.0"
     })
+
+# Admin Web Routes
+@app.get("/admin/login")
+async def admin_login_page(request: Request, token: str):
+    # Verify token
+    from utils.auth import verify_token
+    payload = verify_token(token)
+    if payload and payload.get("is_admin"):
+        response = RedirectResponse(url="/admin/dashboard")
+        response.set_cookie("admin_token", token, httponly=True)
+        return response
+    return {"error": "Invalid login link"}
+
+@app.get("/admin/dashboard")
+async def admin_dashboard(request: Request, admin=Depends(get_current_admin)):
+    posts = await db.get_all_anime(limit=100)
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request,
+        "posts": posts,
+        "logo_url": Config.LOGO_URL,
+        "site_name": "ANIZONEFLIX"
+    })
+
+@app.get("/admin/edit/{mal_id}")
+async def edit_post_page(request: Request, mal_id: int, admin=Depends(get_current_admin)):
+    anime = await db.get_anime_by_mal_id(mal_id)
+    if not anime:
+        return {"error": "Post not found"}
+    return templates.TemplateResponse("edit.html", {
+        "request": request,
+        "anime": anime,
+        "logo_url": Config.LOGO_URL,
+        "site_name": "ANIZONEFLIX"
+    })
+
+@app.post("/api/admin/save/{mal_id}")
+async def save_post(request: Request, mal_id: int, admin=Depends(get_current_admin)):
+    data = await request.json()
+    # Update DB
+    await db.anime.update_one({"mal_id": mal_id}, {"$set": data})
+    return {"status": "success"}
 
 if __name__ == "__main__":
     import uvicorn

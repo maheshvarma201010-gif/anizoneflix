@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - ANIZONEFLIX</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { background-color: #0f172a; color: white; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold flex items-center">
+                <img src="{{ logo_url }}" class="w-10 h-10 rounded-full mr-3" alt="Logo">
+                Admin Dashboard
+            </h1>
+            <a href="/" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition">View Site</a>
+        </div>
+
+        <div class="glass p-6 rounded-2xl overflow-x-auto">
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="border-b border-gray-700">
+                        <th class="pb-4">Anime</th>
+                        <th class="pb-4">Status</th>
+                        <th class="pb-4">Episodes</th>
+                        <th class="pb-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-800">
+                    {% for anime in posts %}
+                    <tr>
+                        <td class="py-4">
+                            <div class="flex items-center">
+                                <img src="{{ anime.image }}" class="w-12 h-16 object-cover rounded mr-4" alt="">
+                                <div>
+                                    <div class="font-semibold">{{ anime.title }}</div>
+                                    <div class="text-sm text-gray-400">MAL ID: {{ anime.mal_id }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-4 text-sm text-gray-300">{{ anime.status }}</td>
+                        <td class="py-4 text-sm text-gray-300">{{ anime.episodes or 'N/A' }}</td>
+                        <td class="py-4 text-right">
+                            <a href="/admin/edit/{{ anime.mal_id }}" class="text-blue-400 hover:text-blue-300 mr-4">
+                                <i class="fa-solid fa-pen-to-square"></i> Edit
+                            </a>
+                            <a href="/anime/{{ anime.slug }}" target="_blank" class="text-green-400 hover:text-green-300">
+                                <i class="fa-solid fa-eye"></i> View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
