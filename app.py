@@ -5,11 +5,44 @@ from database.db import db
 from config.config import Config
 from api.jikan import jikan
 import os
+import logging
+import traceback
+from bot import bot, set_commands
+
+# Setup Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("ANIZONEFLIX_APP")
 
 app = FastAPI(title="ANIZONEFLIX")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+# Bot lifecycle management
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Starting Telegram Bot...")
+    try:
+        await bot.start()
+        logger.info("Bot Started Successfully")
+        logger.info("Session connected")
+
+        await set_commands(bot)
+        logger.info("Handlers and Commands Loaded Successfully")
+    except Exception as e:
+        logger.error(f"Critical error during bot startup: {e}")
+        logger.error(traceback.format_exc())
+        # We don't want to block the web server if the bot fails,
+        # but in some cases, you might want to raise e.
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Stopping Bot...")
+    try:
+        await bot.stop()
+        logger.info("Bot Stopped Successfully")
+    except Exception as e:
+        logger.error(f"Error during bot shutdown: {e}")
 
 # Context processor for global variables
 @app.middleware("http")
@@ -19,8 +52,11 @@ async def add_global_vars(request: Request, call_next):
     response = await call_next(request)
     return response
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def index(request: Request):
+    if request.method == "HEAD":
+        return {"status": "running"}
+
     if os.getenv("TESTING"):
         mock_anime = {
             "title": "Test Anime",
