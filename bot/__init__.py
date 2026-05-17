@@ -250,14 +250,16 @@ def register_handlers(bot: Client):
 
         query = " ".join(message.command[1:])
 
-        # Check if reply contains slug
+        # Check if query is a full URL or if reply contains one
         if not query and message.reply_to_message:
-            text = message.reply_to_message.text or message.reply_to_message.caption
-            if text and "URL:" in text:
-                query = text.split("/")[-1].split("\n")[0].strip()
+            query = message.reply_to_message.text or message.reply_to_message.caption or ""
+
+        if "http" in query and "/anime/" in query:
+            # Extract slug from URL like https://domain.com/anime/slug
+            query = query.split("/anime/")[-1].split("?")[0].split("\n")[0].strip()
 
         if not query:
-            return await message.reply("❌ Usage: `/del <slug or title>` (or reply to a series message)")
+            return await message.reply("❌ Usage: `/del <slug, title, or URL>` (or reply to a series message)")
 
         # Try slug first
         res = await db.delete_anime_by_slug(query)
@@ -415,13 +417,13 @@ def register_handlers(bot: Client):
             user_state[uid]["seasons_data"][group]["1080p"] = message.text if message.text != "/skip" else None
 
             # Next season or finalize
-            state["current_season_idx"] += 1
-            if state["current_season_idx"] < len(state["seasons_list"]):
-                next_s = state["seasons_list"][state["current_season_idx"]]
-                state["action"] = f"ask_480p_{next_s}"
+            user_state[uid]["current_season_idx"] += 1
+            if user_state[uid]["current_season_idx"] < len(user_state[uid]["seasons_list"]):
+                next_s = user_state[uid]["seasons_list"][user_state[uid]["current_season_idx"]]
+                user_state[uid]["action"] = f"ask_480p_{next_s}"
                 await message.reply(f"📡 **Group: {next_s}**\n\nEnter **480p Download Link** (or /skip):")
             else:
-                state["action"] = "ask_category_final"
+                user_state[uid]["action"] = "ask_category_final"
                 cats = await db.get_all_categories()
                 buttons = []
                 for c in (cats if cats else [{"name": "Anime"}]):
@@ -473,7 +475,7 @@ def register_handlers(bot: Client):
 
         try:
             await db.anime.update_one({"slug": slug}, {"$set": main_entry}, upsert=True)
-            await callback_query.message.edit_text(text=f"✅ **Series Published!**\n\n🎬 {data['title']}\n📂 {category}\n🔢 {len(state['seasons_data'])} Seasons\n\n🌐 URL: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
+            await callback_query.message.edit_text(text=f"✅ **Series Published!**\n\n🎬 {data['title']}\n📂 {category}\n🔢 {len(state['seasons_data'])} Groups\n\n🌐 URL: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
             del user_state[uid]
         except Exception as e:
             await callback_query.answer(f"DB Error: {e}", show_alert=True)

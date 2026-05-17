@@ -8,9 +8,9 @@
         <img src="{{ anime.image }}" class="w-full h-[500px] object-cover opacity-20 blur-xl scale-125 transition-transform duration-1000 group-hover:scale-110" alt="">
 
         <div class="absolute inset-0 z-20 flex flex-col md:flex-row items-center md:items-end p-8 md:p-16 gap-10">
-            <div class="relative group/poster">
+            <div class="relative group/poster w-56 md:w-72">
                 <div class="absolute -inset-2 bg-red-500/20 rounded-[2rem] blur-xl opacity-0 group-hover/poster:opacity-100 transition-opacity"></div>
-                <img src="{{ anime.image }}" class="w-56 h-80 md:w-72 md:h-[450px] object-cover rounded-[2rem] shadow-2xl relative border border-white/10" alt="{{ anime.title }}">
+                <img src="{{ anime.image }}" class="w-full h-auto max-h-[600px] object-contain rounded-[2rem] shadow-2xl relative border border-white/10" alt="{{ anime.title }}">
             </div>
 
             <div class="flex-1 text-center md:text-left pb-4">
@@ -62,24 +62,24 @@
 
         {% if anime.seasons_links %}
         <div class="glass rounded-[2rem] p-6 md:p-10 border border-white/5 shadow-2xl">
-            <!-- Season Selector Tabs -->
+            <!-- Selector Tabs -->
             <div class="flex items-center gap-2 mb-8">
                 <i class="fa-solid fa-film text-red-600 mr-2"></i>
-                <h3 class="text-2xl font-black">Full Season Download</h3>
+                <h3 class="text-2xl font-black">Content Available</h3>
             </div>
 
             <div class="flex flex-wrap gap-3 mb-10">
                 {% for season, links in anime.seasons_links.items() %}
                 <button onclick="showSeason('{{ season }}')" id="btn-{{ season }}"
                         class="season-btn px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all border border-white/5 shadow-lg">
-                    <i class="fa-solid fa-layer-group"></i> Season {{ season }}
+                    <i class="fa-solid fa-layer-group"></i> {{ season }}
                 </button>
                 {% endfor %}
             </div>
 
             {% for season, links in anime.seasons_links.items() %}
             <div id="season-{{ season }}" class="season-content hidden animate-fade-in">
-                <p class="text-gray-400 font-medium mb-8">Season {{ season }} — Download as ZIP archive in your preferred quality.</p>
+                <p class="text-gray-400 font-medium mb-8">ABOVE HAVE LINKS TO GET FILES SELECT AND CLICK ON QUALITY GET FILES</p>
 
                 <div class="flex flex-wrap gap-4">
                     {% if links['480p'] %}

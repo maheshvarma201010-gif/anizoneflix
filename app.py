@@ -83,8 +83,10 @@ async def add_global_vars(request: Request, call_next):
 async def index(request: Request):
     if request.method == "HEAD":
         # Render healthcheck expects a 200 OK for HEAD /
+        # We also verify bot connection health
+        status_code = 200 if bot.is_connected else 503
         from fastapi.responses import Response
-        return Response(status_code=200)
+        return Response(status_code=status_code)
 
     if os.getenv("TESTING"):
         mock_anime = {
