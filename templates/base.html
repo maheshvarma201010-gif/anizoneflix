@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ site_name }} - Stream & Download Anime</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="navbar">
+        <div class="container nav-container">
+            <div class="logo-wrapper">
+                <a href="/" style="display: flex; align-items: center; gap: 10px;">
+                    <img src="{{ logo_url }}" alt="Logo" class="logo-img">
+                    <span class="logo-text">{{ site_name }}</span>
+                    <small style="font-size: 10px; color: var(--text-dim); margin-top: 5px;">{{ version }}</small>
+                </a>
+            </div>
+
+            <nav class="nav-links">
+                <a href="/" class="nav-item">Home</a>
+                <div class="dropdown">
+                    <a href="#" class="nav-item">Categories <i class="fas fa-chevron-down" style="font-size: 0.7rem;"></i></a>
+                    <div class="dropdown-menu">
+                        {% for cat in categories %}
+                        <a href="/search?q={{ cat.name }}" class="dropdown-item">{{ cat.name }}</a>
+                        {% endfor %}
+                    </div>
+                </div>
+                <a href="#" class="nav-item">Trending</a>
+            </nav>
+
+            <div class="nav-actions">
+                <i class="fas fa-search search-icon" id="search-trigger"></i>
+                <i class="fas fa-bars menu-toggle" id="menu-toggle"></i>
+            </div>
+        </div>
+    </header>
+
+    <!-- Search Overlay -->
+    <div class="search-overlay" id="search-overlay">
+        <i class="fas fa-times search-close" id="close-search"></i>
+        <div class="search-input-wrapper">
+            <form action="/search" method="get">
+                <input type="text" name="q" class="search-field" placeholder="Type anime name to search..." autocomplete="off">
+                <div style="text-align: center; margin-top: 20px; color: var(--text-dim);">Press Enter to Search</div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu" id="mobile-nav">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+            <span class="logo-text">Menu</span>
+            <i class="fas fa-times" id="close-menu" style="font-size: 1.5rem; cursor: pointer;"></i>
+        </div>
+        <nav>
+            <a href="/" class="mobile-nav-item">Home</a>
+            <div style="margin-top: 25px;">
+                <p style="color: var(--primary); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; margin-bottom: 15px;">Categories</p>
+                {% for cat in categories %}
+                <a href="/search?q={{ cat.name }}" class="mobile-nav-item">{{ cat.name }}</a>
+                {% endfor %}
+            </div>
+        </nav>
+    </div>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2023 {{ site_name }}. All rights reserved.</p>
+            <p style="margin-top: 10px; font-size: 0.8rem; opacity: 0.6;">Built for Anime Fans.</p>
+        </div>
+    </footer>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pyrogram
+tgcrypto
+motor
+dnspython
+aiohttp
+jinja2
+python-dotenv
+pydantic
+python-multipart
+requests
+httpx
+mongomock_motor

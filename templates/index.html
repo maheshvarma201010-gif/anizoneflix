@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero container">
+    {% if trending %}
+    <div class="hero-slide" style="background-image: url('{{ trending[0].image }}');">
+        <div class="hero-overlay"></div>
+        <div class="hero-content">
+            <h1 class="hero-title">{{ trending[0].title }}</h1>
+            <div class="hero-meta">
+                <span><i class="fas fa-star"></i> {{ trending[0].score if trending[0].score else 'N/A' }}</span>
+                <span>Season {{ trending[0].season }}</span>
+                <span>{{ trending[0].status }}</span>
+            </div>
+            <p style="margin-bottom: 25px; color: var(--text-dim);">{{ trending[0].synopsis[:200] }}...</p>
+            <div class="hero-actions">
+                <a href="/anime/{{ trending[0].slug }}" class="hero-btn">
+                    <i class="fas fa-play"></i> Watch Now
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</section>
+
+<div class="container" style="display: flex; gap: 40px; margin-top: 40px;">
+    <!-- Sidebar -->
+    <aside style="width: 280px; flex-shrink: 0;" class="mobile-hide">
+        <div class="glass" style="padding: 25px; margin-bottom: 30px;">
+            <h3 style="margin-bottom: 20px; font-size: 1.1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 10px;">
+                <i class="fas fa-th-list"></i> Genres
+            </h3>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                {% for cat in categories %}
+                <a href="/search?q={{ cat.name }}" class="nav-item" style="font-size: 0.9rem;">
+                    <i class="fas fa-chevron-right" style="font-size: 0.7rem; color: var(--primary);"></i> {{ cat.name }}
+                </a>
+                {% endfor %}
+                {% if not categories %}
+                <span class="nav-item">No categories yet</span>
+                {% endif %}
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div style="flex-grow: 1;">
+        <!-- Trending -->
+        <div class="section-header">
+            <h2 class="section-title">Trending Now</h2>
+        </div>
+        <div class="anime-grid">
+            {% for anime in trending %}
+            <div class="anime-card">
+                <a href="/anime/{{ anime.slug }}">
+                    <div class="poster-wrapper">
+                        <img src="{{ anime.image }}" alt="{{ anime.title }}">
+                        <div class="card-overlay">
+                            <span class="card-badge glass" style="background: var(--primary);">{{ anime.score if anime.score else 'N/A' }}</span>
+                            <i class="fas fa-play-circle" style="font-size: 3rem; margin: auto;"></i>
+                        </div>
+                    </div>
+                    <div class="anime-info">
+                        <div class="anime-name">{{ anime.title }}</div>
+                        <div class="anime-sub">Season {{ anime.season }} • {{ anime.status }}</div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Recent -->
+        <div class="section-header" style="margin-top: 50px;">
+            <h2 class="section-title">Recently Added</h2>
+        </div>
+        <div class="anime-grid">
+            {% for anime in recent %}
+            <div class="anime-card">
+                <a href="/anime/{{ anime.slug }}">
+                    <div class="poster-wrapper">
+                        <img src="{{ anime.image }}" alt="{{ anime.title }}">
+                        <div class="card-overlay">
+                            <span class="card-badge glass" style="background: var(--primary);">{{ anime.score if anime.score else 'N/A' }}</span>
+                            <i class="fas fa-play-circle" style="font-size: 3rem; margin: auto;"></i>
+                        </div>
+                    </div>
+                    <div class="anime-info">
+                        <div class="anime-name">{{ anime.title }}</div>
+                        <div class="anime-sub">Season {{ anime.season }} • {{ anime.status }}</div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<style>
+    @media (max-width: 992px) {
+        .mobile-hide { display: none; }
+    }
+</style>
+{% endblock %}
