@@ -1,68 +1,44 @@
-# 🎬 ANIZONEFLIX ULTRA - Power-Pack Anime CMS
+# 🎬 ANIZONEFLIX ULTRA v2.0 - High-End Anime CMS
 
-An industrial-grade Anime Management System powered by **FastAPI**, **Pyrogram 2.x**, and a massive **Multi-API Aggregator**. This project provides elite performance, speed, and 100% reliability by connecting to 10+ high-speed anime metadata sources.
+The ultimate, industrial-grade Anime Management System powered by **FastAPI**, **Pyrogram 2.x**, and a massive **Multi-API Aggregator**. This project provides elite performance, speed, and a high-end Telegram-themed UI.
 
-## 🚀 Ultra-Performance Features
+## 🚀 v2.0 Ultra Features
 
-- **10+ API Aggregator:** Connects to Jikan (MAL), AniList, Kitsu, Shikimori, TMDb, Simkl, MangaDex, and more simultaneously.
-- **Fail-Proof Search:** If one API is down, the system instantly falls back to others. No more "Not Found" errors.
-- **Parallel Processing:** Search queries are run in parallel for maximum speed.
-- **Smart Grouping:** Automatically detects series, seasons, and episodes from filenames.
-- **Web Admin Dashboard:** Full control over your posts, custom buttons, and metadata via a secure web interface.
-- **High-End UI:** Glassmorphism design, mobile-optimized, and SEO ready.
+- **Multi-API Aggregator:** Connects to 11+ high-speed sources (Jikan, AniList, Kitsu, Shikimori, TMDb, etc.).
+- **Interactive Multi-Season Flow:** Effortlessly add multiple seasons (e.g., '1,2,3') in one go.
+- **Separate Quality Links:** Dedicated slots for 480p, 720p, and 1080p links per season.
+- **Custom Poster Choice:** Choose between automated API posters or provide your own manual URL.
+- **Telegram-Themed Glassmorphism UI:** A beautiful, dark, and modern streaming interface.
+- **Infinite Scroll Pagination:** Automated loading for unlimited anime listings.
+- **Secure Web Admin:** JWT-authenticated dashboard for full control over metadata and buttons.
 
----
-
-## 🛠️ Bot Commands
+## 🛠️ Updated Bot Commands
 
 ### 🛡️ Admin Suite
-- `/search <name>` - **ULTRA SEARCH:** Aggregates all APIs and lets you pick the best match.
-- `/add_post <name>` - **SPEED MODE:** Instantly publishes the top result to your website.
-- `/edit` - Generates a secure, one-click access link to the **Web Admin Panel**.
-- `/del <id>` - Instantly remove content from the database and website.
-- `/categories` - Manage website genres and navigation.
+- `/search <name>` - **ULTRA SEARCH:** Interactive setup with season and quality link collection.
+- `/add_post <name>` - **SPEED MODE:** Instant one-shot publication to a selected category.
+- `/edit` - Secure one-click login link for the **Web Admin Panel**.
+- `/series <slug>` - View and verify all loaded episodes for a specific series.
+- `/help` - Open the detailed v2.0 Admin Guide.
 
----
+## 🔑 Environment Setup
 
-## 🔑 Configuration & APIs
+Ensure the following are set in your Render environment:
 
-This system is pre-configured with high-speed endpoints. You can further customize them in your `.env`:
-
-| Variable | Description | Default / Example |
-| :--- | :--- | :--- |
-| `API_ID` | Telegram API ID | `12345` |
-| `API_HASH` | Telegram API Hash | `abcdef...` |
-| `BOT_TOKEN` | Bot Token | `12345:token` |
-| `TMDB_API_KEY` | High-speed TMDb Key | `3fd2be3efead2b9a05f39645152865e2` |
-| `JIKAN_API` | Jikan Base | `https://api.jikan.moe/v4` |
-
-### Integrated APIs:
-1. **Jikan (MAL):** Primary source for MAL metadata.
-2. **AniList (GraphQL):** High-precision search and covers.
-3. **Kitsu.io:** Rapid metadata fallback.
-4. **Shikimori:** Russian/Global database powerhouse.
-5. **TMDb:** Industry-standard reliability for TV/Anime.
-6. **Simkl:** Fast search and posters.
-7. **MangaDex:** Title and image fallback.
-8. **Notify.moe:** Real-time update source.
-9. **Enime:** Metadata API provider.
-10. **Consumet:** Content aggregator API.
-
----
+| Variable | Description |
+| :--- | :--- |
+| `API_ID` | Telegram API ID |
+| `API_HASH` | Telegram API Hash |
+| `BOT_TOKEN` | Telegram Bot Token |
+| `MONGO_URI` | MongoDB Connection String |
+| `SECRET_KEY` | For JWT & Encryption (Min 32 chars recommended) |
+| `BASE_URL` | Your website URL |
 
 ## 🌐 Elite Deployment
 
-1. **GitHub:** Fork and connect your repository to Render.
-2. **Runtime:** Select `Python 3.10+`.
-3. **Build:** `pip install -r requirements.txt`
-4. **Start:** `python main.py`
-5. **Healthcheck:** Pre-configured for Render (HEAD /).
+1. **GitHub:** Connect your repo to Render.
+2. **Build:** `pip install -r requirements.txt`
+3. **Start:** `python main.py`
+4. **Auto-Optimization:** System automatically adjusts to Render's infrastructure.
 
----
-
-## 🛡️ Security
-- **JWT Authentication:** Secure web admin access.
-- **CSRF Protection:** Integrated into the dashboard.
-- **Rate Limiting:** Protects your APIs and server.
-
-**Engineered for Speed. Built for Reliability.**
+**Engineered for Speed. Designed for Excellence.**

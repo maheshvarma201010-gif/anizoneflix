@@ -159,13 +159,24 @@ async def anime_detail(request: Request, slug: str):
         "version": "Alpha v1.0"
     })
 
+@app.get("/api/anime")
+async def get_anime_api(skip: int = 0, limit: int = 20):
+    return await db.get_all_anime(limit=limit, skip=skip)
+
 @app.get("/search")
 async def search_web(request: Request, q: str = ""):
     if os.getenv("TESTING"):
         results = []
         categories = [{"name": "Action"}, {"name": "Adventure"}, {"name": "Comedy"}]
     else:
-        results = await db.search_anime_db(q)
+        if q:
+            # Check if q is a category
+            results = await db.anime.find({"$or": [
+                {"title": {"$regex": q, "$options": "i"}},
+                {"category": q}
+            ]}).sort("_id", -1).to_list(length=50)
+        else:
+            results = await db.get_all_anime(limit=50)
         categories = await db.get_all_categories()
 
     return templates.TemplateResponse(request=request, name="search.html", context={
@@ -174,20 +185,40 @@ async def search_web(request: Request, q: str = ""):
         "categories": categories,
         "logo_url": Config.LOGO_URL,
         "site_name": "ANIZONEFLIX",
-        "version": "Alpha v1.0"
+        "version": "v2.0 Ultra"
     })
 
 # Admin Web Routes
 @app.get("/admin/login")
 async def admin_login_page(request: Request, token: str):
-    # Verify token
-    from utils.auth import verify_token
-    payload = verify_token(token)
-    if payload and payload.get("is_admin"):
-        response = RedirectResponse(url="/admin/dashboard")
-        response.set_cookie("admin_token", token, httponly=True)
-        return response
-    return {"error": "Invalid login link"}
+    try:
+        from utils.auth import verify_token
+        payload = verify_token(token)
+        if payload and payload.get("is_admin"):
+            response = RedirectResponse(url="/admin/dashboard", status_code=303)
+            # Use secure cookies if on Render (HTTPS)
+            is_secure = "onrender.com" in str(request.base_url)
+            response.set_cookie(
+                "admin_token",
+                token,
+                httponly=True,
+                secure=is_secure,
+                samesite="lax",
+                max_age=86400
+            )
+            logger.info(f"Admin logged in: {payload.get('user_id')}")
+            return response
+        logger.warning(f"Failed login attempt with token: {token[:10]}...")
+        return templates.TemplateResponse("404.html", {
+            "request": request,
+            "error": "Invalid or expired admin token",
+            "logo_url": Config.LOGO_URL,
+            "site_name": "ANIZONEFLIX"
+        }, status_code=403)
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Internal Server Error during login")
 
 @app.get("/admin/dashboard")
 async def admin_dashboard(request: Request, admin=Depends(get_current_admin)):
