@@ -211,12 +211,17 @@ def register_handlers(bot: Client):
             return await message.reply("❌ **Unauthorized.**")
 
         args = message.command[1:]
-        if len(args) < 1: return await message.reply("❌ Usage: `/change_poster <url>` (Reply to a series message or use after /edit)")
+        if not args: return await message.reply("❌ Usage: `/change_poster <post_page_url>`")
 
         url = args[0]
-        # Logic to update poster depends on context, for now we ask for slug if not in state
-        user_state[message.from_user.id] = {"action": "change_poster_slug", "new_url": url}
-        await message.reply("🔍 Enter the **Slug** of the series to update:")
+        slug = url.split("/anime/")[-1].split("?")[0].split("\n")[0].strip()
+
+        anime = await db.get_anime_by_slug(slug)
+        if not anime:
+            return await message.reply(f"❌ **Series not found for slug:** `{slug}`")
+
+        user_state[message.from_user.id] = {"action": "ask_new_poster", "slug": slug}
+        await message.reply(f"🖼 **Changing Poster for:** {anime['title']}\n\nPlease send the **New Image URL**:")
 
     @bot.on_message(filters.command("series"))
     async def series_list_handler(client, message):
@@ -287,13 +292,14 @@ def register_handlers(bot: Client):
             return await search_handler(client, message, is_retry=True)
 
         # 0. Change Poster
-        if action == "change_poster_slug":
-            slug = message.text.strip()
-            res = await db.anime.update_one({"slug": slug}, {"$set": {"image": state["new_url"]}})
+        if action == "ask_new_poster":
+            new_url = message.text.strip()
+            slug = state["slug"]
+            res = await db.anime.update_one({"slug": slug}, {"$set": {"image": new_url}})
             if res.modified_count:
-                await message.reply(f"✅ **Poster Updated for:** {slug}")
+                await message.reply(f"✅ **Poster Updated for slug:** `{slug}`")
             else:
-                await message.reply("❌ Series not found.")
+                await message.reply("❌ Failed to update poster. Series might not exist.")
             del user_state[uid]
 
         # 0.1 Edit Series / Episode Search
