@@ -209,6 +209,39 @@ def register_handlers(bot: Client):
         user_state[message.from_user.id] = {"action": "ask_new_poster", "slug": slug}
         await message.reply(f"🖼 **Calibrating Visuals for:** `{anime['title']}`\n\nPlease provide the **New Asset URL**:")
 
+    @bot.on_message(filters.command("categories"))
+    async def categories_handler(client, message):
+        if not message.from_user: return
+        if not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Access Denied.**")
+
+        cats = await db.get_all_categories()
+        buttons = []
+        for c in cats:
+            buttons.append([
+                InlineKeyboardButton(f"🏷 {c['name']}", callback_data=f"view_cat_{c['name']}"),
+                InlineKeyboardButton("🗑", callback_data=f"del_cat_{c['name']}")
+            ])
+
+        buttons.append([InlineKeyboardButton("➕ Add New Category", callback_data="add_cat_prompt")])
+
+        await message.reply(
+            "📂 **Category Management Suite**\n\nManage your site's genres and tags below:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+
+    @bot.on_callback_query(filters.regex("^add_cat_prompt$"))
+    async def add_cat_prompt_cb(client, callback_query):
+        user_state[callback_query.from_user.id] = {"action": "ask_cat_name"}
+        await callback_query.message.edit_text("🏷 **Enter the name of the new category:**", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^del_cat_"))
+    async def del_cat_cb(client, callback_query):
+        cat_name = callback_query.data.split("del_cat_")[-1]
+        await db.delete_category(cat_name)
+        await callback_query.answer(f"🗑 Category '{cat_name}' removed.", show_alert=True)
+        await categories_handler(client, callback_query.message)
+
     @bot.on_message(filters.command("del"))
     async def delete_handler(client, message):
         if not message.from_user: return
@@ -246,6 +279,13 @@ def register_handlers(bot: Client):
 
         if action == "ask_search_query":
             return await search_handler(client, message, is_retry=True)
+
+        elif action == "ask_cat_name":
+            cat_name = message.text.strip()
+            await db.add_category(cat_name)
+            await message.reply(f"✅ **Category Created:** `{cat_name}`")
+            del user_state[uid]
+            return await categories_handler(client, message)
 
         elif action == "ask_new_poster":
             new_url = message.text.strip()
