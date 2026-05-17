@@ -7,7 +7,7 @@ from api.jikan import jikan
 import os
 import logging
 import traceback
-from bot import bot, set_commands
+from bot import bot, set_commands, register_handlers
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -38,6 +38,8 @@ async def startup_event():
         logger.info(f"BOT ONLINE -> @{me.username}")
         logger.info(f"BOT ID -> {me.id}")
         logger.info("LONG POLLING ACTIVE")
+
+        register_handlers(bot)
 
         # Give some time for handlers to register if they are in the task queue
         await asyncio.sleep(1)
