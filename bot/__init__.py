@@ -38,18 +38,16 @@ search_results = {}
 user_state = {}
 
 @bot.on_message(filters.all, group=-1)
-async def debug_all(client, message):
+async def debug_updates(client, message):
     try:
-        sender = message.from_user.id if message.from_user else "Unknown"
-        text = message.text or "[Non-text message]"
-        logger.info(f"UPDATE RECEIVED from {sender}: {text}")
+        print(f"UPDATE: {message.text}")
     except Exception:
         traceback.print_exc()
 
 @bot.on_message(filters.command("ping"))
 async def ping(client, message):
     try:
-        await message.reply("🏓 **Pong!** Bot is alive and responsive.")
+        await message.reply_text("Pong!")
     except Exception:
         traceback.print_exc()
 

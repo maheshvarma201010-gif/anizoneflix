@@ -27,13 +27,11 @@ async def startup_event():
         logger.info("Bot Started Successfully")
         logger.info("Session connected")
 
-        # Ensure long polling by removing any existing webhooks
-        await bot.delete_webhook(drop_pending_updates=False)
-        logger.info("Webhook removed, forced long polling.")
-
         # Bot diagnostics
         me = await bot.get_me()
-        logger.info(f"BOT ONLINE -> @{me.username} ({me.id})")
+        logger.info(f"BOT ONLINE -> @{me.username}")
+        logger.info(f"BOT ID -> {me.id}")
+        logger.info("LONG POLLING ACTIVE")
 
         # Diagnostics: count handlers
         handler_count = 0
@@ -41,7 +39,6 @@ async def startup_event():
             handler_count += len(group)
         logger.info(f"Diagnostics: {handler_count} handlers loaded in {len(bot.dispatcher.groups)} groups.")
         logger.info(f"Dispatcher state: {'running' if bot.is_connected else 'stopped'}")
-        logger.info("Polling started")
 
         await set_commands(bot)
         logger.info("Handlers and Commands Loaded Successfully")
