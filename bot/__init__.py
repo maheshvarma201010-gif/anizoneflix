@@ -248,12 +248,29 @@ def register_handlers(bot: Client):
         if not await is_authorized(message.from_user.id):
             return await message.reply("❌ **Unauthorized.**")
 
-        args = message.command[1:]
-        if not args: return await message.reply("❌ Usage: `/del <slug>`")
+        query = " ".join(message.command[1:])
 
-        slug = args[0]
-        await db.delete_anime_by_slug(slug)
-        await message.reply(f"🗑 **Deleted:** {slug}")
+        # Check if reply contains slug
+        if not query and message.reply_to_message:
+            text = message.reply_to_message.text or message.reply_to_message.caption
+            if text and "URL:" in text:
+                query = text.split("/")[-1].split("\n")[0].strip()
+
+        if not query:
+            return await message.reply("❌ Usage: `/del <slug or title>` (or reply to a series message)")
+
+        # Try slug first
+        res = await db.delete_anime_by_slug(query)
+        if res.deleted_count > 0:
+            return await message.reply(f"✅ **Deleted Series & Content:** `{query}`")
+
+        # Try title search
+        anime = await db.anime.find_one({"title": {"$regex": query, "$options": "i"}})
+        if anime:
+            await db.delete_anime_by_slug(anime["slug"])
+            return await message.reply(f"✅ **Deleted (via title search):** `{anime['title']}`")
+
+        await message.reply(f"❓ **Could not find:** `{query}`")
 
     @bot.on_message(filters.private & filters.text & ~filters.command(["start", "help", "search", "add_post", "edit", "categories", "del", "cancel", "series", "change_poster", "ping"]))
     async def unified_interaction_handler(client, message):
