@@ -100,19 +100,27 @@ def register_handlers(bot: Client):
         await callback_query.answer()
 
     @bot.on_message(filters.command("search"))
-    async def search_handler(client, message):
+    async def search_handler(client, message, is_retry=False):
         if not message.from_user: return
         if not await is_authorized(message.from_user.id):
-            return await message.reply("❌ **Unauthorized.** Please contact the owner for access.")
+            return await message.reply("❌ **Unauthorized.**")
 
-        query = " ".join(message.command[1:])
-        if not query: return await message.reply("❌ Usage: `/search Naruto`")
+        query = " ".join(message.command[1:]) if not is_retry else message.text
+        if not query:
+            user_state[message.from_user.id] = {"action": "ask_search_query"}
+            return await message.reply("🔍 **Ultra-Search Aggregator**\n\nPlease send the **Title** of the anime you want to search for:")
 
-        msg = await message.reply("🚀 **Aggregating 11+ APIs (MAL, AniList, TMDb, etc)...**")
-        results = await anime_api.search_all(query)
+        msg = await message.reply("🔍 **Searching across Ultra-APIs...**")
+        try:
+            # Set a hard timeout for the entire search operation
+            results = await asyncio.wait_for(anime_api.search_all(query), timeout=5)
+        except asyncio.TimeoutError:
+            results = []
+            logger.error("Search timed out")
 
         if not results:
-            return await msg.edit("😔 **Zero results found.** Try another name.")
+            user_state[message.from_user.id] = {"action": "ask_search_query"}
+            return await msg.edit("😔 **No results found or search timed out.** Try a simpler title:")
 
         search_results[message.from_user.id] = results
         text = "🎯 **Select series from Ultra-Search:**\n\n"
@@ -247,13 +255,17 @@ def register_handlers(bot: Client):
         await db.delete_anime_by_slug(slug)
         await message.reply(f"🗑 **Deleted:** {slug}")
 
-    @bot.on_message(filters.private & filters.text & ~filters.command(["start", "help", "search", "add_post", "edit", "categories", "del", "cancel", "series", "change_poster"]))
+    @bot.on_message(filters.private & filters.text & ~filters.command(["start", "help", "search", "add_post", "edit", "categories", "del", "cancel", "series", "change_poster", "ping"]))
     async def unified_interaction_handler(client, message):
         uid = message.from_user.id
         state = user_state.get(uid)
         if not state: return
 
         action = state.get("action", "")
+
+        # -1. Ask Search Query
+        if action == "ask_search_query":
+            return await search_handler(client, message, is_retry=True)
 
         # 0. Change Poster
         if action == "change_poster_slug":
@@ -316,61 +328,81 @@ def register_handlers(bot: Client):
                 if not details:
                     details = {"title": selected["title"], "image": selected["image"], "synopsis": "N/A", "score": 0, "genres": [], "year": selected["year"], "status": "N/A", "episodes": 0, "trailer": None}
 
-                user_state[uid].update({"action": "ask_image_choice", "anime_data": details})
-
-                buttons = [
-                    [InlineKeyboardButton("🖼 Use API Poster", callback_data="img_api")],
-                    [InlineKeyboardButton("🔗 Manual URL", callback_data="img_manual")]
-                ]
-                await message.reply_photo(
-                    photo=details["image"] if details["image"] else Config.LOGO_URL,
-                    caption=f"🎬 **{details['title']}**\n\nChoose poster image source:",
-                    reply_markup=InlineKeyboardMarkup(buttons)
-                )
-                await msg.delete()
+                user_state[uid].update({"action": "edit_title", "anime_data": details})
+                await msg.edit(f"📝 **Step 1: Edit Title**\n\nCurrent: `{details['title']}`\n\nSend new title or /skip:")
             except:
                 await message.reply("❌ Invalid choice. Send a number.")
+
+        # Metadata Edit Flow
+        elif action == "edit_title":
+            if message.text != "/skip":
+                user_state[uid]["anime_data"]["title"] = message.text
+            user_state[uid]["action"] = "edit_synopsis"
+            await message.reply(f"📝 **Step 2: Edit Synopsis**\n\nCurrent: `{user_state[uid]['anime_data']['synopsis'][:100]}...`\n\nSend new synopsis or /skip:")
+
+        elif action == "edit_synopsis":
+            if message.text != "/skip":
+                user_state[uid]["anime_data"]["synopsis"] = message.text
+            user_state[uid]["action"] = "edit_score"
+            await message.reply(f"📝 **Step 3: Edit Score**\n\nCurrent: `{user_state[uid]['anime_data']['score']}`\n\nSend new score (e.g. 8.5) or /skip:")
+
+        elif action == "edit_score":
+            if message.text != "/skip":
+                try: user_state[uid]["anime_data"]["score"] = float(message.text)
+                except: pass
+
+            details = user_state[uid]["anime_data"]
+            user_state[uid]["action"] = "ask_image_choice"
+            buttons = [
+                [InlineKeyboardButton("🖼 Use API Poster", callback_data="img_api")],
+                [InlineKeyboardButton("🔗 Manual URL", callback_data="img_manual")]
+            ]
+            await message.reply_photo(
+                photo=details["image"] if details["image"] else Config.LOGO_URL,
+                caption=f"📝 **Step 4: Poster Choice**\n\nCurrent Poster shown below. Choose source:",
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
 
         # 2. Manual Image URL
         elif action == "ask_manual_img":
             user_state[uid]["image"] = message.text
             user_state[uid]["action"] = "ask_seasons"
-            await message.reply("✅ **Image URL set.**\n\n🔢 Send **Season Numbers** (e.g. `1` or `1,2,3`):")
+            await message.reply("✅ **Poster Updated.**\n\n📝 **Step 5: Content Groups**\n\nEnter names for your content (e.g. `Season 1, Season 2, Movie`):")
 
-        # 3. Season Numbers
+        # 3. Season Numbers (Now Group Names)
         elif action == "ask_seasons":
-            seasons = [s.strip() for s in message.text.split(",")]
+            groups = [s.strip() for s in message.text.split(",")]
             user_state[uid].update({
-                "seasons_list": seasons,
+                "seasons_list": groups,
                 "current_season_idx": 0,
                 "seasons_data": {},
-                "action": f"ask_480p_{seasons[0]}"
+                "action": f"ask_480p_{groups[0]}"
             })
-            await message.reply(f"📡 **Season {seasons[0]}**\n\nEnter **480p Download Link** (or /skip):")
+            await message.reply(f"📡 **Group: {groups[0]}**\n\nEnter **480p Download Link** (or /skip):")
 
         # 4. Multi-Quality Links (Chain)
         elif "ask_480p_" in action:
-            season = action.split("_")[-1]
-            user_state[uid]["seasons_data"][season] = {"480p": message.text if message.text != "/skip" else None}
-            user_state[uid]["action"] = f"ask_720p_{season}"
-            await message.reply(f"📡 **Season {season}**\n\nEnter **720p Download Link** (or /skip):")
+            group = action.split("ask_480p_")[-1]
+            user_state[uid]["seasons_data"][group] = {"480p": message.text if message.text != "/skip" else None}
+            user_state[uid]["action"] = f"ask_720p_{group}"
+            await message.reply(f"📡 **Group: {group}**\n\nEnter **720p Download Link** (or /skip):")
 
         elif "ask_720p_" in action:
-            season = action.split("_")[-1]
-            user_state[uid]["seasons_data"][season]["720p"] = message.text if message.text != "/skip" else None
-            user_state[uid]["action"] = f"ask_1080p_{season}"
-            await message.reply(f"📡 **Season {season}**\n\nEnter **1080p Download Link** (or /skip):")
+            group = action.split("ask_720p_")[-1]
+            user_state[uid]["seasons_data"][group]["720p"] = message.text if message.text != "/skip" else None
+            user_state[uid]["action"] = f"ask_1080p_{group}"
+            await message.reply(f"📡 **Group: {group}**\n\nEnter **1080p Download Link** (or /skip):")
 
         elif "ask_1080p_" in action:
-            season = action.split("_")[-1]
-            user_state[uid]["seasons_data"][season]["1080p"] = message.text if message.text != "/skip" else None
+            group = action.split("ask_1080p_")[-1]
+            user_state[uid]["seasons_data"][group]["1080p"] = message.text if message.text != "/skip" else None
 
             # Next season or finalize
             state["current_season_idx"] += 1
             if state["current_season_idx"] < len(state["seasons_list"]):
                 next_s = state["seasons_list"][state["current_season_idx"]]
                 state["action"] = f"ask_480p_{next_s}"
-                await message.reply(f"📡 **Season {next_s}**\n\nEnter **480p Download Link** (or /skip):")
+                await message.reply(f"📡 **Group: {next_s}**\n\nEnter **480p Download Link** (or /skip):")
             else:
                 state["action"] = "ask_category_final"
                 cats = await db.get_all_categories()
@@ -389,7 +421,7 @@ def register_handlers(bot: Client):
         if choice == "api":
             user_state[uid]["image"] = state["anime_data"]["image"]
             user_state[uid]["action"] = "ask_seasons"
-            await callback_query.message.edit_caption(caption="✅ **Using API Poster.**\n\n🔢 Send **Season Numbers** (e.g. `1` or `1,2,3`):", reply_markup=None)
+            await callback_query.message.edit_caption(caption="✅ **Using API Poster.**\n\n📝 **Step 5: Content Groups**\n\nEnter names for your content (e.g. `Season 1, Season 2, Movie`):", reply_markup=None)
         else:
             user_state[uid]["action"] = "ask_manual_img"
             await callback_query.message.edit_caption(caption="🖼 Please send the **Direct Image URL**:", reply_markup=None)
