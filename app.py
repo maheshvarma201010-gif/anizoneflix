@@ -23,6 +23,12 @@ templates = Jinja2Templates(directory="templates")
 async def startup_event():
     logger.info("Starting Telegram Bot...")
     try:
+        # Sync loops before starting
+        import asyncio
+        loop = asyncio.get_running_loop()
+        bot.loop = loop
+        bot.dispatcher.loop = loop
+
         await bot.start()
         logger.info("Bot Started Successfully")
         logger.info("Session connected")
@@ -32,6 +38,9 @@ async def startup_event():
         logger.info(f"BOT ONLINE -> @{me.username}")
         logger.info(f"BOT ID -> {me.id}")
         logger.info("LONG POLLING ACTIVE")
+
+        # Give some time for handlers to register if they are in the task queue
+        await asyncio.sleep(1)
 
         # Diagnostics: count handlers
         handler_count = 0

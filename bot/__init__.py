@@ -12,6 +12,8 @@ from utils.utils import slugify
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ANIZONEFLIX_BOT")
 
+logger.info("Initializing Pyrogram Client...")
+
 bot = Client(
     "anizoneflix_bot",
     api_id=Config.API_ID,
@@ -36,6 +38,8 @@ async def set_commands(client):
 # Temporary storage for search flow
 search_results = {}
 user_state = {}
+
+logger.info("Registering handlers...")
 
 @bot.on_message(filters.all, group=-1)
 async def debug_updates(client, message):
