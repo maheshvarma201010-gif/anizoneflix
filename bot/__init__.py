@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import traceback
 from pyrogram import Client, filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from config.config import Config
@@ -36,9 +37,21 @@ async def set_commands(client):
 search_results = {}
 user_state = {}
 
+@bot.on_message(filters.all, group=-1)
+async def debug_all(client, message):
+    try:
+        sender = message.from_user.id if message.from_user else "Unknown"
+        text = message.text or "[Non-text message]"
+        logger.info(f"UPDATE RECEIVED from {sender}: {text}")
+    except Exception:
+        traceback.print_exc()
+
 @bot.on_message(filters.command("ping"))
 async def ping(client, message):
-    await message.reply("🏓 **Pong!** Bot is alive and responsive.")
+    try:
+        await message.reply("🏓 **Pong!** Bot is alive and responsive.")
+    except Exception:
+        traceback.print_exc()
 
 @bot.on_message(filters.command("start"))
 async def start(client, message):
@@ -98,145 +111,148 @@ async def search_cmd(client, message):
 
 @bot.on_message(filters.private & (filters.reply | filters.text) & ~filters.command(["start", "help", "search", "ping", "categories", "del", "cancel", "add_admin"]))
 async def handle_reply(client, message):
-    if not message.from_user: return
-    if not message.text: return
-    if not await is_authorized(message.from_user.id): return
-    if message.text.startswith("/") and message.text != "/skip": return
+    try:
+        if not message.from_user: return
+        if not message.text: return
+        if not await is_authorized(message.from_user.id): return
+        if message.text.startswith("/") and message.text != "/skip": return
 
-    uid = message.from_user.id
-    state = user_state.get(uid)
-    if not state: return
+        uid = message.from_user.id
+        state = user_state.get(uid)
+        if not state: return
 
-    # 1. Select Anime
-    if state["action"] == "select_anime":
-        try:
-            idx = int(message.text) - 1
-            if not (0 <= idx < len(search_results[uid])):
-                return await message.reply("❌ **Invalid selection.** Choose 1-8.")
+        # 1. Select Anime
+        if state["action"] == "select_anime":
+            try:
+                idx = int(message.text) - 1
+                if not (0 <= idx < len(search_results[uid])):
+                    return await message.reply("❌ **Invalid selection.** Choose 1-8.")
 
-            selected = search_results[uid][idx]
-            msg = await message.reply("⏳ **Fetching full metadata...**")
-            details = await jikan.get_anime_details(selected["mal_id"])
+                selected = search_results[uid][idx]
+                msg = await message.reply("⏳ **Fetching full metadata...**")
+                details = await jikan.get_anime_details(selected["mal_id"])
 
-            genres = ", ".join([g['name'] for g in details.get('genres', [])])
-            caption = (
-                f"🎬 **{details['title']}**\n\n"
-                f"⭐ **Score:** {details.get('score', 'N/A')}\n"
-                f"📺 **Episodes:** {details.get('episodes', 'N/A')}\n"
-                f"📌 **Status:** {details.get('status', 'N/A')}\n"
-                f"🏷 **Genres:** {genres}\n\n"
-                f"📖 **Synopsis:** {details.get('synopsis', 'N/A')[:400]}..."
-            )
+                genres = ", ".join([g['name'] for g in details.get('genres', [])])
+                caption = (
+                    f"🎬 **{details['title']}**\n\n"
+                    f"⭐ **Score:** {details.get('score', 'N/A')}\n"
+                    f"📺 **Episodes:** {details.get('episodes', 'N/A')}\n"
+                    f"📌 **Status:** {details.get('status', 'N/A')}\n"
+                    f"🏷 **Genres:** {genres}\n\n"
+                    f"📖 **Synopsis:** {details.get('synopsis', 'N/A')[:400]}..."
+                )
 
-            user_state[uid] = {"action": "ask_season", "anime_data": details}
+                user_state[uid] = {"action": "ask_season", "anime_data": details}
 
-            await message.reply_photo(
-                photo=details['images']['jpg']['large_image_url'],
-                caption=caption
-            )
-            await message.reply("🔢 **Step 1:** Enter the **Season Number** (e.g. 1):")
-            await msg.delete()
+                await message.reply_photo(
+                    photo=details['images']['jpg']['large_image_url'],
+                    caption=caption
+                )
+                await message.reply("🔢 **Step 1:** Enter the **Season Number** (e.g. 1):")
+                await msg.delete()
 
-        except Exception as e:
-            logger.error(f"Selection Error: {e}")
-            await message.reply("❌ **Error processing selection.**")
+            except Exception as e:
+                logger.error(f"Selection Error: {e}")
+                await message.reply("❌ **Error processing selection.**")
 
-    # 2. Ask Season
-    elif state["action"] == "ask_season":
-        user_state[uid]["season"] = message.text
-        user_state[uid]["action"] = "ask_480p"
-        await message.reply(
-            "🔗 **Step 2:** Enter **480p Link** (or /skip):",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭ Skip", callback_data="skip_480p")]])
-        )
-
-    # 3. Quality Links
-    elif state["action"] == "ask_480p":
-        user_state[uid]["links_480p"] = message.text if message.text != "/skip" else None
-        user_state[uid]["action"] = "ask_720p"
-        await message.reply(
-            "🔗 **Step 3:** Enter **720p Link** (or /skip):",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭ Skip", callback_data="skip_720p")]])
-        )
-
-    elif state["action"] == "ask_720p":
-        user_state[uid]["links_720p"] = message.text if message.text != "/skip" else None
-        user_state[uid]["action"] = "ask_1080p"
-        await message.reply(
-            "🔗 **Step 4:** Enter **1080p Link** (or /skip):",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭ Skip", callback_data="skip_1080p")]])
-        )
-
-    elif state["action"] == "ask_1080p":
-        user_state[uid]["links_1080p"] = message.text if message.text != "/skip" else None
-        user_state[uid]["action"] = "ask_batch"
-        await message.reply(
-            "📦 **Step 5:** Enter **Batch Link** (or /skip):",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭ Skip", callback_data="skip_batch")]])
-        )
-
-    elif state["action"] == "ask_batch":
-        user_state[uid]["links_batch"] = message.text if message.text != "/skip" else None
-        user_state[uid]["action"] = "ask_trailer"
-        await message.reply(
-            "🎥 **Step 6:** Enter **Trailer Link** (or /skip):",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭ Skip", callback_data="skip_trailer")]])
-        )
-
-    # 4. Final Publish
-    elif state["action"] == "ask_trailer":
-        user_state[uid]["trailer_link"] = message.text if message.text != "/skip" else None
-
-        try:
-            data = state["anime_data"]
-            season = state["season"]
-            slug = slugify(f"{data['title']} Season {season}")
-
-            anime_entry = {
-                "mal_id": data["mal_id"],
-                "title": data["title"],
-                "slug": slug,
-                "season": season,
-                "synopsis": data.get("synopsis"),
-                "score": data.get("score"),
-                "image": data['images']['jpg']['large_image_url'],
-                "genres": [g['name'] for g in data.get('genres', [])],
-                "studios": [s['name'] for s in data.get('studios', [])],
-                "episodes": data.get("episodes"),
-                "rating": data.get("rating"),
-                "status": data.get("status"),
-                "aired": data.get("aired", {}).get("string"),
-                "year": data.get("year"),
-                "trailer": user_state[uid]["trailer_link"],
-                "links": {
-                    "480p": user_state[uid]["links_480p"],
-                    "720p": user_state[uid]["links_720p"],
-                    "1080p": user_state[uid]["links_1080p"],
-                    "batch": user_state[uid]["links_batch"]
-                }
-            }
-
-            await db.add_anime(anime_entry)
-            logger.info(f"Published: {data['title']} S{season}")
-
-            url = f"{Config.BASE_URL}/anime/{slug}"
+        # 2. Ask Season
+        elif state["action"] == "ask_season":
+            user_state[uid]["season"] = message.text
+            user_state[uid]["action"] = "ask_480p"
             await message.reply(
-                f"✅ **Successfully Published!**\n\n"
-                f"🎬 **Anime:** {data['title']} (S{season})\n"
-                f"🌐 **Website URL:** {url}",
-                disable_web_page_preview=False
+                "🔗 **Step 2:** Enter **480p Link** (or /skip):",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭ Skip", callback_data="skip_480p")]])
             )
-        except Exception as e:
-            logger.error(f"Publish Error: {e}")
-            await message.reply("❌ **Error publishing to database.**")
-        finally:
-            del user_state[uid]
 
-    # 5. Category Name
-    elif state["action"] == "add_category_name":
-        await db.add_category(message.text)
-        await message.reply(f"✅ Category **{message.text}** added successfully!")
-        del user_state[uid]
+        # 3. Quality Links
+        elif state["action"] == "ask_480p":
+            user_state[uid]["links_480p"] = message.text if message.text != "/skip" else None
+            user_state[uid]["action"] = "ask_720p"
+            await message.reply(
+                "🔗 **Step 3:** Enter **720p Link** (or /skip):",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭ Skip", callback_data="skip_720p")]])
+            )
+
+        elif state["action"] == "ask_720p":
+            user_state[uid]["links_720p"] = message.text if message.text != "/skip" else None
+            user_state[uid]["action"] = "ask_1080p"
+            await message.reply(
+                "🔗 **Step 4:** Enter **1080p Link** (or /skip):",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭ Skip", callback_data="skip_1080p")]])
+            )
+
+        elif state["action"] == "ask_1080p":
+            user_state[uid]["links_1080p"] = message.text if message.text != "/skip" else None
+            user_state[uid]["action"] = "ask_batch"
+            await message.reply(
+                "📦 **Step 5:** Enter **Batch Link** (or /skip):",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭ Skip", callback_data="skip_batch")]])
+            )
+
+        elif state["action"] == "ask_batch":
+            user_state[uid]["links_batch"] = message.text if message.text != "/skip" else None
+            user_state[uid]["action"] = "ask_trailer"
+            await message.reply(
+                "🎥 **Step 6:** Enter **Trailer Link** (or /skip):",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭ Skip", callback_data="skip_trailer")]])
+            )
+
+        # 4. Final Publish
+        elif state["action"] == "ask_trailer":
+            user_state[uid]["trailer_link"] = message.text if message.text != "/skip" else None
+
+            try:
+                data = state["anime_data"]
+                season = state["season"]
+                slug = slugify(f"{data['title']} Season {season}")
+
+                anime_entry = {
+                    "mal_id": data["mal_id"],
+                    "title": data["title"],
+                    "slug": slug,
+                    "season": season,
+                    "synopsis": data.get("synopsis"),
+                    "score": data.get("score"),
+                    "image": data['images']['jpg']['large_image_url'],
+                    "genres": [g['name'] for g in data.get('genres', [])],
+                    "studios": [s['name'] for s in data.get('studios', [])],
+                    "episodes": data.get("episodes"),
+                    "rating": data.get("rating"),
+                    "status": data.get("status"),
+                    "aired": data.get("aired", {}).get("string"),
+                    "year": data.get("year"),
+                    "trailer": user_state[uid]["trailer_link"],
+                    "links": {
+                        "480p": user_state[uid]["links_480p"],
+                        "720p": user_state[uid]["links_720p"],
+                        "1080p": user_state[uid]["links_1080p"],
+                        "batch": user_state[uid]["links_batch"]
+                    }
+                }
+
+                await db.add_anime(anime_entry)
+                logger.info(f"Published: {data['title']} S{season}")
+
+                url = f"{Config.BASE_URL}/anime/{slug}"
+                await message.reply(
+                    f"✅ **Successfully Published!**\n\n"
+                    f"🎬 **Anime:** {data['title']} (S{season})\n"
+                    f"🌐 **Website URL:** {url}",
+                    disable_web_page_preview=False
+                )
+            except Exception as e:
+                logger.error(f"Publish Error: {e}")
+                await message.reply("❌ **Error publishing to database.**")
+            finally:
+                del user_state[uid]
+
+        # 5. Category Name
+        elif state["action"] == "add_category_name":
+            await db.add_category(message.text)
+            await message.reply(f"✅ Category **{message.text}** added successfully!")
+            del user_state[uid]
+    except Exception:
+        traceback.print_exc()
 
 @bot.on_message(filters.command("cancel"))
 async def cancel(client, message):
