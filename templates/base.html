@@ -9,10 +9,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --tg-theme-bg: #0f172a;
-            --tg-theme-secondary: #1e293b;
-            --tg-accent: #3b82f6;
-            --tg-glass: rgba(30, 41, 59, 0.7);
+            --tg-theme-bg: #0b0b0d;
+            --tg-theme-secondary: #161618;
+            --tg-accent: #ef4444;
+            --tg-glass: rgba(22, 22, 24, 0.7);
         }
         body {
             background-color: var(--tg-theme-bg);
@@ -33,31 +33,31 @@
     </style>
     {% block head %}{% endblock %}
 </head>
-<body class="selection:bg-blue-500/30">
+<body class="selection:bg-red-500/30">
     <!-- Navbar -->
     <nav class="glass-nav sticky top-0 z-50 px-4 md:px-8 py-3">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
             <a href="/" class="flex items-center space-x-3 group">
                 <div class="relative">
-                    <div class="absolute -inset-1 bg-blue-500 rounded-full blur opacity-25 group-hover:opacity-50 transition"></div>
+                    <div class="absolute -inset-1 bg-red-600 rounded-full blur opacity-25 group-hover:opacity-50 transition"></div>
                     <img src="{{ logo_url }}" class="w-10 h-10 rounded-full relative border border-white/10" alt="Logo">
                 </div>
                 <span class="text-xl font-black tracking-tighter">{{ site_name }}</span>
             </a>
 
             <div class="hidden md:flex items-center space-x-8 text-sm font-semibold">
-                <a href="/" class="hover:text-blue-400 transition">Home</a>
+                <a href="/" class="hover:text-red-400 transition">Home</a>
                 <div class="relative group">
-                    <button class="hover:text-blue-400 transition flex items-center">
+                    <button class="hover:text-red-400 transition flex items-center">
                         Categories <i class="fa-solid fa-chevron-down ml-2 text-[10px]"></i>
                     </button>
                     <div class="absolute top-full right-0 mt-2 w-48 glass rounded-xl p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform translate-y-2 group-hover:translate-y-0">
                         {% for cat in categories %}
-                        <a href="/search?q={{ cat.name }}" class="block px-4 py-2 hover:bg-blue-500/20 rounded-lg transition">{{ cat.name }}</a>
+                        <a href="/search?q={{ cat.name }}" class="block px-4 py-2 hover:bg-red-500/20 rounded-lg transition">{{ cat.name }}</a>
                         {% endfor %}
                     </div>
                 </div>
-                <a href="/search" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl transition shadow-lg shadow-blue-900/20">
+                <a href="/search" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-xl transition shadow-lg shadow-red-900/20">
                     <i class="fa-solid fa-search mr-2"></i> Search
                 </a>
             </div>
@@ -102,7 +102,7 @@
                 <p class="text-gray-400 text-sm max-w-xs">The world's most advanced anime portal. Powered by ANIZONEFLIX ULTRA Technology.</p>
             </div>
             <div class="flex space-x-6 text-xl">
-                <a href="#" class="hover:text-blue-400 transition"><i class="fa-brands fa-telegram"></i></a>
+                <a href="#" class="hover:text-red-400 transition"><i class="fa-brands fa-telegram"></i></a>
                 <a href="#" class="hover:text-blue-400 transition"><i class="fa-brands fa-discord"></i></a>
                 <a href="#" class="hover:text-blue-400 transition"><i class="fa-brands fa-twitter"></i></a>
             </div>

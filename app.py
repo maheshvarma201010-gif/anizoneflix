@@ -26,48 +26,42 @@ templates = Jinja2Templates(directory="templates")
 async def startup_event():
     logger.info("Starting Telegram Bot...")
     try:
-        # Sync loops before starting
+        # Ensure Pyrogram uses the same event loop as FastAPI
         import asyncio
         loop = asyncio.get_running_loop()
+
+        # Critical: Initialize bot with the current running loop
+        # This prevents "loop mismatch" and "PingTask stopped" errors
         bot.loop = loop
-        bot.dispatcher.loop = loop
 
         await bot.start()
-        logger.info("Bot Started Successfully")
-        logger.info("Session connected")
+        logger.info("Bot Started Successfully - Session connected")
 
         # Bot diagnostics
         me = await bot.get_me()
-        logger.info(f"BOT ONLINE -> @{me.username}")
-        logger.info(f"BOT ID -> {me.id}")
-        logger.info("LONG POLLING ACTIVE")
+        logger.info(f"BOT ONLINE -> @{me.username} ({me.id})")
 
+        # Register handlers and commands
         register_handlers(bot)
-
-        # Give some time for handlers to register if they are in the task queue
-        await asyncio.sleep(1)
-
-        # Diagnostics: count handlers
-        handler_count = 0
-        for group in bot.dispatcher.groups.values():
-            handler_count += len(group)
-        logger.info(f"Diagnostics: {handler_count} handlers loaded in {len(bot.dispatcher.groups)} groups.")
-        logger.info(f"Dispatcher state: {'running' if bot.is_connected else 'stopped'}")
-
         await set_commands(bot)
-        logger.info("Handlers and Commands Loaded Successfully")
+
+        # Diagnostics: verify handlers are active
+        handler_count = sum(len(group) for group in bot.dispatcher.groups.values())
+        logger.info(f"Diagnostics: {handler_count} handlers loaded. Long polling active.")
+
     except Exception as e:
-        logger.error(f"Critical error during bot startup: {e}")
+        logger.error(f"CRITICAL: Bot startup failed: {e}")
         logger.error(traceback.format_exc())
-        # We don't want to block the web server if the bot fails,
-        # but in some cases, you might want to raise e.
+        # On Render, if the bot fails, we might want the whole app to fail
+        # so it restarts, but for now we'll just log it.
 
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Stopping Bot...")
     try:
-        await bot.stop()
-        logger.info("Bot Stopped Successfully")
+        if bot.is_connected:
+            await bot.stop()
+            logger.info("Bot Stopped Successfully")
     except Exception as e:
         logger.error(f"Error during bot shutdown: {e}")
 
@@ -82,7 +76,9 @@ async def add_global_vars(request: Request, call_next):
 @app.api_route("/", methods=["GET", "HEAD"])
 async def index(request: Request):
     if request.method == "HEAD":
-        return {"status": "running"}
+        # Render healthcheck expects a 200 OK for HEAD /
+        from fastapi.responses import Response
+        return Response(status_code=200)
 
     if os.getenv("TESTING"):
         mock_anime = {
@@ -190,14 +186,23 @@ async def search_web(request: Request, q: str = ""):
 
 # Admin Web Routes
 @app.get("/admin/login")
-async def admin_login_page(request: Request, token: str):
+async def admin_login_page(request: Request, token: str = None):
+    if not token:
+        return templates.TemplateResponse("404.html", {
+            "request": request,
+            "error": "Missing token",
+            "logo_url": Config.LOGO_URL,
+            "site_name": "ANIZONEFLIX"
+        }, status_code=400)
     try:
         from utils.auth import verify_token
         payload = verify_token(token)
         if payload and payload.get("is_admin"):
             response = RedirectResponse(url="/admin/dashboard", status_code=303)
             # Use secure cookies if on Render (HTTPS)
-            is_secure = "onrender.com" in str(request.base_url)
+            # We also check X-Forwarded-Proto for Render/Proxies
+            is_secure = "onrender.com" in str(request.base_url) or request.headers.get("x-forwarded-proto") == "https"
+
             response.set_cookie(
                 "admin_token",
                 token,
@@ -208,6 +213,7 @@ async def admin_login_page(request: Request, token: str):
             )
             logger.info(f"Admin logged in: {payload.get('user_id')}")
             return response
+
         logger.warning(f"Failed login attempt with token: {token[:10]}...")
         return templates.TemplateResponse("404.html", {
             "request": request,
@@ -218,7 +224,13 @@ async def admin_login_page(request: Request, token: str):
     except Exception as e:
         logger.error(f"Login error: {e}")
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Internal Server Error during login")
+        # Return a more descriptive error instead of a generic 500
+        return templates.TemplateResponse("404.html", {
+            "request": request,
+            "error": f"Login failed: {str(e)}",
+            "logo_url": Config.LOGO_URL,
+            "site_name": "ANIZONEFLIX"
+        }, status_code=500)
 
 @app.get("/admin/dashboard")
 async def admin_dashboard(request: Request, admin=Depends(get_current_admin)):

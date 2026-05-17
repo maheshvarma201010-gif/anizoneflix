@@ -27,7 +27,8 @@ async def set_commands(client):
         BotCommand("start", "Start the bot"),
         BotCommand("search", "Advanced Multi-API Search"),
         BotCommand("add_post", "Automated Post (Speed Mode)"),
-        BotCommand("edit", "Edit Website Post"),
+        BotCommand("edit", "Manage Series / Episode"),
+        BotCommand("change_poster", "Change Series Poster"),
         BotCommand("categories", "Manage Categories"),
         BotCommand("del", "Delete Content"),
         BotCommand("cancel", "Cancel current operation")
@@ -152,10 +153,44 @@ def register_handlers(bot: Client):
     @bot.on_message(filters.command("edit"))
     async def edit_handler(client, message):
         if not await is_authorized(message.from_user.id): return
+
+        buttons = [
+            [InlineKeyboardButton("🌍 Open Web Admin", callback_data="open_web_admin")],
+            [InlineKeyboardButton("📦 Edit Series (Bot)", callback_data="bot_edit_series")],
+            [InlineKeyboardButton("🎬 Add/Edit Episode", callback_data="bot_edit_episode")]
+        ]
+        await message.reply("🛠 **Admin Suite v2.0**\nChoose your management method:", reply_markup=InlineKeyboardMarkup(buttons))
+
+    @bot.on_callback_query(filters.regex("^open_web_admin$"))
+    async def web_admin_cb(client, callback_query):
         from utils.auth import create_access_token
-        token = create_access_token({"user_id": message.from_user.id, "is_admin": True})
+        token = create_access_token({"user_id": callback_query.from_user.id, "is_admin": True})
         login_url = f"{Config.BASE_URL}/admin/login?token={token}"
-        await message.reply(f"🛠 **Admin Portal Access:**\n\n🔗 [Open Web Dashboard]({login_url})", disable_web_page_preview=True)
+        await callback_query.message.edit_text(
+            f"🛠 **Web Admin Portal:**\n\n🔗 [One-Click Login]({login_url})\n\n*Token expires in 24 hours.*",
+            disable_web_page_preview=True
+        )
+
+    @bot.on_callback_query(filters.regex("^bot_edit_series$"))
+    async def bot_edit_series_cb(client, callback_query):
+        user_state[callback_query.from_user.id] = {"action": "edit_series_search"}
+        await callback_query.message.edit_text("🔍 Enter the **Title** or **Slug** of the series to edit:")
+
+    @bot.on_callback_query(filters.regex("^bot_edit_episode$"))
+    async def bot_edit_episode_cb(client, callback_query):
+        user_state[callback_query.from_user.id] = {"action": "edit_episode_search"}
+        await callback_query.message.edit_text("🔍 Enter the **Title** or **Slug** of the series to add episodes to:")
+
+    @bot.on_message(filters.command("change_poster"))
+    async def change_poster_handler(client, message):
+        if not await is_authorized(message.from_user.id): return
+        args = message.command[1:]
+        if len(args) < 1: return await message.reply("❌ Usage: `/change_poster <url>` (Reply to a series message or use after /edit)")
+
+        url = args[0]
+        # Logic to update poster depends on context, for now we ask for slug if not in state
+        user_state[message.from_user.id] = {"action": "change_poster_slug", "new_url": url}
+        await message.reply("🔍 Enter the **Slug** of the series to update:")
 
     @bot.on_message(filters.command("series"))
     async def series_list_handler(client, message):
@@ -188,7 +223,7 @@ def register_handlers(bot: Client):
         await db.delete_anime_by_slug(slug)
         await message.reply(f"🗑 **Deleted:** {slug}")
 
-    @bot.on_message(filters.private & filters.text & ~filters.command(["start", "help", "search", "add_post", "edit", "categories", "del", "cancel", "series"]))
+    @bot.on_message(filters.private & filters.text & ~filters.command(["start", "help", "search", "add_post", "edit", "categories", "del", "cancel", "series", "change_poster"]))
     async def unified_interaction_handler(client, message):
         uid = message.from_user.id
         state = user_state.get(uid)
@@ -196,8 +231,58 @@ def register_handlers(bot: Client):
 
         action = state.get("action", "")
 
+        # 0. Change Poster
+        if action == "change_poster_slug":
+            slug = message.text.strip()
+            res = await db.anime.update_one({"slug": slug}, {"$set": {"image": state["new_url"]}})
+            if res.modified_count:
+                await message.reply(f"✅ **Poster Updated for:** {slug}")
+            else:
+                await message.reply("❌ Series not found.")
+            del user_state[uid]
+
+        # 0.1 Edit Series / Episode Search
+        elif action in ["edit_series_search", "edit_episode_search"]:
+            query = message.text.strip()
+            anime = await db.get_anime_by_slug(query) or await db.anime.find_one({"title": {"$regex": query, "$options": "i"}})
+            if not anime: return await message.reply("❌ Series not found. Try again.")
+
+            if action == "edit_series_search":
+                user_state[uid] = {"action": "ask_seasons", "anime_data": anime, "image": anime["image"]}
+                await message.reply(f"📦 **Editing:** {anime['title']}\n\n🔢 Send **Season Numbers** (e.g. `1` or `1,2,3`):")
+            else:
+                user_state[uid] = {"action": "ask_ep_season", "anime_data": anime}
+                await message.reply(f"🎬 **Add Episodes to:** {anime['title']}\n\n🔢 Enter **Season Number**:")
+
+        # 0.2 Edit Episode Flow
+        elif action == "ask_ep_season":
+            user_state[uid]["season"] = message.text.strip()
+            user_state[uid]["action"] = "ask_ep_number"
+            await message.reply("🔢 Enter **Episode Number**:")
+
+        elif action == "ask_ep_number":
+            user_state[uid]["episode"] = message.text.strip()
+            user_state[uid]["action"] = "ask_ep_links"
+            await message.reply("🔗 Send **Download Link** or **File ID**:")
+
+        elif action == "ask_ep_links":
+            # Simplified episode addition
+            data = state["anime_data"]
+            ep_data = {
+                "mal_id": data["mal_id"],
+                "season": state["season"],
+                "episode": int(state["episode"]),
+                "quality": "HD",
+                "audio": "Japanese",
+                "file_id": message.text,
+                "views": 0
+            }
+            await db.add_episode(ep_data)
+            await message.reply(f"✅ **Episode {state['episode']} added to {data['title']}!**")
+            del user_state[uid]
+
         # 1. Select Series
-        if action == "select_anime":
+        elif action == "select_anime":
             try:
                 idx = int(message.text) - 1
                 selected = search_results[uid][idx]

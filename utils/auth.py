@@ -17,12 +17,16 @@ def create_access_token(data: dict, expires_delta: datetime.timedelta = None):
     return encoded_jwt
 
 def verify_token(token: str):
+    if not token:
+        return None
     try:
         payload = jwt.decode(token, Config.SECRET_KEY, algorithms=["HS256"])
         return payload
     except jwt.ExpiredSignatureError:
         return None
-    except jwt.InvalidTokenError:
+    except (jwt.InvalidTokenError, jwt.DecodeError):
+        return None
+    except Exception:
         return None
 
 async def get_current_admin(request: Request):

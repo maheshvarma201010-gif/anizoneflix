@@ -24,8 +24,8 @@ class AnimeAPI:
             "consumet": "https://api.consumet.org/meta/anilist",
             "myanimelist": "https://api.myanimelist.net/v2"
         }
-        self.tmdb_key = "3fd2be3efead2b9a05f39645152865e2"
-        self.simkl_id = "834160a0f9b6c0e86b971a17c247f078e34898144"
+        self.tmdb_key = Config.TMDB_API_KEY
+        self.simkl_id = os.getenv("SIMKL_ID", "834160a0f9b6c0e86b971a17c247f078e34898144")
 
     async def _get(self, url, params=None, headers=None, timeout=5):
         async with aiohttp.ClientSession() as session:
