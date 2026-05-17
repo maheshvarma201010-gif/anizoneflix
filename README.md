@@ -1,81 +1,77 @@
-# ANIZONEFLIX - Telegram Management Bot & Web Server
+# 🎬 ANIZONEFLIX - FastAPI + Pyrogram Anime CMS
 
-A high-performance FastAPI web server integrated with a Pyrogram Telegram bot, designed for seamless deployment on Render.
+A powerful, high-performance Anime CMS and Management Bot built with **FastAPI**, **Pyrogram**, and **MongoDB**. This project allows you to manage an anime streaming website entirely through a Telegram bot.
 
-## Features
+## 🚀 Key Features
 
-- **FastAPI + Pyrogram**: Optimized integration using async lifecycles.
-- **Render Deployment Ready**: Pre-configured for Render with healthcheck support.
-- **Long Polling**: Automatic update receiving without the need for webhooks.
-- **Async Startup**: Proper handling of bot and web server lifecycles.
-- **Plugin Handler System**: Modular bot commands and message handling.
-- **Healthcheck Support**: Handles Render's HEAD requests to keep the service live.
-- **MongoDB Support**: Integrated database management for anime metadata.
+- **FastAPI Web Server:** Glassmorphism UI, SEO optimized, and fast.
+- **Pyrogram Bot:** Integrated management for searching, adding, and deleting anime.
+- **Automated Posting:** Use `/add_post <name>` to instantly publish anime from Jikan API.
+- **Jikan API Integration:** Fetches metadata, images, and trailers automatically.
+- **MongoDB Database:** Scalable and robust data storage.
+- **Render Ready:** Optimized for seamless deployment on Render.
 
-## Deployment Guide
+---
 
-### Render Deployment
+## 🛠️ Commands
 
-#### Step-by-step:
+### 👤 User Commands
+- `/start` - Start the bot and see welcome message.
+- `/ping` - Check if the bot is alive.
 
-1. **Fork/Upload**: Fork this repository or upload it to your GitHub/GitLab.
-2. **Create Web Service**: On Render, create a new "Web Service".
-3. **Build Command**: Set the build command to `pip install -r requirements.txt`.
-4. **Start Command**: Set the start command to `python main.py`.
-5. **Environment Variables**: Add the required environment variables (see below).
-6. **Deploy**: Trigger the deployment.
+### 🛡️ Admin Commands
+- `/add_post <name>` - **One-shot Auto-Publish:** Fetches first result from Jikan and posts to website.
+- `/add_post <name> <image_url>` - Same as above, but uses a custom image URL.
+- `/search <name>` - **Interactive Search:** Pick from top 8 results and add links step-by-step.
+- `/categories` - Manage website genres/categories.
+- `/del <mal_id or url>` - Remove anime from database.
+- `/add_admin <user_id>` - Authorize a new admin.
+- `/help` - Show full admin guide.
 
-### Start Command
+---
 
-You can use either:
-```bash
-python main.py
-```
-or:
-```bash
-uvicorn app:app --host 0.0.0.0 --port 10000
-```
+## 🔑 Environment Variables
 
-### Required Environment Variables
+| Variable | Description |
+| :--- | :--- |
+| `API_ID` | Telegram API ID from [my.telegram.org](https://my.telegram.org) |
+| `API_HASH` | Telegram API Hash |
+| `BOT_TOKEN` | Bot Token from [@BotFather](https://t.me/BotFather) |
+| `MONGO_URI` | MongoDB Connection String |
+| `ADMIN_IDS` | Comma-separated list of Admin User IDs |
+| `BASE_URL` | Your website URL (e.g. `https://your-site.onrender.com`) |
+| `JIKAN_API` | Jikan API Base URL (Default: `https://api.jikan.moe/v4`) |
+| `LOGO_URL` | Global site logo URL |
 
-Ensure the following variables are set in your Render environment:
+---
 
-- `API_ID`: Your Telegram API ID.
-- `API_HASH`: Your Telegram API Hash.
-- `BOT_TOKEN`: Your Telegram Bot Token.
-- `MONGO_URI`: Your MongoDB connection string.
-- `PORT`: Set to `10000` (or as per your configuration).
+## 📚 Jikan API Guide: Step-by-Step
 
-## Healthcheck
+This project uses the **Jikan API**, a free and open-source PHP & REST API for MyAnimeList.net.
 
-The application supports automatic healthchecks via Render:
+### How to set up Jikan API:
+1. **No API Key Required:** Jikan v4 is public and does not require a private API key for standard usage.
+2. **Endpoint:** By default, the bot uses `https://api.jikan.moe/v4`.
+3. **Configuration:**
+   - Ensure `JIKAN_API` in your `.env` is set to `https://api.jikan.moe/v4`.
+   - If you want to host your own instance (to avoid rate limits), you can follow the [official Jikan installation guide](https://github.com/jikan-me/jikan-rest).
+4. **Rate Limits:** The public API has a limit of 3 requests per second and 60 requests per minute. The bot is designed to handle this, but for heavy usage, consider a private instance.
 
-```python
-@app.api_route("/", methods=["GET", "HEAD"])
-async def root():
-    return {"status": "running"}
-```
+---
 
-## Project Structure
+## 🌐 Deployment on Render
 
-- `app.py`: Main FastAPI application logic and lifecycle events.
-- `bot/`: Package containing Pyrogram bot initialization and handlers.
-- `config/`: Configuration management for environment variables.
-- `database/`: Database interaction logic (MongoDB).
-- `requirements.txt`: Project dependencies.
-- `main.py`: Entry point for starting the web server.
+1. **Create Web Service:** Connect your GitHub repo.
+2. **Environment:** Choose `Python`.
+3. **Build Command:** `pip install -r requirements.txt`
+4. **Start Command:** `python main.py`
+5. **Environment Variables:** Fill in all required variables from the table above.
+6. **Healthcheck:** Render will automatically ping `/` (HEAD request). Our app is pre-configured to handle this.
 
-## Troubleshooting
+---
 
-### Bot not responding
-- Check `BOT_TOKEN` correctness.
-- Ensure the bot is not running elsewhere (multiple sessions cause conflicts).
-- Verify all handlers are correctly imported.
-- Test the `/ping` command.
+## 🤝 Contribution
 
-### Render sleeping issue
-Free instances on Render may sleep after inactivity. To avoid this, consider using a paid instance or an external pinger service to keep the healthcheck endpoint active.
+Feel free to fork this repo and submit PRs for any improvements or new features!
 
-### MongoDB connection errors
-- Verify your `MONGO_URI`.
-- Ensure your IP is whitelisted in MongoDB Atlas or your database provider.
+**Built with ❤️ for Anime Fans.**

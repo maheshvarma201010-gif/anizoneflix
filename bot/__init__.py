@@ -85,7 +85,7 @@ def register_handlers(bot: Client):
             logger.error(f"Error in start cmd: {e}")
             await message.reply(f"Welcome to **ANIZONEFLIX**! Use /help to see commands.")
 
-    @bot.on_message(filters.command(["search", "add_post"]))
+    @bot.on_message(filters.command("search"))
     async def search_cmd(client, message):
         if not message.from_user: return
         if not await is_authorized(message.from_user.id):
@@ -116,6 +116,77 @@ def register_handlers(bot: Client):
 
         await msg.edit(text)
         user_state[message.from_user.id] = {"action": "select_anime"}
+
+    @bot.on_message(filters.command("add_post"))
+    async def add_post_auto(client, message):
+        if not message.from_user: return
+        if not await is_authorized(message.from_user.id):
+            return await message.reply("⛔ **Unauthorized:** You are not an admin.")
+
+        args = message.command[1:]
+        if not args:
+            return await message.reply("❌ **Usage:** `/add_post <anime name>` OR `/add_post <anime name> <image url>`")
+
+        # Check if last arg is a URL
+        image_url = None
+        if args[-1].startswith("http"):
+            image_url = args[-1]
+            query = " ".join(args[:-1])
+        else:
+            query = " ".join(args)
+
+        msg = await message.reply(f"🚀 **Auto-Posting: {query}...**")
+        try:
+            results = await jikan.search_anime(query)
+            if not results:
+                return await msg.edit("😔 **No results found.**")
+
+            data = results[0] # Take first result
+            mal_id = data["mal_id"]
+
+            # Fetch full details
+            details = await jikan.get_anime_details(mal_id)
+
+            season = "1"
+            slug = slugify(f"{details['title']} Season {season}")
+
+            anime_entry = {
+                "mal_id": mal_id,
+                "title": details["title"],
+                "slug": slug,
+                "season": season,
+                "synopsis": details.get("synopsis"),
+                "score": details.get("score"),
+                "image": image_url if image_url else details['images']['jpg']['large_image_url'],
+                "genres": [g['name'] for g in details.get('genres', [])],
+                "studios": [s['name'] for s in details.get('studios', [])],
+                "episodes": details.get("episodes"),
+                "rating": details.get("rating"),
+                "status": details.get("status"),
+                "aired": details.get("aired", {}).get("string"),
+                "year": details.get("year"),
+                "trailer": details.get("trailer", {}).get("url"),
+                "links": {
+                    "480p": None,
+                    "720p": None,
+                    "1080p": None,
+                    "batch": None
+                }
+            }
+
+            await db.add_anime(anime_entry)
+            logger.info(f"Auto-Published: {details['title']}")
+
+            url = f"{Config.BASE_URL}/anime/{slug}"
+            await msg.edit(
+                f"✅ **Successfully Auto-Published!**\n\n"
+                f"🎬 **Anime:** {details['title']}\n"
+                f"🌐 **Website URL:** {url}",
+                disable_web_page_preview=False
+            )
+        except Exception as e:
+            logger.error(f"Auto-Publish Error: {e}")
+            await msg.edit(f"❌ **Error:** {str(e)}")
 
     @bot.on_message(filters.private & (filters.reply | filters.text) & ~filters.command(["start", "help", "search", "ping", "categories", "del", "cancel", "add_admin"]))
     async def handle_reply(client, message):
