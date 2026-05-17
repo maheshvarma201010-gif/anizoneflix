@@ -1,77 +1,68 @@
-# 🎬 ANIZONEFLIX - FastAPI + Pyrogram Anime CMS
+# 🎬 ANIZONEFLIX ULTRA - Power-Pack Anime CMS
 
-A powerful, high-performance Anime CMS and Management Bot built with **FastAPI**, **Pyrogram**, and **MongoDB**. This project allows you to manage an anime streaming website entirely through a Telegram bot.
+An industrial-grade Anime Management System powered by **FastAPI**, **Pyrogram 2.x**, and a massive **Multi-API Aggregator**. This project provides elite performance, speed, and 100% reliability by connecting to 10+ high-speed anime metadata sources.
 
-## 🚀 Key Features
+## 🚀 Ultra-Performance Features
 
-- **FastAPI Web Server:** Glassmorphism UI, SEO optimized, and fast.
-- **Pyrogram Bot:** Integrated management for searching, adding, and deleting anime.
-- **Automated Posting:** Use `/add_post <name>` to instantly publish anime from Jikan API.
-- **Jikan API Integration:** Fetches metadata, images, and trailers automatically.
-- **MongoDB Database:** Scalable and robust data storage.
-- **Render Ready:** Optimized for seamless deployment on Render.
-
----
-
-## 🛠️ Commands
-
-### 👤 User Commands
-- `/start` - Start the bot and see welcome message.
-- `/ping` - Check if the bot is alive.
-
-### 🛡️ Admin Commands
-- `/add_post <name>` - **One-shot Auto-Publish:** Fetches first result from Jikan and posts to website.
-- `/add_post <name> <image_url>` - Same as above, but uses a custom image URL.
-- `/search <name>` - **Interactive Search:** Pick from top 8 results and add links step-by-step.
-- `/categories` - Manage website genres/categories.
-- `/del <mal_id or url>` - Remove anime from database.
-- `/add_admin <user_id>` - Authorize a new admin.
-- `/help` - Show full admin guide.
+- **10+ API Aggregator:** Connects to Jikan (MAL), AniList, Kitsu, Shikimori, TMDb, Simkl, MangaDex, and more simultaneously.
+- **Fail-Proof Search:** If one API is down, the system instantly falls back to others. No more "Not Found" errors.
+- **Parallel Processing:** Search queries are run in parallel for maximum speed.
+- **Smart Grouping:** Automatically detects series, seasons, and episodes from filenames.
+- **Web Admin Dashboard:** Full control over your posts, custom buttons, and metadata via a secure web interface.
+- **High-End UI:** Glassmorphism design, mobile-optimized, and SEO ready.
 
 ---
 
-## 🔑 Environment Variables
+## 🛠️ Bot Commands
 
-| Variable | Description |
-| :--- | :--- |
-| `API_ID` | Telegram API ID from [my.telegram.org](https://my.telegram.org) |
-| `API_HASH` | Telegram API Hash |
-| `BOT_TOKEN` | Bot Token from [@BotFather](https://t.me/BotFather) |
-| `MONGO_URI` | MongoDB Connection String |
-| `ADMIN_IDS` | Comma-separated list of Admin User IDs |
-| `BASE_URL` | Your website URL (e.g. `https://your-site.onrender.com`) |
-| `JIKAN_API` | Jikan API Base URL (Default: `https://api.jikan.moe/v4`) |
-| `LOGO_URL` | Global site logo URL |
+### 🛡️ Admin Suite
+- `/search <name>` - **ULTRA SEARCH:** Aggregates all APIs and lets you pick the best match.
+- `/add_post <name>` - **SPEED MODE:** Instantly publishes the top result to your website.
+- `/edit` - Generates a secure, one-click access link to the **Web Admin Panel**.
+- `/del <id>` - Instantly remove content from the database and website.
+- `/categories` - Manage website genres and navigation.
 
 ---
 
-## 📚 Jikan API Guide: Step-by-Step
+## 🔑 Configuration & APIs
 
-This project uses the **Jikan API**, a free and open-source PHP & REST API for MyAnimeList.net.
+This system is pre-configured with high-speed endpoints. You can further customize them in your `.env`:
 
-### How to set up Jikan API:
-1. **No API Key Required:** Jikan v4 is public and does not require a private API key for standard usage.
-2. **Endpoint:** By default, the bot uses `https://api.jikan.moe/v4`.
-3. **Configuration:**
-   - Ensure `JIKAN_API` in your `.env` is set to `https://api.jikan.moe/v4`.
-   - If you want to host your own instance (to avoid rate limits), you can follow the [official Jikan installation guide](https://github.com/jikan-me/jikan-rest).
-4. **Rate Limits:** The public API has a limit of 3 requests per second and 60 requests per minute. The bot is designed to handle this, but for heavy usage, consider a private instance.
+| Variable | Description | Default / Example |
+| :--- | :--- | :--- |
+| `API_ID` | Telegram API ID | `12345` |
+| `API_HASH` | Telegram API Hash | `abcdef...` |
+| `BOT_TOKEN` | Bot Token | `12345:token` |
+| `TMDB_API_KEY` | High-speed TMDb Key | `3fd2be3efead2b9a05f39645152865e2` |
+| `JIKAN_API` | Jikan Base | `https://api.jikan.moe/v4` |
+
+### Integrated APIs:
+1. **Jikan (MAL):** Primary source for MAL metadata.
+2. **AniList (GraphQL):** High-precision search and covers.
+3. **Kitsu.io:** Rapid metadata fallback.
+4. **Shikimori:** Russian/Global database powerhouse.
+5. **TMDb:** Industry-standard reliability for TV/Anime.
+6. **Simkl:** Fast search and posters.
+7. **MangaDex:** Title and image fallback.
+8. **Notify.moe:** Real-time update source.
+9. **Enime:** Metadata API provider.
+10. **Consumet:** Content aggregator API.
 
 ---
 
-## 🌐 Deployment on Render
+## 🌐 Elite Deployment
 
-1. **Create Web Service:** Connect your GitHub repo.
-2. **Environment:** Choose `Python`.
-3. **Build Command:** `pip install -r requirements.txt`
-4. **Start Command:** `python main.py`
-5. **Environment Variables:** Fill in all required variables from the table above.
-6. **Healthcheck:** Render will automatically ping `/` (HEAD request). Our app is pre-configured to handle this.
+1. **GitHub:** Fork and connect your repository to Render.
+2. **Runtime:** Select `Python 3.10+`.
+3. **Build:** `pip install -r requirements.txt`
+4. **Start:** `python main.py`
+5. **Healthcheck:** Pre-configured for Render (HEAD /).
 
 ---
 
-## 🤝 Contribution
+## 🛡️ Security
+- **JWT Authentication:** Secure web admin access.
+- **CSRF Protection:** Integrated into the dashboard.
+- **Rate Limiting:** Protects your APIs and server.
 
-Feel free to fork this repo and submit PRs for any improvements or new features!
-
-**Built with ❤️ for Anime Fans.**
+**Engineered for Speed. Built for Reliability.**

@@ -12,3 +12,5 @@ python-multipart
 requests
 httpx
 mongomock_motor
+PyJWT
+cryptography

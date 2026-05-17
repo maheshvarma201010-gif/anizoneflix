@@ -145,7 +145,10 @@ async def anime_detail(request: Request, slug: str):
             }, status_code=404)
 
         categories = await db.get_all_categories()
+        # Fetch and sort episodes by number
         episodes = await db.get_episodes(anime["mal_id"])
+        if episodes:
+            episodes.sort(key=lambda x: x.get("episode", 0))
 
     return templates.TemplateResponse(request=request, name="details.html", context={
         "anime": anime,
@@ -197,8 +200,14 @@ async def admin_dashboard(request: Request, admin=Depends(get_current_admin)):
     })
 
 @app.get("/admin/edit/{mal_id}")
-async def edit_post_page(request: Request, mal_id: int, admin=Depends(get_current_admin)):
-    anime = await db.get_anime_by_mal_id(mal_id)
+async def edit_post_page(request: Request, mal_id: str, admin=Depends(get_current_admin)):
+    # Try both string and int (some IDs are strings from auto-post)
+    try:
+        query_id = int(mal_id)
+    except:
+        query_id = mal_id
+
+    anime = await db.get_anime_by_mal_id(query_id)
     if not anime:
         return {"error": "Post not found"}
     return templates.TemplateResponse("edit.html", {
@@ -209,10 +218,15 @@ async def edit_post_page(request: Request, mal_id: int, admin=Depends(get_curren
     })
 
 @app.post("/api/admin/save/{mal_id}")
-async def save_post(request: Request, mal_id: int, admin=Depends(get_current_admin)):
+async def save_post(request: Request, mal_id: str, admin=Depends(get_current_admin)):
     data = await request.json()
+    try:
+        query_id = int(mal_id)
+    except:
+        query_id = mal_id
+
     # Update DB
-    await db.anime.update_one({"mal_id": mal_id}, {"$set": data})
+    await db.anime.update_one({"mal_id": query_id}, {"$set": data})
     return {"status": "success"}
 
 if __name__ == "__main__":
