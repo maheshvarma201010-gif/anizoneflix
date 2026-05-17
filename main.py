@@ -6,7 +6,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ANIZONEFLIX_MAIN")
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
+    from config.config import Config
+    port = Config.PORT
     logger.info(f"Starting Web Server on port {port}...")
     try:
         # We use string import for app to avoid issues with event loops

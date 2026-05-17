@@ -24,30 +24,36 @@ templates = Jinja2Templates(directory="templates")
 # Bot lifecycle management
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Starting Telegram Bot...")
+    logger.info("Starting Telegram Bot Sequence...")
     try:
         # Ensure Pyrogram uses the same event loop as FastAPI
         import asyncio
         loop = asyncio.get_running_loop()
 
-        # Critical: Initialize bot with the current running loop
-        # This prevents "loop mismatch" and "PingTask stopped" errors
+        # Critical: Sync bot and dispatcher with current running loop
         bot.loop = loop
+        if hasattr(bot, "dispatcher"):
+            bot.dispatcher.loop = loop
 
+        # Register handlers BEFORE starting to ensure they are bound to the correct loop
+        logger.info("Registering Bot Handlers...")
+        register_handlers(bot)
+
+        # Start the client
+        logger.info("Connecting to Telegram...")
         await bot.start()
         logger.info("Bot Started Successfully - Session connected")
+
+        # Set commands
+        await set_commands(bot)
 
         # Bot diagnostics
         me = await bot.get_me()
         logger.info(f"BOT ONLINE -> @{me.username} ({me.id})")
 
-        # Register handlers and commands
-        register_handlers(bot)
-        await set_commands(bot)
-
         # Diagnostics: verify handlers are active
         handler_count = sum(len(group) for group in bot.dispatcher.groups.values())
-        logger.info(f"Diagnostics: {handler_count} handlers loaded. Long polling active.")
+        logger.info(f"Diagnostics: {handler_count} handlers loaded. LONG POLLING ACTIVE.")
 
     except Exception as e:
         logger.error(f"CRITICAL: Bot startup failed: {e}")

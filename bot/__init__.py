@@ -46,6 +46,10 @@ async def is_authorized(user_id):
 def register_handlers(bot: Client):
     logger.info("Registering Advanced Handlers v2.0...")
 
+    @bot.on_message(filters.command("ping"))
+    async def ping_handler(client, message):
+        await message.reply("🏓 **Pong!** Bot is online and responsive.")
+
     @bot.on_message(filters.command("start"))
     async def start_handler(client, message):
         await message.reply_photo(
@@ -66,7 +70,10 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("help"))
     async def help_handler(client, message):
-        if not await is_authorized(message.from_user.id): return
+        if not message.from_user: return
+        if not await is_authorized(message.from_user.id):
+            return await message.reply("❌ **Access Denied.** This area is reserved for authorized administrators.")
+
         text = (
             "🚀 **ANIZONEFLIX ULTRA: Admin Guide**\n\n"
             "**CORE COMMANDS**\n"
@@ -94,7 +101,10 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("search"))
     async def search_handler(client, message):
-        if not await is_authorized(message.from_user.id): return
+        if not message.from_user: return
+        if not await is_authorized(message.from_user.id):
+            return await message.reply("❌ **Unauthorized.** Please contact the owner for access.")
+
         query = " ".join(message.command[1:])
         if not query: return await message.reply("❌ Usage: `/search Naruto`")
 
@@ -114,7 +124,10 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("add_post"))
     async def auto_post_handler(client, message):
-        if not await is_authorized(message.from_user.id): return
+        if not message.from_user: return
+        if not await is_authorized(message.from_user.id):
+            return await message.reply("❌ **Unauthorized.**")
+
         query = " ".join(message.command[1:])
         if not query: return await message.reply("❌ Usage: `/add_post One Piece`")
 
@@ -152,7 +165,9 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("edit"))
     async def edit_handler(client, message):
-        if not await is_authorized(message.from_user.id): return
+        if not message.from_user: return
+        if not await is_authorized(message.from_user.id):
+            return await message.reply("❌ **Unauthorized.**")
 
         buttons = [
             [InlineKeyboardButton("🌍 Open Web Admin", callback_data="open_web_admin")],
@@ -183,7 +198,10 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("change_poster"))
     async def change_poster_handler(client, message):
-        if not await is_authorized(message.from_user.id): return
+        if not message.from_user: return
+        if not await is_authorized(message.from_user.id):
+            return await message.reply("❌ **Unauthorized.**")
+
         args = message.command[1:]
         if len(args) < 1: return await message.reply("❌ Usage: `/change_poster <url>` (Reply to a series message or use after /edit)")
 
@@ -194,7 +212,10 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("series"))
     async def series_list_handler(client, message):
-        if not await is_authorized(message.from_user.id): return
+        if not message.from_user: return
+        if not await is_authorized(message.from_user.id):
+            return await message.reply("❌ **Unauthorized.**")
+
         args = message.command[1:]
         if not args: return await message.reply("❌ Usage: `/series <slug>`")
 
@@ -215,7 +236,10 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("del"))
     async def delete_handler(client, message):
-        if not await is_authorized(message.from_user.id): return
+        if not message.from_user: return
+        if not await is_authorized(message.from_user.id):
+            return await message.reply("❌ **Unauthorized.**")
+
         args = message.command[1:]
         if not args: return await message.reply("❌ Usage: `/del <slug>`")
 

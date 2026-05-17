@@ -12,10 +12,12 @@ class Config:
     JIKAN_API = os.getenv("JIKAN_API", "https://api.jikan.moe/v4")
     ANILIST_API = "https://graphql.anilist.co"
     KITSU_API = "https://kitsu.io/api/edge"
-    TMDB_API_KEY = os.getenv("TMDB_API_KEY", "3fd2be3efead2b9a05f39645152865e2")
+    TMDB_API_KEY = os.getenv("TMDB_API_KEY", "")
+    SIMKL_ID = os.getenv("SIMKL_ID", "")
     SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
     ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "admin-api-key")
     LOGO_URL = os.getenv("LOGO_URL", "https://telegra.ph/file/0c1737e466395b3531b78.jpg")
     BASE_URL = os.getenv("BASE_URL", "https://anizoneflix.onrender.com")
+    PORT = int(os.getenv("PORT", 8080))
     DB_NAME = "anizoneflix"
     DEBUG = os.getenv("DEBUG", "False").lower() == "true"
