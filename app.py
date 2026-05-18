@@ -9,18 +9,68 @@ import os
 import logging
 import traceback
 import asyncio
+import sys
 from bot import bot, set_commands, register_handlers
-from utils.auth import get_current_admin
+from utils.auth import get_current_admin, verify_token
+from utils.utils import slugify
 from fastapi.responses import RedirectResponse, JSONResponse, Response
-from starlette.exceptions import HTTPException as StarletteHTTPException
+from contextlib import asynccontextmanager
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ANIZONEFLIX_APP")
 
-app = FastAPI(title="ANIZONEFLIX")
+# --- GLOBAL ERROR HANDLING ---
 
-# Stability: CORS for Render / Remote access
+def handle_exception(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+
+sys.excepthook = handle_exception
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # STARTUP
+    logger.info("AniZoneFlix Production Engine starting...")
+    try:
+        await db.connect()
+        loop = asyncio.get_running_loop()
+        bot.loop = loop
+        if hasattr(bot, "dispatcher"):
+            bot.dispatcher.loop = loop
+
+        def loop_exception_handler(loop, context):
+            msg = context.get("exception", context["message"])
+            logger.error(f"Async Task Error: {msg}")
+        loop.set_exception_handler(loop_exception_handler)
+
+        register_handlers(bot)
+        await bot.start()
+        await set_commands(bot)
+
+        me = await bot.get_me()
+        logger.info(f"Production Suite LIVE -> @{me.username}")
+    except Exception as e:
+        logger.critical(f"STARTUP FAILURE: {e}")
+        logger.error(traceback.format_exc())
+
+    yield
+
+    # SHUTDOWN
+    logger.info("Production Engine shutting down...")
+    try:
+        if bot.is_connected:
+            await bot.stop()
+        await anime_api.close()
+    except Exception as e:
+        logger.error(f"Shutdown error: {e}")
+
+# --- APP INITIALIZATION ---
+
+app = FastAPI(title="ANIZONEFLIX", lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,88 +81,32 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+# Register custom filters
+templates.env.filters["slugify"] = slugify
 
-# --- GLOBAL ERROR HANDLERS ---
+# --- CUSTOM RESPONSES ---
 
-@app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request, exc):
-    if "api" in request.url.path:
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"success": False, "data": None, "message": str(exc.detail)}
-        )
-    return templates.TemplateResponse("404.html", {"request": request, "error": exc.detail}, status_code=exc.status_code)
+def safe_api_response(success=True, data=None, message=""):
+    return JSONResponse(content={
+        "success": success,
+        "data": data or [],
+        "message": message
+    })
+
+# --- ERROR HANDLERS ---
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"GLOBAL CRASH: {exc}")
-    logger.error(traceback.format_exc())
+    logger.error(f"ROUTE ERROR: {request.url.path} -> {exc}")
     if "api" in request.url.path:
-        return JSONResponse(
-            status_code=500,
-            content={"success": False, "data": None, "message": "Internal Server Error"}
-        )
-    return templates.TemplateResponse("404.html", {"request": request, "error": "System temporarily unavailable."}, status_code=500)
+        return safe_api_response(False, None, "Internal Server Error")
+    return templates.TemplateResponse("404.html", {"request": request, "error": "Internal Server Error"}, status_code=500)
 
-# --- LIFECYCLE ---
-
-@app.on_event("startup")
-async def startup_event():
-    logger.info("AniZoneFlix Production Engine starting...")
-    try:
-        # 1. Initialize Database with Retries
-        await db.connect()
-
-        # 2. Synchronize Pyrogram with running event loop
-        loop = asyncio.get_running_loop()
-        bot.loop = loop
-        if hasattr(bot, "dispatcher"):
-            bot.dispatcher.loop = loop
-
-        # 3. Register Handlers BEFORE startup
-        register_handlers(bot)
-
-        # 4. Start Telegram Client
-        await bot.start()
-        await set_commands(bot)
-
-        me = await bot.get_me()
-        logger.info(f"Production Suite LIVE -> @{me.username}")
-    except Exception as e:
-        logger.critical(f"STARTUP FAILURE: {e}")
-        # We allow the app to start so Render doesn't loop forever,
-        # but the /ping will show degraded status.
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("Production Engine shutting down...")
-    try:
-        if bot.is_connected:
-            await bot.stop()
-        await anime_api.close()
-        logger.info("Shutdown complete.")
-    except Exception as e:
-        logger.error(f"Shutdown error: {e}")
-
-# --- MIDDLEWARE ---
-
-@app.middleware("http")
-async def safety_middleware(request: Request, call_next):
-    request.state.logo_url = Config.LOGO_URL
-    request.state.site_name = "ANIZONEFLIX"
-    try:
-        response = await call_next(request)
-        return response
-    except Exception as e:
-        logger.error(f"Middleware Exception: {e}")
-        return JSONResponse(status_code=500, content={"success": False, "message": "Critical Error"})
-
-# --- ROUTES ---
+# --- WEB ROUTES ---
 
 @app.api_route("/", methods=["GET", "HEAD"])
 async def index(request: Request):
     if request.method == "HEAD":
-        # Health check logic
         is_healthy = await db.ping() and bot.is_connected
         return Response(status_code=200 if is_healthy else 503)
 
@@ -130,26 +124,18 @@ async def index(request: Request):
             "site_name": "ANIZONEFLIX"
         })
     except Exception as e:
-        logger.error(f"Index route error: {e}")
+        logger.error(f"Index error: {e}")
         return templates.TemplateResponse("index.html", {
             "request": request, "trending": [], "recent": [], "categories": [],
             "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
         })
 
 @app.get("/ping")
-async def render_health_ping():
-    db_ok = await db.ping()
-    bot_ok = bot.is_connected
-    return {
-        "success": db_ok and bot_ok,
-        "status": "healthy" if db_ok and bot_ok else "degraded",
-        "database": db_ok,
-        "bot": bot_ok
-    }
+async def health_ping():
+    return safe_api_response(True, {"status": "ok", "db": await db.ping(), "bot": bot.is_connected})
 
 @app.get("/schedule")
 async def schedule_page(request: Request):
-    """RENDER PRODUCTION: Safe Schedule Route"""
     try:
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         schedules = {}
@@ -190,16 +176,16 @@ async def anime_detail(request: Request, slug: str):
             "site_name": "ANIZONEFLIX"
         })
     except Exception as e:
-        logger.error(f"Detail page error: {e}")
-        return templates.TemplateResponse("404.html", {"request": request, "error": "Series data unreachable."})
+        logger.error(f"Detail error for {slug}: {e}")
+        return templates.TemplateResponse("404.html", {"request": request, "error": "Database error."}, status_code=500)
 
 @app.get("/api/anime")
 async def get_anime_api(skip: int = 0, limit: int = 20):
     try:
         data = await db.get_all_anime(limit=limit, skip=skip)
-        return {"success": True, "data": data or [], "message": "Success"}
+        return safe_api_response(True, data)
     except Exception as e:
-        return {"success": False, "data": [], "message": str(e)}
+        return safe_api_response(False, None, str(e))
 
 @app.get("/search")
 async def search_web(request: Request, q: str = ""):
@@ -209,6 +195,8 @@ async def search_web(request: Request, q: str = ""):
                 {"title": {"$regex": q, "$options": "i"}},
                 {"category": q}
             ]}).sort("_id", -1).to_list(length=50)
+            from database.db import clean_doc
+            results = clean_doc(results)
         else:
             results = await db.get_all_anime(limit=50)
 
@@ -222,13 +210,52 @@ async def search_web(request: Request, q: str = ""):
             "site_name": "ANIZONEFLIX"
         })
     except Exception as e:
-        logger.error(f"Search route error: {e}")
-        return templates.TemplateResponse("search.html", {
-            "request": request, "results": [], "query": q, "categories": [],
-            "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
-        })
+        logger.error(f"Search error: {e}")
+        return templates.TemplateResponse("search.html", {"request": request, "results": [], "query": q, "categories": []})
+
+# --- ADMIN ROUTES ---
+
+@app.get("/admin/login")
+async def admin_login(request: Request, token: str = None):
+    if not token: return RedirectResponse(url="/")
+    try:
+        payload = verify_token(token)
+        if payload and payload.get("is_admin"):
+            response = RedirectResponse(url="/admin/dashboard")
+            is_secure = "onrender.com" in str(request.base_url) or request.headers.get("x-forwarded-proto") == "https"
+            response.set_cookie("admin_token", token, httponly=True, secure=is_secure, samesite="lax", max_age=86400)
+            return response
+    except: pass
+    return RedirectResponse(url="/")
+
+@app.get("/admin/dashboard")
+async def admin_dashboard(request: Request, admin=Depends(get_current_admin)):
+    posts = await db.get_all_anime(limit=100)
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request, "posts": posts or [], "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
+    })
+
+@app.get("/admin/edit/{mal_id}")
+async def edit_post_page(request: Request, mal_id: str, admin=Depends(get_current_admin)):
+    try: query_id = int(mal_id)
+    except: query_id = mal_id
+    anime = await db.get_anime_by_mal_id(query_id)
+    if not anime: return RedirectResponse(url="/admin/dashboard")
+    return templates.TemplateResponse("edit.html", {
+        "request": request, "anime": anime, "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
+    })
+
+@app.post("/api/admin/save/{mal_id}")
+async def save_post(request: Request, mal_id: str, admin=Depends(get_current_admin)):
+    try:
+        data = await request.json()
+        try: query_id = int(mal_id)
+        except: query_id = mal_id
+        await db.anime.update_one({"mal_id": query_id}, {"$set": data})
+        return safe_api_response(True)
+    except Exception as e: return safe_api_response(False, message=str(e))
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))
     uvicorn.run("app:app", host="0.0.0.0", port=port, log_level="info")
