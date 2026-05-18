@@ -1,44 +1,78 @@
-# 🎬 ANIZONEFLIX ULTRA v2.0 - High-End Anime CMS
+# 👑 AniZoneFlix Executive Suite v2.0
 
-The ultimate, industrial-grade Anime Management System powered by **FastAPI**, **Pyrogram 2.x**, and a massive **Multi-API Aggregator**. This project provides elite performance, speed, and a high-end Telegram-themed UI.
+The world's most advanced Anime Management Portal & Telegram Bot Suite. Engineered for absolute stability, industrial-grade automation, and a premium streaming experience.
 
-## 🚀 v2.0 Ultra Features
+---
 
-- **Multi-API Aggregator:** Connects to 11+ high-speed sources (Jikan, AniList, Kitsu, Shikimori, TMDb, etc.).
-- **Interactive Multi-Season Flow:** Effortlessly add multiple seasons (e.g., '1,2,3') in one go.
-- **Separate Quality Links:** Dedicated slots for 480p, 720p, and 1080p links per season.
-- **Custom Poster Choice:** Choose between automated API posters or provide your own manual URL.
-- **Telegram-Themed Glassmorphism UI:** A beautiful, dark, and modern streaming interface.
-- **Infinite Scroll Pagination:** Automated loading for unlimited anime listings.
-- **Secure Web Admin:** JWT-authenticated dashboard for full control over metadata and buttons.
+## 🚀 Deployment Guide
 
-## 🛠️ Updated Bot Commands
+### ☁️ Render Deployment (Full Suite: Web + Bot)
+Render is the recommended platform for hosting the combined FastAPI server and Pyrogram long-polling bot.
 
-### 🛡️ Admin Suite
-- `/search <name>` - **ULTRA SEARCH:** Interactive setup with season and quality link collection.
-- `/add_post <name>` - **SPEED MODE:** Instant one-shot publication to a selected category.
-- `/edit` - Secure one-click login link for the **Web Admin Panel**.
-- `/series <slug>` - View and verify all loaded episodes for a specific series.
-- `/help` - Open the detailed v2.0 Admin Guide.
+1.  **Create a New Web Service:**
+    *   **Runtime:** `Python 3`
+    *   **Build Command:** `pip install -r requirements.txt`
+    *   **Start Command:** `python main.py` or `uvicorn app:app --host 0.0.0.0 --port $PORT`
 
-## 🔑 Environment Setup
+2.  **Environment Variables:**
+    | Key | Description |
+    |-----|-------------|
+    | `API_ID` | Telegram API ID from my.telegram.org |
+    | `API_HASH` | Telegram API Hash from my.telegram.org |
+    | `BOT_TOKEN` | Bot Token from @BotFather |
+    | `MONGO_URI` | MongoDB Atlas Connection String |
+    | `TMDB_API_KEY` | TMDb API Key for advanced metadata |
+    | `PORT` | Set to `10000` (Render default) |
+    | `BASE_URL` | `https://your-app.onrender.com` |
 
-Ensure the following are set in your Render environment:
+3.  **Health Check:** Set to `/` (HEAD) or `/ping`.
 
-| Variable | Description |
-| :--- | :--- |
-| `API_ID` | Telegram API ID |
-| `API_HASH` | Telegram API Hash |
-| `BOT_TOKEN` | Telegram Bot Token |
-| `MONGO_URI` | MongoDB Connection String |
-| `SECRET_KEY` | For JWT & Encryption (Min 32 chars recommended) |
-| `BASE_URL` | Your website URL |
+---
 
-## 🌐 Elite Deployment
+### 📐 Vercel Deployment (Frontend Only)
+Vercel is optimized for frontend delivery. **Note:** Pyrogram bots will NOT function on Vercel as they require persistent connections.
 
-1. **GitHub:** Connect your repo to Render.
-2. **Build:** `pip install -r requirements.txt`
-3. **Start:** `python main.py`
-4. **Auto-Optimization:** System automatically adjusts to Render's infrastructure.
+1.  **Framework:** `FastAPI` (Vercel will detect `app.py`).
+2.  **Environment Variables:**
+    *   `VITE_BACKEND_URL`: `https://your-render-app.onrender.com` (If using a separate JS frontend).
+    *   For this Python-native suite, simply add all variables from the Render list above.
 
-**Engineered for Speed. Designed for Excellence.**
+---
+
+### 🐳 Docker Deployment (Parity Environment)
+```bash
+# Build
+docker build -t anizoneflix .
+
+# Run
+docker run -p 8080:8080 --env-file .env anizoneflix
+```
+
+---
+
+## 🛠 Features & Architecture
+
+### 🛡 Production Hardening
+*   **Synchronized Lifespan:** Database, Bot, and API sessions share the same event loop, preventing "Session stopped" errors.
+*   **Safe-Fail DB:** Robust retries and `MockCollection` safety prevents 500 errors during cold starts or DB maintenance.
+*   **Response Integrity:** All API endpoints return a standardized `{ success, data, message }` JSON schema.
+*   **Error-Proof UI:** Jinja2 templates are hardened with existence checks to prevent crashes on missing metadata.
+
+### 🎯 Intelligence Aggregator
+High-speed metadata extraction from:
+✅ Jikan (MAL) ✅ AniList ✅ Kitsu ✅ TMDb ✅ Simkl
+
+### 💎 Executive Bot Suite
+*   `/search <title>`: Interactive intelligence setup with custom metadata calibration.
+*   `/edit <url>`: Real-time content group and archive management.
+*   `/schedule`: Centralized airtime synchronization across the network.
+*   `/categories`: Full CRUD genre management.
+
+---
+
+## 🔍 Industrial-Grade Diagnostics
+Monitor system health via `/ping` or the HEAD request on `/`.
+*   **Status 200:** System fully operational.
+*   **Status 503:** Degraded status (Bot or Database disconnected).
+
+**AniZoneFlix** — *Engineered for Perfection.*

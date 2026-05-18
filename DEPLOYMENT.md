@@ -1,76 +1,44 @@
-# 🚀 AniZoneFlix Production Deployment Guide
+# 🛠 Technical Deployment Specification
 
-This guide ensures a stable, error-free deployment of the **AniZoneFlix Executive Suite** on Render and Vercel.
+This document details the industrial-grade configurations required for a 100% success rate on Render and Vercel.
 
----
+## 📦 Dependency Manifest
+The system requires `Python 3.10+`. Core dependencies:
+- `fastapi`, `uvicorn`, `jinja2`: Web Engine
+- `pyrogram`, `tgcrypto`: Intelligence Suite
+- `motor`, `dnspython`: Persistence Layer
+- `PyJWT`, `cryptography`: Executive Authorization
+- `aiohttp`: High-speed API aggregation
 
-## 🛠 Prerequisites
-- **MongoDB Atlas:** A cluster URI (e.g., `mongodb+srv://...`).
-- **Telegram Bot:** `API_ID`, `API_HASH`, and `BOT_TOKEN` from [@BotFather](https://t.me/BotFather) and [my.telegram.org](https://my.telegram.org).
-- **TMDb:** An API Key for advanced metadata.
+## ☁️ Render Optimization
+Render's shared event loop can cause "PingTask stopped" errors if not handled correctly.
+- **Fix Applied:** The system uses a single `lifespan` context to unify the event loop for Database, Bot, and Web.
+- **Port Binding:** Automatically detects `$PORT` from environment.
+- **Keep-Alive:** Health check endpoint `/ping` prevents free-tier idling during active hours.
 
----
+## 📐 Vercel Frontend Configuration
+If deploying a decoupled JS frontend (React/Vue/Vite) against this backend:
+1.  Add `VITE_BACKEND_URL=https://your-render-app.onrender.com` to Vercel env.
+2.  Enable CORS (already enabled in this backend via `CORSMiddleware`).
 
-## ☁️ Render Deployment (Recommended)
+## 🔑 Administrative Environment
+| Category | Variable | Required |
+|----------|----------|----------|
+| **Core** | `API_ID`, `API_HASH`, `BOT_TOKEN` | YES |
+| **Database** | `MONGO_URI` | YES |
+| **Identity** | `BASE_URL` | YES |
+| **Security** | `SECRET_KEY`, `ADMIN_API_KEY` | YES |
+| **Intelligence** | `TMDB_API_KEY` | YES |
 
-Render is the primary target for this system due to its native support for long-running Python services and persistent event loops.
-
-### 1. Create a "Web Service"
-- **Runtime:** `Python 3`
-- **Build Command:** `pip install -r requirements.txt`
-- **Start Command:** `python main.py` or `uvicorn app:app --host 0.0.0.0 --port $PORT`
-
-### 2. Environment Variables (CRITICAL)
-Add these in the Render Dashboard:
-| Key | Value |
-|-----|-------|
-| `API_ID` | Your Telegram API ID |
-| `API_HASH` | Your Telegram API Hash |
-| `BOT_TOKEN` | Your Bot Token |
-| `MONGO_URI` | Your MongoDB Atlas URI |
-| `TMDB_API_KEY` | Your TMDb Key |
-| `BASE_URL` | `https://your-app.onrender.com` |
-| `PORT` | `10000` |
-
-### 3. Health Check
-- **Endpoint:** `/` (Method: `HEAD`) or `/ping`
-- Render will automatically monitor this to ensure the bot/DB are connected.
-
----
-
-## 📐 Vercel Deployment
-
-Vercel is suitable for the **Web Frontend** only. Because Pyrogram requires a permanent connection for long polling, the **Bot will NOT work on Vercel Serverless Functions**.
-
-### 1. Configuration
-- **Framework Preset:** `FastAPI`
-- **Output Directory:** `.`
-
-### 2. Requirements
-Vercel requires a `vercel.json` and uses `api/index.py` naming by default. For this project, it is better to use Render for the full suite.
-
----
-
-## 🐳 Docker Deployment (Universal)
-
-For 100% environment parity, use the included Dockerfile.
-
-### 1. Build
+## 🚀 Build Command
 ```bash
-docker build -t anizoneflix .
+pip install --upgrade pip && pip install -r requirements.txt
 ```
 
-### 2. Run
+## 🎬 Start Command
 ```bash
-docker run -p 8080:8080 --env-file .env anizoneflix
+uvicorn app:app --host 0.0.0.0 --port $PORT
 ```
 
 ---
-
-## 🔍 Troubleshooting Fixes
-- **500 Error on Schedule:** The system now returns "No data" instead of crashing. Ensure you have used `/schedule` in the bot at least once.
-- **Bot Not Responding:** Check Render logs for `STARTUP FAILURE`. Ensure `API_ID` and `API_HASH` are correct.
-- **Database Failure:** The system retries 5 times. If it fails, verify that your IP is whitelisted in MongoDB Atlas.
-
-**AniZoneFlix Executive Suite v2.0**
-*Engineered for Absolute Stability.*
+*Engineered by AniZoneFlix for Executive Production Environments.*

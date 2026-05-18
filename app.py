@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
-from database.db import db
+from database.db import db, clean_doc
 from config.config import Config
 from api.anime_api import anime_api
 import os
@@ -81,7 +81,6 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
-# Register custom filters
 templates.env.filters["slugify"] = slugify
 
 # --- CUSTOM RESPONSES ---
@@ -100,7 +99,8 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"ROUTE ERROR: {request.url.path} -> {exc}")
     if "api" in request.url.path:
         return safe_api_response(False, None, "Internal Server Error")
-    return templates.TemplateResponse("404.html", {"request": request, "error": "Internal Server Error"}, status_code=500)
+    # CRITICAL: Always use keyword arguments for TemplateResponse
+    return templates.TemplateResponse(request=request, name="404.html", context={"error": "Internal Server Error"}, status_code=500)
 
 # --- WEB ROUTES ---
 
@@ -115,8 +115,7 @@ async def index(request: Request):
         recent = await db.get_all_anime(limit=20)
         categories = await db.get_all_categories()
 
-        return templates.TemplateResponse("index.html", {
-            "request": request,
+        return templates.TemplateResponse(request=request, name="index.html", context={
             "trending": trending or [],
             "recent": recent or [],
             "categories": categories or [],
@@ -125,8 +124,8 @@ async def index(request: Request):
         })
     except Exception as e:
         logger.error(f"Index error: {e}")
-        return templates.TemplateResponse("index.html", {
-            "request": request, "trending": [], "recent": [], "categories": [],
+        return templates.TemplateResponse(request=request, name="index.html", context={
+            "trending": [], "recent": [], "categories": [],
             "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
         })
 
@@ -143,8 +142,7 @@ async def schedule_page(request: Request):
             schedules[day] = await db.get_schedule(day)
 
         categories = await db.get_all_categories()
-        return templates.TemplateResponse("schedule.html", {
-            "request": request,
+        return templates.TemplateResponse(request=request, name="schedule.html", context={
             "schedules": schedules,
             "categories": categories or [],
             "logo_url": Config.LOGO_URL,
@@ -152,8 +150,8 @@ async def schedule_page(request: Request):
         })
     except Exception as e:
         logger.error(f"Schedule page error: {e}")
-        return templates.TemplateResponse("schedule.html", {
-            "request": request, "schedules": {}, "categories": [],
+        return templates.TemplateResponse(request=request, name="schedule.html", context={
+            "schedules": {}, "categories": [],
             "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
         })
 
@@ -162,13 +160,12 @@ async def anime_detail(request: Request, slug: str):
     try:
         anime = await db.get_anime_by_slug(slug)
         if not anime:
-            return templates.TemplateResponse("404.html", {"request": request, "error": "Title not found."}, status_code=404)
+            return templates.TemplateResponse(request=request, name="404.html", context={"error": "Title not found."}, status_code=404)
 
         categories = await db.get_all_categories()
         episodes = await db.get_episodes(anime.get("mal_id", "0"))
 
-        return templates.TemplateResponse("details.html", {
-            "request": request,
+        return templates.TemplateResponse(request=request, name="details.html", context={
             "anime": anime,
             "episodes": episodes or [],
             "categories": categories or [],
@@ -177,7 +174,7 @@ async def anime_detail(request: Request, slug: str):
         })
     except Exception as e:
         logger.error(f"Detail error for {slug}: {e}")
-        return templates.TemplateResponse("404.html", {"request": request, "error": "Database error."}, status_code=500)
+        return templates.TemplateResponse(request=request, name="404.html", context={"error": "Database error."}, status_code=500)
 
 @app.get("/api/anime")
 async def get_anime_api(skip: int = 0, limit: int = 20):
@@ -190,19 +187,18 @@ async def get_anime_api(skip: int = 0, limit: int = 20):
 @app.get("/search")
 async def search_web(request: Request, q: str = ""):
     try:
+        results = []
         if q:
             results = await db.anime.find({"$or": [
                 {"title": {"$regex": q, "$options": "i"}},
                 {"category": q}
             ]}).sort("_id", -1).to_list(length=50)
-            from database.db import clean_doc
             results = clean_doc(results)
         else:
             results = await db.get_all_anime(limit=50)
 
         categories = await db.get_all_categories()
-        return templates.TemplateResponse("search.html", {
-            "request": request,
+        return templates.TemplateResponse(request=request, name="search.html", context={
             "results": results or [],
             "query": q,
             "categories": categories or [],
@@ -211,7 +207,7 @@ async def search_web(request: Request, q: str = ""):
         })
     except Exception as e:
         logger.error(f"Search error: {e}")
-        return templates.TemplateResponse("search.html", {"request": request, "results": [], "query": q, "categories": []})
+        return templates.TemplateResponse(request=request, name="search.html", context={"results": [], "query": q, "categories": []})
 
 # --- ADMIN ROUTES ---
 
@@ -231,8 +227,8 @@ async def admin_login(request: Request, token: str = None):
 @app.get("/admin/dashboard")
 async def admin_dashboard(request: Request, admin=Depends(get_current_admin)):
     posts = await db.get_all_anime(limit=100)
-    return templates.TemplateResponse("admin_dashboard.html", {
-        "request": request, "posts": posts or [], "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
+    return templates.TemplateResponse(request=request, name="admin_dashboard.html", context={
+        "posts": posts or [], "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
     })
 
 @app.get("/admin/edit/{mal_id}")
@@ -241,8 +237,8 @@ async def edit_post_page(request: Request, mal_id: str, admin=Depends(get_curren
     except: query_id = mal_id
     anime = await db.get_anime_by_mal_id(query_id)
     if not anime: return RedirectResponse(url="/admin/dashboard")
-    return templates.TemplateResponse("edit.html", {
-        "request": request, "anime": anime, "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
+    return templates.TemplateResponse(request=request, name="edit.html", context={
+        "anime": anime, "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
     })
 
 @app.post("/api/admin/save/{mal_id}")
