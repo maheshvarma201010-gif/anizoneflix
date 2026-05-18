@@ -432,9 +432,12 @@ def register_handlers(bot: Client):
         slug = slugify(data["title"])
         entry = {"mal_id": f"series_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": state["seasons_data"], "custom_buttons": []}
         try:
-            await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
-            await callback_query.message.edit_text(text=f"💎 **LIVE:** `{data['title']}`\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
-            del user_state[uid]
+            if db.anime is not None:
+                await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
+                await callback_query.message.edit_text(text=f"💎 **LIVE:** `{data['title']}`\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
+                del user_state[uid]
+            else:
+                await callback_query.answer("❌ Database Offline", show_alert=True)
         except Exception as e: await callback_query.answer(f"DB Error: {e}", show_alert=True)
 
     @bot.on_callback_query(filters.regex("^setcat_"))
@@ -446,9 +449,12 @@ def register_handlers(bot: Client):
         slug = slugify(data["title"])
         entry = {"mal_id": f"auto_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {"1": {"480p": None, "720p": None, "1080p": None}}, "custom_buttons": []}
         try:
-            await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
-            await callback_query.message.edit_caption(caption=f"⚡ **Deployment Success!**\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
-            del user_state[uid]
+            if db.anime is not None:
+                await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
+                await callback_query.message.edit_caption(caption=f"⚡ **Deployment Success!**\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
+                del user_state[uid]
+            else:
+                await callback_query.answer("❌ Database Offline", show_alert=True)
         except Exception as e: await callback_query.answer(f"DB Error: {e}", show_alert=True)
 
     # --- INTERACTION HANDLER (GROUP 1) ---
@@ -473,8 +479,11 @@ def register_handlers(bot: Client):
                 del user_state[uid]
             elif action == "ask_new_poster":
                 slug = state["slug"]
-                res = await db.anime.update_one({"slug": slug}, {"$set": {"image": message.text.strip()}})
-                await message.reply("✅ **Visual Synchronized.**" if res.modified_count else "❌ **Update Failed.**")
+                if db.anime is not None:
+                    res = await db.anime.update_one({"slug": slug}, {"$set": {"image": message.text.strip()}})
+                    await message.reply("✅ **Visual Synchronized.**" if res.modified_count else "❌ **Update Failed.**")
+                else:
+                    await message.reply("❌ Database Offline")
                 del user_state[uid]
             elif action == "ask_edit_group_name":
                 user_state[uid].update({"action": "ask_edit_480p", "group_name": message.text.strip()})
@@ -488,10 +497,14 @@ def register_handlers(bot: Client):
                 user_state[uid]["action"] = "ask_edit_1080p"
                 await message.reply(f"🛰 **1080p Link** (or /skip):")
             elif action == "ask_edit_1080p":
-                links = (await db.get_anime_by_slug(state["slug"])).get("seasons_links", {})
+                anime = await db.get_anime_by_slug(state["slug"])
+                links = anime.get("seasons_links", {}) if anime else {}
                 links[state["group_name"]] = {"480p": state.get("480p"), "720p": state.get("720p"), "1080p": message.text if message.text != "/skip" else None}
-                await db.anime.update_one({"slug": state["slug"]}, {"$set": {"seasons_links": links}})
-                await message.reply(f"💎 **Success!** Added group.")
+                if db.anime is not None:
+                    await db.anime.update_one({"slug": state["slug"]}, {"$set": {"seasons_links": links}})
+                    await message.reply(f"💎 **Success!** Added group.")
+                else:
+                    await message.reply("❌ Database Offline")
                 del user_state[uid]
             elif action == "select_anime":
                 try:
@@ -549,5 +562,5 @@ def register_handlers(bot: Client):
                     await message.reply("🛰 **Aggregation Complete.**\nTarget **Category**:", reply_markup=InlineKeyboardMarkup(buttons))
         except Exception as e:
             logger.error(f"Interaction Error: {e}\n{traceback.format_exc()}")
-            await message.reply("❌ **Intelligence Severed.** Operation aborted.")
+            await message.reply(f"❌ **System Error:** `{str(e)}`")
             user_state.pop(uid, None)

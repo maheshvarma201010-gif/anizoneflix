@@ -189,11 +189,14 @@ async def search_web(request: Request, q: str = ""):
     try:
         results = []
         if q:
-            results = await db.anime.find({"$or": [
-                {"title": {"$regex": q, "$options": "i"}},
-                {"category": q}
-            ]}).sort("_id", -1).to_list(length=50)
-            results = clean_doc(results)
+            if db.anime is not None:
+                results = await db.anime.find({"$or": [
+                    {"title": {"$regex": q, "$options": "i"}},
+                    {"category": q}
+                ]}).sort("_id", -1).to_list(length=50)
+                results = clean_doc(results)
+            else:
+                results = []
         else:
             results = await db.get_all_anime(limit=50)
 
@@ -247,8 +250,10 @@ async def save_post(request: Request, mal_id: str, admin=Depends(get_current_adm
         data = await request.json()
         try: query_id = int(mal_id)
         except: query_id = mal_id
-        await db.anime.update_one({"mal_id": query_id}, {"$set": data})
-        return safe_api_response(True)
+        if db.anime is not None:
+            await db.anime.update_one({"mal_id": query_id}, {"$set": data})
+            return safe_api_response(True)
+        return safe_api_response(False, message="Database Offline")
     except Exception as e: return safe_api_response(False, message=str(e))
 
 if __name__ == "__main__":

@@ -1,44 +1,52 @@
-# 🛠 Technical Deployment Specification
+# AniZoneFlix Production Deployment Guide
 
-This document details the industrial-grade configurations required for a 100% success rate on Render and Vercel.
+This guide provides instructions for deploying the AniZoneFlix executive suite to production environments.
 
-## 📦 Dependency Manifest
-The system requires `Python 3.10+`. Core dependencies:
-- `fastapi`, `uvicorn`, `jinja2`: Web Engine
-- `pyrogram`, `tgcrypto`: Intelligence Suite
-- `motor`, `dnspython`: Persistence Layer
-- `PyJWT`, `cryptography`: Executive Authorization
-- `aiohttp`: High-speed API aggregation
+## 1. Environment Variables
 
-## ☁️ Render Optimization
-Render's shared event loop can cause "PingTask stopped" errors if not handled correctly.
-- **Fix Applied:** The system uses a single `lifespan` context to unify the event loop for Database, Bot, and Web.
-- **Port Binding:** Automatically detects `$PORT` from environment.
-- **Keep-Alive:** Health check endpoint `/ping` prevents free-tier idling during active hours.
+Ensure the following variables are set in your deployment environment:
 
-## 📐 Vercel Frontend Configuration
-If deploying a decoupled JS frontend (React/Vue/Vite) against this backend:
-1.  Add `VITE_BACKEND_URL=https://your-render-app.onrender.com` to Vercel env.
-2.  Enable CORS (already enabled in this backend via `CORSMiddleware`).
+| Variable | Description | Example |
+| :--- | :--- | :--- |
+| `API_ID` | Telegram API ID | `1234567` |
+| `API_HASH` | Telegram API Hash | `abcdef123456...` |
+| `BOT_TOKEN` | Telegram Bot Token | `1234:ABC-DEF...` |
+| `MONGO_URI` | MongoDB Atlas Connection String | `mongodb+srv://...` |
+| `ADMIN_IDS` | Comma-separated Admin Telegram IDs | `12345678,87654321` |
+| `BASE_URL` | Your Production URL | `https://anizoneflix.onrender.com` |
+| `LOGO_URL` | Website Logo URL | `https://.../logo.png` |
 
-## 🔑 Administrative Environment
-| Category | Variable | Required |
-|----------|----------|----------|
-| **Core** | `API_ID`, `API_HASH`, `BOT_TOKEN` | YES |
-| **Database** | `MONGO_URI` | YES |
-| **Identity** | `BASE_URL` | YES |
-| **Security** | `SECRET_KEY`, `ADMIN_API_KEY` | YES |
-| **Intelligence** | `TMDB_API_KEY` | YES |
+## 2. Render Deployment (Full Suite)
 
-## 🚀 Build Command
+Render is recommended for hosting both the Web Server and the Telegram Bot in a single environment.
+
+1. **New Web Service**: Connect your GitHub repository.
+2. **Runtime**: `Python 3`
+3. **Build Command**: `pip install -r requirements.txt`
+4. **Start Command**: `python app.py`
+5. **Environment**: Add all variables from Section 1.
+6. **Health Check Path**: `/` (Render uses `HEAD` requests, which are supported).
+
+## 3. Vercel Deployment (Frontend Only)
+
+If you wish to host the frontend separately:
+
+1. **Build Command**: None (Static files are served directly by the backend).
+2. **Note**: Since this is a FastAPI application, Vercel requires a `vercel.json` configuration for Serverless Functions if you are not using the Render approach.
+
+## 4. Manual / Docker Deployment
+
 ```bash
-pip install --upgrade pip && pip install -r requirements.txt
+# Build
+docker build -t anizoneflix .
+
+# Run
+docker run -p 10000:10000 --env-file .env anizoneflix
 ```
 
-## 🎬 Start Command
-```bash
-uvicorn app:app --host 0.0.0.0 --port $PORT
-```
+## 5. Post-Deployment Verification
 
----
-*Engineered by AniZoneFlix for Executive Production Environments.*
+1. Access `https://your-app.onrender.com/ping`.
+2. Ensure `db` and `bot` status are both `true`.
+3. Open your Telegram Bot and send `/start`.
+4. Verify that `/search` returns results from the multi-API aggregator.
