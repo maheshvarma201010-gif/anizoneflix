@@ -2,34 +2,63 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from config.config import Config
 import os
 import logging
+import asyncio
 
 logger = logging.getLogger("ANIZONEFLIX_DB")
 
 class Database:
     def __init__(self):
-        if os.getenv("TESTING") == "1":
-            from mongomock_motor import AsyncMongoMockClient as MockClient
-            self.client = MockClient()
-        else:
-            uri = Config.MONGO_URI or "mongodb://localhost:27017"
-            if not Config.MONGO_URI and "onrender.com" in Config.BASE_URL:
-                logger.warning("CRITICAL: MONGO_URI is not set in a production environment!")
-            self.client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
+        self.client = None
+        self.db = None
+        self.anime = None
+        self.episodes = None
+        self.users = None
+        self.settings = None
+        self.categories = None
+        self.schedules = None
 
-        self.db = self.client[Config.DB_NAME]
-        self.anime = self.db.anime
-        self.episodes = self.db.episodes
-        self.users = self.db.users
-        self.settings = self.db.settings
-        self.categories = self.db.categories
-        self.schedules = self.db.schedules
+    async def connect(self):
+        """Initialize connection within the running event loop"""
+        if self.client:
+            return
+
+        logger.info("Initializing Database Connection...")
+        try:
+            if os.getenv("TESTING") == "1":
+                from mongomock_motor import AsyncMongoMockClient as MockClient
+                self.client = MockClient()
+            else:
+                uri = Config.MONGO_URI or "mongodb://localhost:27017"
+                if not Config.MONGO_URI and "onrender.com" in Config.BASE_URL:
+                    logger.warning("CRITICAL: MONGO_URI is not set!")
+
+                self.client = AsyncIOMotorClient(
+                    uri,
+                    serverSelectionTimeoutMS=5000,
+                    retryWrites=True,
+                    retryReads=True
+                )
+                # Verify connection
+                await self.client.admin.command('ping')
+
+            self.db = self.client[Config.DB_NAME]
+            self.anime = self.db.anime
+            self.episodes = self.db.episodes
+            self.users = self.db.users
+            self.settings = self.db.settings
+            self.categories = self.db.categories
+            self.schedules = self.db.schedules
+            logger.info("Database Connected Successfully.")
+        except Exception as e:
+            logger.error(f"Database Connection Failed: {e}")
+            raise e
 
     async def ping(self):
+        if not self.client: return False
         try:
             await self.client.admin.command('ping')
             return True
-        except Exception as e:
-            logger.error(f"Database Ping Failed: {e}")
+        except:
             return False
 
     async def add_anime(self, data):
@@ -90,22 +119,26 @@ class Database:
         return await self.categories.delete_one({"name": name})
 
     async def get_all_categories(self):
+        if not self.categories: return []
         return await self.categories.find().to_list(length=100)
 
     async def update_schedule(self, day, content):
         return await self.schedules.update_one({"day": day}, {"$set": {"content": content}}, upsert=True)
 
     async def get_schedule(self, day):
+        if not self.schedules: return "No schedule set for this day."
         res = await self.schedules.find_one({"day": day})
         return res["content"] if res else "No schedule set for this day."
 
     async def get_all_schedules(self):
+        if not self.schedules: return []
         return await self.schedules.find().to_list(length=7)
 
     async def add_admin(self, user_id):
         return await self.users.update_one({"user_id": user_id}, {"$set": {"user_id": user_id, "is_admin": True}}, upsert=True)
 
     async def is_admin(self, user_id):
+        if not self.users: return False
         try:
             user = await self.users.find_one({"user_id": user_id, "is_admin": True})
             return user is not None

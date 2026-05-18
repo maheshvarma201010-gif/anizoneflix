@@ -4,7 +4,6 @@ import traceback
 import os
 from pyrogram import Client, filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, BotCommand
-from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from config.config import Config
 from api.anime_api import anime_api
 from database.db import db
@@ -57,6 +56,7 @@ def extract_slug(text):
     text = text.strip()
     if "/anime/" in text:
         try:
+            # Handle URLs like https://site.com/anime/slug/extra or https://site.com/anime/slug?q=1
             parts = text.split("/anime/")[-1].split("/")
             slug_part = parts[0] if parts[0] else parts[1]
             return slug_part.split("?")[0].split("\n")[0].split(" ")[0].rstrip("/").strip()
@@ -136,7 +136,7 @@ def register_handlers(bot: Client):
             "• `/change_poster <url>`: Swap series artwork instantly.\n\n"
             "**⚙️ MANAGEMENT**\n"
             "• `/categories`: Manage platform genres & tags.\n"
-            "• `/schedule`: Manage Airtimes & Day releases.\n"
+            "• `/schedule`: Manage Airing Schedules.\n"
             "• `/del <url/slug>`: Permanent removal of series & files.\n"
             "• `/cancel`: Abort any active administrative process.\n\n"
             "**💎 PREMIUM FEATURES**\n"

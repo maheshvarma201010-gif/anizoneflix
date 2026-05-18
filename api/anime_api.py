@@ -17,22 +17,36 @@ class AnimeAPI:
             "tmdb": "https://api.themoviedb.org/3"
         }
         self.tmdb_key = Config.TMDB_API_KEY
-        self.simkl_id = os.getenv("SIMKL_ID", "834160a0f9b6c0e86b971a17c247f078e34898144")
+        self.simkl_id = Config.SIMKL_ID or "834160a0f9b6c0e86b971a17c247f078e34898144"
         self._session = None
 
     async def get_session(self):
         if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=4))
+            # Create session in the current loop
+            self._session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=5),
+                headers={"User-Agent": "AniZoneFlix/2.0 (Executive Suite)"}
+            )
         return self._session
+
+    async def close(self):
+        if self._session and not self._session.closed:
+            await self._session.close()
+            logger.info("API Session Closed.")
 
     async def _get(self, url, params=None, headers=None):
         session = await self.get_session()
         try:
             async with session.get(url, params=params, headers=headers) as resp:
                 if resp.status == 200:
-                    return await resp.json()
+                    try:
+                        return await resp.json()
+                    except Exception as je:
+                        logger.error(f"JSON Parse Error from {url}: {je}")
+                else:
+                    logger.debug(f"API Non-200 Status {resp.status} for {url}")
         except Exception as e:
-            logger.debug(f"API Error {url}: {e}")
+            logger.debug(f"API Request Error {url}: {e}")
         return None
 
     async def search_jikan(self, query):
@@ -61,7 +75,8 @@ class AnimeAPI:
                     data = await resp.json()
                     results = data.get('data', {}).get('Page', {}).get('media', [])
                     return [{"source": "anilist", "id": x["id"], "title": x["title"]["romaji"], "image": x["coverImage"]["large"], "year": x.get("seasonYear")} for x in results]
-        except: pass
+        except Exception as e:
+            logger.debug(f"AniList Error: {e}")
         return []
 
     async def search_kitsu(self, query):
@@ -78,18 +93,17 @@ class AnimeAPI:
         return []
 
     async def search_all(self, query):
-        """Ultra-Performance Aggregator: Pruned for Speed"""
+        """High-Performance Aggregator"""
         tasks = [
             self.search_jikan(query),
             self.search_anilist(query),
             self.search_kitsu(query),
             self.search_tmdb(query)
         ]
-        # Run all with total timeout and catch individual failures
         try:
             results = await asyncio.gather(*tasks, return_exceptions=True)
         except Exception as e:
-            logger.error(f"Gather error: {e}")
+            logger.error(f"Gather Error: {e}")
             return []
 
         flat = []
@@ -97,7 +111,7 @@ class AnimeAPI:
         for res_list in results:
             if isinstance(res_list, list):
                 for item in res_list:
-                    uid = f"{item['title'].lower()}" # Dedupe by title
+                    uid = f"{item['title'].lower()}"
                     if uid not in seen:
                         flat.append(item)
                         seen.add(uid)
@@ -148,7 +162,8 @@ class AnimeAPI:
                             "trailer": f"https://www.youtube.com/watch?v={x['trailer']['id']}" if x["trailer"] and x["trailer"]["site"] == "youtube" else None,
                             "studios": []
                         }
-            except: pass
+            except Exception as e:
+                logger.error(f"AniList Details Error: {e}")
         return None
 
 anime_api = AnimeAPI()

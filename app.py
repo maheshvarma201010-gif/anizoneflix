@@ -24,9 +24,12 @@ templates = Jinja2Templates(directory="templates")
 # Bot lifecycle management
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Starting Telegram Bot Sequence...")
+    logger.info("System Startup Sequence Initiated...")
     try:
-        # Ensure Pyrogram uses the same event loop as FastAPI
+        # 1. Initialize Database
+        await db.connect()
+
+        # 2. Ensure Pyrogram uses the same event loop as FastAPI
         import asyncio
         loop = asyncio.get_running_loop()
 
