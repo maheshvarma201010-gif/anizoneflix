@@ -3,7 +3,8 @@ import logging
 import traceback
 import os
 from pyrogram import Client, filters, enums
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, BotCommand
+from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from config.config import Config
 from api.anime_api import anime_api
 from database.db import db
@@ -21,20 +22,6 @@ bot = Client(
     in_memory=True
 )
 
-async def set_commands(client):
-    from pyrogram.types import BotCommand
-    commands = [
-        BotCommand("start", "Start the bot"),
-        BotCommand("search", "Advanced Multi-API Search"),
-        BotCommand("add_post", "Automated Post (Speed Mode)"),
-        BotCommand("edit", "Add Content Groups"),
-        BotCommand("change_poster", "Change Series Poster"),
-        BotCommand("del", "Delete Content"),
-        BotCommand("cancel", "Cancel current operation")
-    ]
-    await client.set_bot_commands(commands)
-    logger.info("Bot commands set successfully!")
-
 # Temporary storage
 search_results = {}
 user_state = {}
@@ -42,8 +29,25 @@ user_state = {}
 async def is_authorized(user_id):
     return user_id in Config.ADMIN_IDS or await db.is_admin(user_id)
 
+async def set_commands(client):
+    commands = [
+        BotCommand("start", "Start the bot"),
+        BotCommand("search", "Industrial-Grade Search"),
+        BotCommand("add_post", "Rapid One-Shot Post"),
+        BotCommand("edit", "Manage Content Groups"),
+        BotCommand("change_poster", "Update Series Artwork"),
+        BotCommand("categories", "Manage Genres/Tags"),
+        BotCommand("del", "Permanent Archive Erasure"),
+        BotCommand("cancel", "Abort Active Process"),
+        BotCommand("ping", "System Latency Check")
+    ]
+    await client.set_bot_commands(commands)
+    logger.info("Bot commands synchronized.")
+
 def register_handlers(bot: Client):
-    logger.info("Registering Premium Handlers v2.0...")
+    logger.info("Initializing Intelligence Suite Handlers...")
+
+    # --- COMMAND HANDLERS ---
 
     @bot.on_message(filters.command("ping"))
     async def ping_handler(client, message):
@@ -92,11 +96,6 @@ def register_handlers(bot: Client):
             "✅ Glassmorphism Web Interface"
         )
         await message.reply_text(text)
-
-    @bot.on_callback_query(filters.regex("^help_guide$"))
-    async def help_callback(client, callback_query):
-        await help_handler(client, callback_query.message)
-        await callback_query.answer()
 
     @bot.on_message(filters.command("search"))
     async def search_handler(client, message, is_retry=False):
@@ -172,6 +171,7 @@ def register_handlers(bot: Client):
         if not args: return await message.reply("💡 **Usage:** `/edit <post_page_url>`\n\nExample: `/edit https://site.com/anime/one-piece`")
 
         url = args[0]
+        if "/anime/" not in url: return await message.reply("❌ **Invalid URL:** Please provide a direct series page link.")
         slug = url.split("/anime/")[-1].split("?")[0].split("\n")[0].strip()
 
         anime = await db.get_anime_by_slug(slug)
@@ -200,6 +200,7 @@ def register_handlers(bot: Client):
         if not args: return await message.reply("💡 **Usage:** `/change_poster <post_page_url>`")
 
         url = args[0]
+        if "/anime/" not in url: return await message.reply("❌ **Invalid URL:** Please provide a direct series page link.")
         slug = url.split("/anime/")[-1].split("?")[0].split("\n")[0].strip()
 
         anime = await db.get_anime_by_slug(slug)
@@ -230,18 +231,6 @@ def register_handlers(bot: Client):
             reply_markup=InlineKeyboardMarkup(buttons)
         )
 
-    @bot.on_callback_query(filters.regex("^add_cat_prompt$"))
-    async def add_cat_prompt_cb(client, callback_query):
-        user_state[callback_query.from_user.id] = {"action": "ask_cat_name"}
-        await callback_query.message.edit_text("🏷 **Enter the name of the new category:**", reply_markup=None)
-
-    @bot.on_callback_query(filters.regex("^del_cat_"))
-    async def del_cat_cb(client, callback_query):
-        cat_name = callback_query.data.split("del_cat_")[-1]
-        await db.delete_category(cat_name)
-        await callback_query.answer(f"🗑 Category '{cat_name}' removed.", show_alert=True)
-        await categories_handler(client, callback_query.message)
-
     @bot.on_message(filters.command("del"))
     async def delete_handler(client, message):
         if not message.from_user: return
@@ -269,8 +258,99 @@ def register_handlers(bot: Client):
 
         await message.reply(f"❓ **Search Failed:** `{query}` is not in the archives.")
 
-    @bot.on_message(filters.private & filters.text & ~filters.command(["start", "help", "search", "add_post", "edit", "categories", "del", "cancel", "change_poster", "ping"]))
-    async def unified_interaction_handler(client, message):
+    @bot.on_message(filters.command("cancel"))
+    async def cancel_handler(client, message):
+        user_state.pop(message.from_user.id, None)
+        await message.reply("✨ **Action Cancelled.** Returning to standby.")
+
+    # --- CALLBACK HANDLERS ---
+
+    @bot.on_callback_query(filters.regex("^help_guide$"))
+    async def help_cb(client, callback_query):
+        # Already handled by top-level help_handler call in help_callback
+        pass
+
+    @bot.on_callback_query(filters.regex("^add_cat_prompt$"))
+    async def add_cat_prompt_cb(client, callback_query):
+        user_state[callback_query.from_user.id] = {"action": "ask_cat_name"}
+        await callback_query.message.edit_text("🏷 **Enter the name of the new category:**", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^del_cat_"))
+    async def del_cat_cb(client, callback_query):
+        cat_name = callback_query.data.split("del_cat_")[-1]
+        await db.delete_category(cat_name)
+        await callback_query.answer(f"🗑 Category '{cat_name}' removed.", show_alert=True)
+        # Refresh categories view - we call the logic manually
+        cats = await db.get_all_categories()
+        buttons = []
+        for c in cats:
+            buttons.append([
+                InlineKeyboardButton(f"🏷 {c['name']}", callback_data=f"view_cat_{c['name']}"),
+                InlineKeyboardButton("🗑", callback_data=f"del_cat_{c['name']}")
+            ])
+        buttons.append([InlineKeyboardButton("➕ Add New Category", callback_data="add_cat_prompt")])
+        await callback_query.message.edit_text("📂 **Category Management Suite**\n\nManage your site's genres and tags below:", reply_markup=InlineKeyboardMarkup(buttons))
+
+    @bot.on_callback_query(filters.regex("^add_group_yes_"))
+    async def add_group_yes_cb(client, callback_query):
+        slug = callback_query.data.split("add_group_yes_")[-1]
+        user_state[callback_query.from_user.id] = {"action": "ask_edit_group_name", "slug": slug}
+        await callback_query.message.edit_text("📝 **Step 1: Group Identity**\n\nWhat should this content group be named?\n*(e.g. Season 2, Specials, Movie)*", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^cancel_op$"))
+    async def cancel_op_cb(client, callback_query):
+        user_state.pop(callback_query.from_user.id, None)
+        await callback_query.message.edit_text("✨ **Executive Order:** Operation cancelled.", reply_markup=None)
+        await callback_query.answer()
+
+    @bot.on_callback_query(filters.regex("^img_"))
+    async def image_choice_cb(client, callback_query):
+        uid = callback_query.from_user.id
+        state = user_state.get(uid)
+        if not state or state["action"] != "ask_image_choice": return
+        choice = callback_query.data.split("_")[1]
+        if choice == "api":
+            user_state[uid]["image"] = state["anime_data"]["image"]
+            user_state[uid]["action"] = "ask_seasons"
+            await callback_query.message.edit_caption(caption="✅ **Intelligence Asset Selected.**\n\n🛰 **Step 5: Group Architect**\n\nDefine content group names:", reply_markup=None)
+        else:
+            user_state[uid]["action"] = "ask_manual_img"
+            await callback_query.message.edit_caption(caption="🛰 Please provide the **Direct Asset URL**:", reply_markup=None)
+        await callback_query.answer()
+
+    @bot.on_callback_query(filters.regex("^finalcat_"))
+    async def final_publish_cb(client, callback_query):
+        uid = callback_query.from_user.id
+        state = user_state.get(uid)
+        if not state or state["action"] != "ask_category_final": return
+        category, data = callback_query.data.split("_")[1], state["anime_data"]
+        slug = slugify(data["title"])
+        main_entry = {"mal_id": f"series_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": category, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": state["seasons_data"], "custom_buttons": []}
+        try:
+            await db.anime.update_one({"slug": slug}, {"$set": main_entry}, upsert=True)
+            await callback_query.message.edit_text(text=f"💎 **Executive Success!**\n\n🎬 `{data['title']}` archive is now LIVE.\n📂 **Category:** {category}\n🔢 **Groups:** {len(state['seasons_data'])}\n\n🌐 **Portal:** {Config.BASE_URL}/anime/{slug}", reply_markup=None)
+            del user_state[uid]
+        except Exception as e: await callback_query.answer(f"DB Error: {e}", show_alert=True)
+
+    @bot.on_callback_query(filters.regex("^setcat_"))
+    async def auto_post_set_cat_cb(client, callback_query):
+        uid = callback_query.from_user.id
+        state = user_state.get(uid)
+        if not state or state["action"] != "ask_category": return
+        category, data = callback_query.data.split("_")[1], state["anime_data"]
+        slug = slugify(data["title"])
+        entry = {"mal_id": f"auto_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": category, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {"1": {"480p": None, "720p": None, "1080p": None}}, "custom_buttons": []}
+        try:
+            await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
+            await callback_query.message.edit_caption(caption=f"⚡ **Rapid Deployment Success!**\n\n🌐 **Portal:** {Config.BASE_URL}/anime/{slug}", reply_markup=None)
+            del user_state[uid]
+        except Exception as e: await callback_query.answer(f"DB Error: {e}", show_alert=True)
+
+
+    # --- UNIFIED INTERACTION HANDLER (STATE MACHINE) ---
+
+    @bot.on_message(filters.private & filters.text & ~filters.command(["start", "help", "search", "add_post", "edit", "categories", "del", "cancel", "change_poster", "ping"]), group=1)
+    async def interaction_handler(client, message):
         uid = message.from_user.id
         state = user_state.get(uid)
         if not state: return
@@ -285,7 +365,8 @@ def register_handlers(bot: Client):
             await db.add_category(cat_name)
             await message.reply(f"✅ **Category Created:** `{cat_name}`")
             del user_state[uid]
-            return await categories_handler(client, message)
+            # No easy way to call categories_handler without a message object, so we just confirm
+            await message.reply("📂 Use `/categories` to view the updated list.")
 
         elif action == "ask_new_poster":
             new_url = message.text.strip()
@@ -391,69 +472,14 @@ def register_handlers(bot: Client):
                 buttons = [[InlineKeyboardButton(c['name'], callback_data=f"finalcat_{c['name']}")] for c in (cats if cats else [{"name": "Anime"}])]
                 await message.reply("🛰 **Data Aggregation Complete.**\nFinal Step: Choose target **Category** for deployment:", reply_markup=InlineKeyboardMarkup(buttons))
 
-    @bot.on_callback_query(filters.regex("^add_group_yes_"))
-    async def add_group_yes_cb(client, callback_query):
-        slug = callback_query.data.split("add_group_yes_")[-1]
-        user_state[callback_query.from_user.id] = {"action": "ask_edit_group_name", "slug": slug}
-        await callback_query.message.edit_text("📝 **Step 1: Group Identity**\n\nWhat should this content group be named?\n*(e.g. Season 2, Specials, Movie)*", reply_markup=None)
-
-    @bot.on_callback_query(filters.regex("^cancel_op$"))
-    async def cancel_op_cb(client, callback_query):
-        user_state.pop(callback_query.from_user.id, None)
-        await callback_query.message.edit_text("✨ **Executive Order:** Operation cancelled.", reply_markup=None)
-        await callback_query.answer()
-
-    @bot.on_callback_query(filters.regex("^img_"))
-    async def image_choice_cb(client, callback_query):
-        uid = callback_query.from_user.id
-        state = user_state.get(uid)
-        if not state or state["action"] != "ask_image_choice": return
-        choice = callback_query.data.split("_")[1]
-        if choice == "api":
-            user_state[uid]["image"] = state["anime_data"]["image"]
-            user_state[uid]["action"] = "ask_seasons"
-            await callback_query.message.edit_caption(caption="✅ **Intelligence Asset Selected.**\n\n🛰 **Step 5: Group Architect**\n\nDefine content group names:", reply_markup=None)
-        else:
-            user_state[uid]["action"] = "ask_manual_img"
-            await callback_query.message.edit_caption(caption="🛰 Please provide the **Direct Asset URL**:", reply_markup=None)
-        await callback_query.answer()
-
-    @bot.on_callback_query(filters.regex("^finalcat_"))
-    async def final_publish_cb(client, callback_query):
-        uid = callback_query.from_user.id
-        state = user_state.get(uid)
-        if not state or state["action"] != "ask_category_final": return
-        category, data = callback_query.data.split("_")[1], state["anime_data"]
-        slug = slugify(data["title"])
-        main_entry = {"mal_id": f"series_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": category, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": state["seasons_data"], "custom_buttons": []}
-        try:
-            await db.anime.update_one({"slug": slug}, {"$set": main_entry}, upsert=True)
-            await callback_query.message.edit_text(text=f"💎 **Executive Success!**\n\n🎬 `{data['title']}` archive is now LIVE.\n📂 **Category:** {category}\n🔢 **Groups:** {len(state['seasons_data'])}\n\n🌐 **Portal:** {Config.BASE_URL}/anime/{slug}", reply_markup=None)
-            del user_state[uid]
-        except Exception as e: await callback_query.answer(f"DB Error: {e}", show_alert=True)
-
-    @bot.on_callback_query(filters.regex("^setcat_"))
-    async def auto_post_set_cat_cb(client, callback_query):
-        uid = callback_query.from_user.id
-        state = user_state.get(uid)
-        if not state or state["action"] != "ask_category": return
-        category, data = callback_query.data.split("_")[1], state["anime_data"]
-        slug = slugify(data["title"])
-        entry = {"mal_id": f"auto_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": category, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {"1": {"480p": None, "720p": None, "1080p": None}}, "custom_buttons": []}
-        try:
-            await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
-            await callback_query.message.edit_caption(caption=f"⚡ **Rapid Deployment Success!**\n\n🌐 **Portal:** {Config.BASE_URL}/anime/{slug}", reply_markup=None)
-            del user_state[uid]
-        except Exception as e: await callback_query.answer(f"DB Error: {e}", show_alert=True)
-
-    @bot.on_message(filters.command("cancel"))
-    async def cancel_handler(client, message):
-        user_state.pop(message.from_user.id, None)
-        await message.reply("✨ **Action Cancelled.** Returning to standby.")
+    # --- AUTO-LINK HANDLER (BACKGROUND) ---
 
     @bot.on_message(filters.all, group=-2)
     async def auto_file_grouping(client, message):
-        if not message.document and not message.video: return
+        if not message.document and not message.video:
+            message.continue_propagation()
+            return
+
         from utils.parser import parse_filename
         fname = message.document.file_name if message.document else "video.mp4"
         parsed = parse_filename(fname)
@@ -465,4 +491,6 @@ def register_handlers(bot: Client):
                 "file_id": message.document.file_id if message.document else message.video.file_id,
                 "file_name": fname, "file_size": "N/A", "views": 0, "downloads": 0
             })
-            logger.info(f"Auto-Link: {fname} -> {anime['title']}")
+            logger.info(f"Auto-Link Success: {fname} -> {anime['title']}")
+
+        message.continue_propagation()
