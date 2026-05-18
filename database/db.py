@@ -29,96 +29,51 @@ class Database:
     def __init__(self):
         self.client = None
         self._db = None
-        self._anime = None
-        self._episodes = None
-        self._users = None
-        self._categories = None
-        self._schedules = None
+        self.anime = None
+        self.episodes = None
+        self.users = None
+        self.categories = None
+        self.schedules = None
 
     async def connect(self):
         """Initialize connection with high reliability and retries"""
         if self.client:
             return
 
-        uri = Config.MONGO_URI or "mongodb://localhost:27017"
+        uri = Config.MONGO_URI
+        if not uri:
+            logger.critical("MONGO_URI IS NOT SET. DATA PERSISTENCE IS DISABLED.")
+            raise ValueError("MONGO_URI environment variable is required for production.")
+
         for attempt in range(1, 6):
             try:
-                logger.info(f"Attempting Database Connection (Attempt {attempt}/5)...")
-                # Add validation for URI format to prevent silent driver failures
-                if not uri.startswith("mongodb"):
-                    logger.error("Invalid MONGO_URI format. Must start with 'mongodb' or 'mongodb+srv'")
-
+                logger.info(f"Connecting to MongoDB Atlas (Attempt {attempt}/5)...")
                 self.client = AsyncIOMotorClient(
                     uri,
-                    serverSelectionTimeoutMS=10000, # Increased for Render cold starts
+                    serverSelectionTimeoutMS=10000,
                     connectTimeoutMS=20000,
                     retryWrites=True,
-                    retryReads=True
+                    retryReads=True,
+                    appname="AniZoneFlix-Executive"
                 )
-                # Test connectivity
+                # Verify connection
                 await self.client.admin.command('ping')
 
                 self._db = self.client[Config.DB_NAME]
-                self._anime = self._db.anime
-                self._episodes = self._db.episodes
-                self._users = self._db.users
-                self._categories = self._db.categories
-                self._schedules = self._db.schedules
+                self.anime = self._db.anime
+                self.episodes = self._db.episodes
+                self.users = self._db.users
+                self.categories = self._db.categories
+                self.schedules = self._db.schedules
 
-                logger.info("Database Synchronization Complete.")
+                logger.info(f"Database Persistence Verified: {Config.DB_NAME} is active.")
                 return
             except Exception as e:
                 logger.error(f"Database sync failed on attempt {attempt}: {e}")
                 if attempt == 5:
-                    logger.critical("Final database connection attempt failed. System degraded.")
-                else:
-                    await asyncio.sleep(3) # Wait longer between retries
-
-    @property
-    def anime(self):
-        return self._anime if self._anime is not None else self.MockCollection("anime")
-
-    @property
-    def episodes(self):
-        return self._episodes if self._episodes is not None else self.MockCollection("episodes")
-
-    @property
-    def users(self):
-        return self._users if self._users is not None else self.MockCollection("users")
-
-    @property
-    def categories(self):
-        return self._categories if self._categories is not None else self.MockCollection("categories")
-
-    @property
-    def schedules(self):
-        return self._schedules if self._schedules is not None else self.MockCollection("schedules")
-
-    class MockCollection:
-        """Safety layer to prevent AttributeErrors and provide clear diagnostics"""
-        def __init__(self, name):
-            self.name = name
-
-        def __getattr__(self, name):
-            async def mock_func(*args, **kwargs):
-                logger.error(f"DATABASE OFFLINE: Call to {self.name}.{name} ignored.")
-                return None
-            return mock_func
-
-        async def find_one(self, *args, **kwargs):
-            logger.error(f"DATABASE OFFLINE: find_one on {self.name} failed.")
-            return None
-
-        def find(self, *args, **kwargs):
-            class MockCursor:
-                async def to_list(self, *args, **kwargs): return []
-                def sort(self, *args, **kwargs): return self
-                def skip(self, *args, **kwargs): return self
-                def limit(self, *args, **kwargs): return self
-            return MockCursor()
-        async def update_one(self, *args, **kwargs): return None
-        async def delete_one(self, *args, **kwargs): return None
-        async def delete_many(self, *args, **kwargs): return None
+                    logger.critical("FINAL PERSISTENCE FAILURE: System cannot guarantee data safety.")
+                    raise e
+                await asyncio.sleep(attempt * 2)
 
     async def ping(self):
         try:
@@ -127,100 +82,107 @@ class Database:
             return True
         except: return False
 
-    # --- Robust CRUD Methods ---
+    # --- Robust CRUD Methods (Persistence Guaranteed) ---
 
     async def add_anime(self, data):
         try:
+            if not self.anime: return None
             return await self.anime.update_one({"mal_id": data["mal_id"]}, {"$set": data}, upsert=True)
         except Exception as e:
-            logger.error(f"DB Error (add_anime): {e}")
+            logger.error(f"Persistence Error (add_anime): {e}")
             return None
 
     async def get_anime_by_slug(self, slug):
         try:
+            if not self.anime: return None
             doc = await self.anime.find_one({"slug": slug})
             return clean_doc(doc)
         except Exception as e:
-            logger.error(f"DB Error (get_anime_by_slug): {e}")
-            raise e
+            logger.error(f"Read Error (get_anime_by_slug): {e}")
+            return None
 
     async def get_all_anime(self, limit=20, skip=0):
         try:
+            if not self.anime: return []
             cursor = self.anime.find().sort("_id", -1).skip(skip).limit(limit)
             docs = await cursor.to_list(length=limit)
             return clean_doc(docs) or []
         except Exception as e:
-            logger.error(f"DB Error (get_all_anime): {e}")
+            logger.error(f"Read Error (get_all_anime): {e}")
             return []
 
     async def search_anime_db(self, query):
         try:
+            if not self.anime: return []
             cursor = self.anime.find({"title": {"$regex": query, "$options": "i"}})
             docs = await cursor.to_list(length=20)
             return clean_doc(docs) or []
         except Exception as e:
-            logger.error(f"DB Error (search_anime_db): {e}")
+            logger.error(f"Read Error (search_anime_db): {e}")
             return []
 
     async def delete_anime_by_slug(self, slug):
         try:
+            if not self.anime: return None
             anime = await self.get_anime_by_slug(slug)
             if anime:
                 await self.episodes.delete_many({"mal_id": anime["mal_id"]})
             return await self.anime.delete_one({"slug": slug})
         except Exception as e:
-            logger.error(f"DB Error (delete_anime_by_slug): {e}")
+            logger.error(f"Sanitization Error (delete_anime_by_slug): {e}")
             return None
 
     async def add_episode(self, data):
         try:
+            if not self.episodes: return None
             query = {"mal_id": data["mal_id"], "season": data.get("season"), "episode": data.get("episode"), "quality": data.get("quality")}
             return await self.episodes.update_one(query, {"$set": data}, upsert=True)
         except Exception as e:
-            logger.error(f"DB Error (add_episode): {e}")
+            logger.error(f"Persistence Error (add_episode): {e}")
             return None
 
     async def get_episodes(self, mal_id):
         try:
+            if not self.episodes: return []
             cursor = self.episodes.find({"mal_id": mal_id}).sort([("season", 1), ("episode", 1)])
             docs = await cursor.to_list(length=1000)
             return clean_doc(docs) or []
         except Exception as e:
-            logger.error(f"DB Error (get_episodes): {e}")
+            logger.error(f"Read Error (get_episodes): {e}")
             return []
 
     async def get_all_categories(self):
         try:
+            if not self.categories: return []
             cursor = self.categories.find()
             docs = await cursor.to_list(length=100)
             return clean_doc(docs) or []
         except Exception as e:
-            logger.error(f"DB Error (get_all_categories): {e}")
+            logger.error(f"Read Error (get_all_categories): {e}")
             return []
 
     async def update_schedule(self, day, content):
         try:
+            if not self.schedules: return None
             return await self.schedules.update_one({"day": day}, {"$set": {"content": content}}, upsert=True)
         except Exception as e:
-            logger.error(f"DB Error (update_schedule): {e}")
+            logger.error(f"Persistence Error (update_schedule): {e}")
             return None
 
     async def get_schedule(self, day):
         try:
+            if not self.schedules: return "Persistence layer offline."
             res = await self.schedules.find_one({"day": day})
-            if res:
-                return res.get("content", "No data synchronized.")
-            return "No data synchronized."
+            return res.get("content", "No data synchronized.") if res else "No data synchronized."
         except Exception as e:
-            logger.error(f"DB Error (get_schedule): {e}")
-            return "Database connection unavailable."
+            logger.error(f"Read Error (get_schedule): {e}")
+            return "Intelligence network offline."
 
     async def is_admin(self, user_id):
         try:
+            if not self.users: return False
             user = await self.users.find_one({"user_id": user_id, "is_admin": True})
             return user is not None
-        except Exception as e:
-            logger.error(f"DB Error (is_admin): {e}")
-            return False
+        except: return False
 
 db = Database()

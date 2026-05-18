@@ -4,6 +4,7 @@ import traceback
 import os
 from pyrogram import Client, filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, BotCommand
+from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from config.config import Config
 from api.anime_api import anime_api
 from database.db import db
@@ -58,7 +59,7 @@ def extract_slug(text):
         try:
             # Handle URLs like https://site.com/anime/slug/extra or https://site.com/anime/slug?q=1
             parts = text.split("/anime/")[-1].split("/")
-            slug_part = parts[0] if parts[0] else parts[1]
+            slug_part = parts[0] if parts[0] else parts[1] # handle trailing slash before anime
             return slug_part.split("?")[0].split("\n")[0].split(" ")[0].rstrip("/").strip()
         except:
             return None
@@ -81,15 +82,17 @@ def register_handlers(bot: Client):
                 from utils.parser import parse_filename
                 fname = message.document.file_name if message.document else "video.mp4"
                 parsed = parse_filename(fname)
-                anime = await db.anime.find_one({"title": {"$regex": parsed["title"], "$options": "i"}})
-                if anime:
-                    await db.add_episode({
-                        "mal_id": anime["mal_id"], "season": parsed["season"], "episode": parsed["episode"],
-                        "quality": parsed["quality"], "audio": parsed["audio"], "codec": parsed["codec"],
-                        "file_id": message.document.file_id if message.document else message.video.file_id,
-                        "file_name": fname, "file_size": "N/A", "views": 0, "downloads": 0
-                    })
-                    logger.info(f"Auto-Link Success: {fname} -> {anime['title']}")
+                # Ensure DB is connected before query
+                if await db.ping():
+                    anime = await db.anime.find_one({"title": {"$regex": parsed["title"], "$options": "i"}})
+                    if anime:
+                        await db.add_episode({
+                            "mal_id": anime["mal_id"], "season": parsed["season"], "episode": parsed["episode"],
+                            "quality": parsed["quality"], "audio": parsed["audio"], "codec": parsed["codec"],
+                            "file_id": message.document.file_id if message.document else message.video.file_id,
+                            "file_name": fname, "file_size": "N/A", "views": 0, "downloads": 0
+                        })
+                        logger.info(f"Auto-Link Success: {fname} -> {anime['title']}")
             except Exception as e:
                 logger.error(f"Auto-Link Error: {e}")
 
@@ -634,3 +637,26 @@ def register_handlers(bot: Client):
             logger.error(traceback.format_exc())
             await message.reply("❌ **Intelligence Link Severed.** Operation aborted.")
             user_state.pop(uid, None)
+
+    # --- AUTO-LINK HANDLER (BACKGROUND) ---
+
+    @bot.on_message(filters.all, group=-2)
+    async def auto_file_grouping(client, message):
+        if not message.document and not message.video:
+            message.continue_propagation()
+            return
+
+        from utils.parser import parse_filename
+        fname = message.document.file_name if message.document else "video.mp4"
+        parsed = parse_filename(fname)
+        anime = await db.anime.find_one({"title": {"$regex": parsed["title"], "$options": "i"}})
+        if anime:
+            await db.add_episode({
+                "mal_id": anime["mal_id"], "season": parsed["season"], "episode": parsed["episode"],
+                "quality": parsed["quality"], "audio": parsed["audio"], "codec": parsed["codec"],
+                "file_id": message.document.file_id if message.document else message.video.file_id,
+                "file_name": fname, "file_size": "N/A", "views": 0, "downloads": 0
+            })
+            logger.info(f"Auto-Link Success: {fname} -> {anime['title']}")
+
+        message.continue_propagation()
