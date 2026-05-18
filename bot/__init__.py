@@ -167,16 +167,17 @@ def register_handlers(bot: Client):
         if not await is_authorized(message.from_user.id):
             return await message.reply("🚫 **Access Denied!** This zone is for authorized admins only.")
 
-        args = message.command[1:]
-        if not args: return await message.reply("💡 **Usage:** `/edit <post_page_url>`\n\nExample: `/edit https://site.com/anime/one-piece`")
+        query = " ".join(message.command[1:])
+        if not query and message.reply_to_message:
+            query = message.reply_to_message.text or message.reply_to_message.caption or ""
 
-        url = args[0]
-        if "/anime/" not in url: return await message.reply("❌ **Invalid URL:** Please provide a direct series page link.")
-        slug = url.split("/anime/")[-1].split("?")[0].split("\n")[0].strip()
+        if not query or "/anime/" not in query:
+            return await message.reply("💡 **Usage:** `/edit <post_page_url>` (or reply to a link)\n\nExample: `/edit https://site.com/anime/one-piece`")
 
+        slug = query.split("/anime/")[-1].split("/")[0].split("?")[0].split("\n")[0].split(" ")[0].rstrip("/").strip()
         anime = await db.get_anime_by_slug(slug)
         if not anime:
-            return await message.reply(f"🔍 **Not Found!** Could not locate series: `{slug}`")
+            return await message.reply(f"🔍 **Not Found!** Could not locate series for slug: `{slug}`")
 
         buttons = [
             [InlineKeyboardButton("✅ Yes, Add New Group", callback_data=f"add_group_yes_{slug}")],
@@ -196,13 +197,14 @@ def register_handlers(bot: Client):
         if not await is_authorized(message.from_user.id):
             return await message.reply("🚫 **Access Denied.**")
 
-        args = message.command[1:]
-        if not args: return await message.reply("💡 **Usage:** `/change_poster <post_page_url>`")
+        query = " ".join(message.command[1:])
+        if not query and message.reply_to_message:
+            query = message.reply_to_message.text or message.reply_to_message.caption or ""
 
-        url = args[0]
-        if "/anime/" not in url: return await message.reply("❌ **Invalid URL:** Please provide a direct series page link.")
-        slug = url.split("/anime/")[-1].split("?")[0].split("\n")[0].strip()
+        if not query or "/anime/" not in query:
+            return await message.reply("💡 **Usage:** `/change_poster <post_page_url>` (or reply to a link)")
 
+        slug = query.split("/anime/")[-1].split("/")[0].split("?")[0].split("\n")[0].split(" ")[0].rstrip("/").strip()
         anime = await db.get_anime_by_slug(slug)
         if not anime:
             return await message.reply(f"🔍 **Not Found!** Could not locate series: `{slug}`")
@@ -241,8 +243,8 @@ def register_handlers(bot: Client):
         if not query and message.reply_to_message:
             query = message.reply_to_message.text or message.reply_to_message.caption or ""
 
-        if "http" in query and "/anime/" in query:
-            query = query.split("/anime/")[-1].split("?")[0].split("\n")[0].strip()
+        if "/anime/" in query:
+            query = query.split("/anime/")[-1].split("/")[0].split("?")[0].split("\n")[0].split(" ")[0].rstrip("/").strip()
 
         if not query:
             return await message.reply("💡 **Usage:** `/del <slug, title, or URL>`")
@@ -267,8 +269,8 @@ def register_handlers(bot: Client):
 
     @bot.on_callback_query(filters.regex("^help_guide$"))
     async def help_cb(client, callback_query):
-        # Already handled by top-level help_handler call in help_callback
-        pass
+        await help_handler(client, callback_query.message)
+        await callback_query.answer()
 
     @bot.on_callback_query(filters.regex("^add_cat_prompt$"))
     async def add_cat_prompt_cb(client, callback_query):
@@ -280,7 +282,7 @@ def register_handlers(bot: Client):
         cat_name = callback_query.data.split("del_cat_")[-1]
         await db.delete_category(cat_name)
         await callback_query.answer(f"🗑 Category '{cat_name}' removed.", show_alert=True)
-        # Refresh categories view - we call the logic manually
+        # Manually refresh the category list for the UI
         cats = await db.get_all_categories()
         buttons = []
         for c in cats:
@@ -346,11 +348,10 @@ def register_handlers(bot: Client):
             del user_state[uid]
         except Exception as e: await callback_query.answer(f"DB Error: {e}", show_alert=True)
 
-
-    # --- UNIFIED INTERACTION HANDLER (STATE MACHINE) ---
+    # --- INTERACTION HANDLER ---
 
     @bot.on_message(filters.private & filters.text & ~filters.command(["start", "help", "search", "add_post", "edit", "categories", "del", "cancel", "change_poster", "ping"]), group=1)
-    async def interaction_handler(client, message):
+    async def unified_interaction_handler(client, message):
         uid = message.from_user.id
         state = user_state.get(uid)
         if not state: return
@@ -363,10 +364,8 @@ def register_handlers(bot: Client):
         elif action == "ask_cat_name":
             cat_name = message.text.strip()
             await db.add_category(cat_name)
-            await message.reply(f"✅ **Category Created:** `{cat_name}`")
+            await message.reply(f"✅ **Category Created:** `{cat_name}`\n📂 Use `/categories` to view updated list.")
             del user_state[uid]
-            # No easy way to call categories_handler without a message object, so we just confirm
-            await message.reply("📂 Use `/categories` to view the updated list.")
 
         elif action == "ask_new_poster":
             new_url = message.text.strip()
