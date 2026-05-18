@@ -27,7 +27,13 @@ search_results = {}
 user_state = {}
 
 async def is_authorized(user_id):
-    return user_id in Config.ADMIN_IDS or await db.is_admin(user_id)
+    try:
+        if user_id in Config.ADMIN_IDS:
+            return True
+        return await db.is_admin(user_id)
+    except Exception as e:
+        logger.error(f"Authorization Check Error: {e}")
+        return False
 
 async def set_commands(client):
     commands = [
@@ -47,10 +53,16 @@ async def set_commands(client):
 def extract_slug(text):
     """Bulletproof slug extraction from any URL or raw text"""
     if not text: return None
+    text = text.strip()
     if "/anime/" in text:
-        # Split by /anime/, take last part, split by slash, query, newline, space
-        return text.split("/anime/")[-1].split("/")[0].split("?")[0].split("\n")[0].split(" ")[0].rstrip("/").strip()
-    return text.strip()
+        try:
+            # Handle URLs like https://site.com/anime/slug/extra or https://site.com/anime/slug?q=1
+            parts = text.split("/anime/")[-1].split("/")
+            slug_part = parts[0] if parts[0] else parts[1] # handle trailing slash before anime
+            return slug_part.split("?")[0].split("\n")[0].split(" ")[0].rstrip("/").strip()
+        except:
+            return None
+    return text
 
 def register_handlers(bot: Client):
     logger.info("Initializing Hardened Intelligence Suite Handlers...")
@@ -87,7 +99,8 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("ping"))
     async def ping_handler(client, message):
-        await message.reply("⚡ **System Status:** Operational\n🏓 **Latency Check:** Minimal/Responsive.")
+        db_status = "Connected" if await db.ping() else "Disconnected"
+        await message.reply(f"⚡ **System Status:** Operational\n🗄 **Database:** {db_status}\n🏓 **Latency Check:** Minimal/Responsive.")
 
     @bot.on_message(filters.command("start"))
     async def start_handler(client, message):
@@ -212,13 +225,13 @@ def register_handlers(bot: Client):
             query = message.reply_to_message.text or message.reply_to_message.caption or ""
 
         slug = extract_slug(query)
-        if not slug or ("http" in query and "/anime/" not in query):
+        if not slug:
             return await message.reply("💡 **Usage:** `/edit <post_page_url>` (or reply to a link)\n\nExample: `/edit https://site.com/anime/one-piece`")
 
         try:
             anime = await db.get_anime_by_slug(slug)
             if not anime:
-                return await message.reply(f"🔍 **Not Found!** Could not locate series for slug: `{slug}`")
+                return await message.reply(f"🔍 **Not Found!** Could not locate series for identifier: `{slug}`")
 
             buttons = [
                 [InlineKeyboardButton("✅ Yes, Add New Group", callback_data=f"add_group_yes_{slug}")],
@@ -233,7 +246,7 @@ def register_handlers(bot: Client):
             )
         except Exception as e:
             logger.error(f"Edit Cmd Error: {e}")
-            await message.reply("❌ **Database Access Failure.**")
+            await message.reply("❌ **Database Access Failure.** Verify connection or check logs.")
 
     @bot.on_message(filters.command("change_poster"))
     async def change_poster_handler(client, message):
@@ -246,13 +259,13 @@ def register_handlers(bot: Client):
             query = message.reply_to_message.text or message.reply_to_message.caption or ""
 
         slug = extract_slug(query)
-        if not slug or ("http" in query and "/anime/" not in query):
+        if not slug:
             return await message.reply("💡 **Usage:** `/change_poster <post_page_url>` (or reply to a link)")
 
         try:
             anime = await db.get_anime_by_slug(slug)
             if not anime:
-                return await message.reply(f"🔍 **Not Found!** Could not locate series: `{slug}`")
+                return await message.reply(f"🔍 **Not Found!** Could not locate series for identifier: `{slug}`")
 
             user_state[message.from_user.id] = {"action": "ask_new_poster", "slug": slug}
             await message.reply(f"🖼 **Calibrating Visuals for:** `{anime['title']}`\n\nPlease provide the **New Asset URL**:")
