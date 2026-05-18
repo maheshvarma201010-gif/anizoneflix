@@ -20,7 +20,7 @@
             </div>
             <div class="p-8">
                 <div class="space-y-4 text-gray-300 font-medium leading-relaxed">
-                    {% if content and content != "No schedule set for this day." %}
+                    {% if content and content != "No data synchronized." and content != "No schedule set for this day." %}
                         {% for line in content.split('\n') %}
                         <div class="flex items-start gap-3 group/line">
                             <span class="w-1.5 h-1.5 rounded-full bg-red-600 mt-2.5 group-hover/line:scale-150 transition-transform"></span>

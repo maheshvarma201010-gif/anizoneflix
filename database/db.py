@@ -18,40 +18,45 @@ class Database:
         self.schedules = None
 
     async def connect(self):
-        """Initialize connection within the running event loop"""
+        """Initialize connection within the running event loop with retries"""
         if self.client:
             return
 
-        logger.info("Initializing Database Connection...")
-        try:
-            if os.getenv("TESTING") == "1":
-                from mongomock_motor import AsyncMongoMockClient as MockClient
-                self.client = MockClient()
-            else:
-                uri = Config.MONGO_URI or "mongodb://localhost:27017"
-                if not Config.MONGO_URI and "onrender.com" in Config.BASE_URL:
-                    logger.warning("CRITICAL: MONGO_URI is not set!")
+        uri = Config.MONGO_URI or "mongodb://localhost:27017"
+        retries = 3
+        while retries > 0:
+            try:
+                logger.info(f"Attempting Database Connection ({4-retries}/3)...")
+                if os.getenv("TESTING") == "1":
+                    from mongomock_motor import AsyncMongoMockClient as MockClient
+                    self.client = MockClient()
+                else:
+                    self.client = AsyncIOMotorClient(
+                        uri,
+                        serverSelectionTimeoutMS=5000,
+                        retryWrites=True,
+                        retryReads=True
+                    )
+                    # Verify connection
+                    await self.client.admin.command('ping')
 
-                self.client = AsyncIOMotorClient(
-                    uri,
-                    serverSelectionTimeoutMS=5000,
-                    retryWrites=True,
-                    retryReads=True
-                )
-                # Verify connection
-                await self.client.admin.command('ping')
-
-            self.db = self.client[Config.DB_NAME]
-            self.anime = self.db.anime
-            self.episodes = self.db.episodes
-            self.users = self.db.users
-            self.settings = self.db.settings
-            self.categories = self.db.categories
-            self.schedules = self.db.schedules
-            logger.info("Database Connected Successfully.")
-        except Exception as e:
-            logger.error(f"Database Connection Failed: {e}")
-            raise e
+                self.db = self.client[Config.DB_NAME]
+                self.anime = self.db.anime
+                self.episodes = self.db.episodes
+                self.users = self.db.users
+                self.settings = self.db.settings
+                self.categories = self.db.categories
+                self.schedules = self.db.schedules
+                logger.info("Database Connected Successfully.")
+                return
+            except Exception as e:
+                retries -= 1
+                logger.error(f"Database Connection Attempt Failed: {e}")
+                if retries > 0:
+                    await asyncio.sleep(2)
+                else:
+                    logger.critical("Could not connect to Database after multiple attempts.")
+                    raise e
 
     async def ping(self):
         if not self.client: return False
@@ -119,26 +124,26 @@ class Database:
         return await self.categories.delete_one({"name": name})
 
     async def get_all_categories(self):
-        if not self.categories: return []
+        if self.categories is None: return []
         return await self.categories.find().to_list(length=100)
 
     async def update_schedule(self, day, content):
         return await self.schedules.update_one({"day": day}, {"$set": {"content": content}}, upsert=True)
 
     async def get_schedule(self, day):
-        if not self.schedules: return "No schedule set for this day."
+        if self.schedules is None: return "No data synchronized."
         res = await self.schedules.find_one({"day": day})
-        return res["content"] if res else "No schedule set for this day."
+        return res["content"] if res else "No data synchronized."
 
     async def get_all_schedules(self):
-        if not self.schedules: return []
+        if self.schedules is None: return []
         return await self.schedules.find().to_list(length=7)
 
     async def add_admin(self, user_id):
         return await self.users.update_one({"user_id": user_id}, {"$set": {"user_id": user_id, "is_admin": True}}, upsert=True)
 
     async def is_admin(self, user_id):
-        if not self.users: return False
+        if self.users is None: return False
         try:
             user = await self.users.find_one({"user_id": user_id, "is_admin": True})
             return user is not None
