@@ -21,7 +21,7 @@
 
     {% if results %}
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-8 items-start">
-        {% for anime in results %}
+        {% for anime in results if anime %}
         <a href="/anime/{{ anime.slug }}" class="group animate-fade-in" style="animation-delay: {{ loop.index0 * 0.05 }}s">
             <div class="relative rounded-3xl overflow-hidden mb-5 shadow-2xl transition-transform duration-500 group-hover:scale-105 glass bg-slate-950/50">
                 <img src="{{ anime.image }}" class="w-full h-auto min-h-[150px] max-h-[350px] object-contain" alt="{{ anime.title }}" loading="lazy">
