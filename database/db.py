@@ -43,11 +43,15 @@ class Database:
         uri = Config.MONGO_URI or "mongodb://localhost:27017"
         for attempt in range(1, 6):
             try:
-                logger.info(f"Connecting to Database (Attempt {attempt}/5)...")
+                logger.info(f"Attempting Database Connection (Attempt {attempt}/5)...")
+                # Add validation for URI format to prevent silent driver failures
+                if not uri.startswith("mongodb"):
+                    logger.error("Invalid MONGO_URI format. Must start with 'mongodb' or 'mongodb+srv'")
+
                 self.client = AsyncIOMotorClient(
                     uri,
-                    serverSelectionTimeoutMS=5000,
-                    connectTimeoutMS=10000,
+                    serverSelectionTimeoutMS=10000, # Increased for Render cold starts
+                    connectTimeoutMS=20000,
                     retryWrites=True,
                     retryReads=True
                 )
@@ -66,37 +70,45 @@ class Database:
             except Exception as e:
                 logger.error(f"Database sync failed on attempt {attempt}: {e}")
                 if attempt == 5:
-                    logger.critical("Final database connection attempt failed.")
+                    logger.critical("Final database connection attempt failed. System degraded.")
                 else:
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(3) # Wait longer between retries
 
     @property
     def anime(self):
-        return self._anime if self._anime is not None else self.MockCollection()
+        return self._anime if self._anime is not None else self.MockCollection("anime")
 
     @property
     def episodes(self):
-        return self._episodes if self._episodes is not None else self.MockCollection()
+        return self._episodes if self._episodes is not None else self.MockCollection("episodes")
 
     @property
     def users(self):
-        return self._users if self._users is not None else self.MockCollection()
+        return self._users if self._users is not None else self.MockCollection("users")
 
     @property
     def categories(self):
-        return self._categories if self._categories is not None else self.MockCollection()
+        return self._categories if self._categories is not None else self.MockCollection("categories")
 
     @property
     def schedules(self):
-        return self._schedules if self._schedules is not None else self.MockCollection()
+        return self._schedules if self._schedules is not None else self.MockCollection("schedules")
 
     class MockCollection:
-        """Safety layer to prevent AttributeErrors if DB is down"""
+        """Safety layer to prevent AttributeErrors and provide clear diagnostics"""
+        def __init__(self, name):
+            self.name = name
+
         def __getattr__(self, name):
-            async def mock_func(*args, **kwargs): return None
+            async def mock_func(*args, **kwargs):
+                logger.error(f"DATABASE OFFLINE: Call to {self.name}.{name} ignored.")
+                return None
             return mock_func
 
-        async def find_one(self, *args, **kwargs): return None
+        async def find_one(self, *args, **kwargs):
+            logger.error(f"DATABASE OFFLINE: find_one on {self.name} failed.")
+            return None
+
         def find(self, *args, **kwargs):
             class MockCursor:
                 async def to_list(self, *args, **kwargs): return []
@@ -130,7 +142,7 @@ class Database:
             return clean_doc(doc)
         except Exception as e:
             logger.error(f"DB Error (get_anime_by_slug): {e}")
-            return None
+            raise e
 
     async def get_all_anime(self, limit=20, skip=0):
         try:

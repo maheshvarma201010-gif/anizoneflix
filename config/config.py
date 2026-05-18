@@ -18,6 +18,6 @@ class Config:
     ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "admin-api-key")
     LOGO_URL = os.getenv("LOGO_URL", "https://telegra.ph/file/0c1737e466395b3531b78.jpg")
     BASE_URL = os.getenv("BASE_URL", "https://anizoneflix.onrender.com")
-    PORT = int(os.getenv("PORT", 8080))
-    DB_NAME = "anizoneflix"
+    PORT = int(os.getenv("PORT", 10000))
+    DB_NAME = os.getenv("DB_NAME", "anizoneflix")
     DEBUG = os.getenv("DEBUG", "False").lower() == "true"

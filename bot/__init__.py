@@ -217,37 +217,63 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("edit"))
     async def edit_handler(client, message):
+        """EXECUTIVE SUITE: Robust Rewrite of /edit"""
         if not message.from_user: return
         if not await is_authorized(message.from_user.id):
-            return await message.reply("🚫 **Access Denied!** This zone is for authorized admins only.")
+            return await message.reply("🚫 **Unauthorized Access Detected.** Execution blocked.")
 
-        query = " ".join(message.command[1:])
+        query = " ".join(message.command[1:]).strip()
         if not query and message.reply_to_message:
-            query = message.reply_to_message.text or message.reply_to_message.caption or ""
+            query = (message.reply_to_message.text or message.reply_to_message.caption or "").strip()
 
-        slug = extract_slug(query)
-        if not slug:
-            return await message.reply("💡 **Usage:** `/edit <post_page_url>` (or reply to a link)\n\nExample: `/edit https://site.com/anime/one-piece`")
+        if not query:
+            return await message.reply(
+                "💡 **Executive Suite: Edit Command**\n\n"
+                "Please provide a **Series Page Link** or a **Title Fragment**.\n"
+                "Example: `/edit https://anizoneflix.onrender.com/anime/slug`"
+            )
+
+        status_msg = await message.reply("📡 **Accessing Industrial-Grade Persistence Layer...**")
 
         try:
-            anime = await db.get_anime_by_slug(slug)
-            if not anime:
-                return await message.reply(f"🔍 **Not Found!** Could not locate series for identifier: `{slug}`")
+            # 1. Extraction & Direct Lookup
+            identifier = extract_slug(query)
+            anime = await db.get_anime_by_slug(identifier)
 
+            # 2. Heuristic Search Fallback
+            if not anime:
+                await status_msg.edit(f"🔍 **Identifier '{identifier}' mismatch. Running Intelligence Feed...**")
+                results = await db.search_anime_db(query)
+                if results:
+                    anime = results[0]
+                    identifier = anime['slug']
+
+            if not anime:
+                return await status_msg.edit(f"❌ **Intelligence Failure:** Could not locate series matching `{query}`.")
+
+            # 3. Interactive Management Flow
             buttons = [
-                [InlineKeyboardButton("✅ Yes, Add New Group", callback_data=f"add_group_yes_{slug}")],
-                [InlineKeyboardButton("❌ No, Cancel", callback_data="cancel_op")]
+                [InlineKeyboardButton("💎 Add Content Group", callback_data=f"add_group_yes_{identifier}")],
+                [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{identifier}")],
+                [InlineKeyboardButton("🗑 Purge Series", callback_data=f"confirm_purge_{identifier}")],
+                [InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
             ]
 
-            await message.reply(
-                f"💎 **Archive Located:** `{anime['title']}`\n\n"
-                f"❓ **Would you like to register a new Content Group to this series?**\n"
-                f"*(Groups allow you to add Specials, Movies, or New Seasons)*",
+            await status_msg.edit(
+                f"🏛 **Executive Management: {anime['title']}**\n\n"
+                f"🏷 **Slug:** `{identifier}`\n"
+                f"📂 **Archive Status:** Online\n\n"
+                f"Select an operation to perform on this content archive:",
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
+
         except Exception as e:
-            logger.error(f"Edit Cmd Error: {e}")
-            await message.reply("❌ **Database Access Failure.**")
+            logger.error(f"CRITICAL EDIT FAILURE: {e}\n{traceback.format_exc()}")
+            await status_msg.edit(
+                "❌ **Critical Persistence Failure.**\n\n"
+                f"💻 **Diagnostics:** `{str(e)}`\n"
+                "🛠 **Action:** Verify MONGO_URI is operational and the database is reachable."
+            )
 
     @bot.on_message(filters.command("change_poster"))
     async def change_poster_handler(client, message):
@@ -380,6 +406,33 @@ def register_handlers(bot: Client):
         slug = callback_query.data.split("add_group_yes_")[-1]
         user_state[callback_query.from_user.id] = {"action": "ask_edit_group_name", "slug": slug}
         await callback_query.message.edit_text("📝 **Step 1: Group Identity**\n\nWhat should this content group be named?\n*(e.g. Season 2, Specials, Movie)*", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^trigger_poster_"))
+    async def trigger_poster_cb(client, callback_query):
+        slug = callback_query.data.split("trigger_poster_")[-1]
+        user_state[callback_query.from_user.id] = {"action": "ask_new_poster", "slug": slug}
+        await callback_query.message.edit_text("🖼 **Executive Suite: Asset Update**\n\nPlease provide the **Direct Image URL** for the new poster:", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^confirm_purge_"))
+    async def confirm_purge_cb(client, callback_query):
+        slug = callback_query.data.split("confirm_purge_")[-1]
+        buttons = [
+            [InlineKeyboardButton("🧨 Yes, PURGE EVERYTHING", callback_data=f"execute_purge_{slug}")],
+            [InlineKeyboardButton("🛡 Abort", callback_data="cancel_op")]
+        ]
+        await callback_query.message.edit_text(
+            f"⚠️ **CRITICAL WARNING** ⚠️\n\nYou are about to permanently erase the archive for `{slug}`. This action cannot be undone.\n\nContinue?",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+
+    @bot.on_callback_query(filters.regex("^execute_purge_"))
+    async def execute_purge_cb(client, callback_query):
+        slug = callback_query.data.split("execute_purge_")[-1]
+        try:
+            await db.delete_anime_by_slug(slug)
+            await callback_query.message.edit_text(f"🔥 **Archive Sanitized.** `{slug}` has been removed from the persistence layer.", reply_markup=None)
+        except Exception as e:
+            await callback_query.answer(f"Purge Failed: {e}", show_alert=True)
 
     @bot.on_callback_query(filters.regex("^edit_sched_"))
     async def edit_sched_cb(client, callback_query):
