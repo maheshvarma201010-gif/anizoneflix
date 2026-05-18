@@ -167,6 +167,22 @@ async def anime_detail(request: Request, slug: str):
 async def get_anime_api(skip: int = 0, limit: int = 20):
     return await db.get_all_anime(limit=limit, skip=skip)
 
+@app.get("/schedule")
+async def schedule_page(request: Request):
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    schedules = {}
+    for day in days:
+        schedules[day] = await db.get_schedule(day)
+
+    categories = await db.get_all_categories()
+    return templates.TemplateResponse("schedule.html", {
+        "request": request,
+        "schedules": schedules,
+        "categories": categories,
+        "logo_url": Config.LOGO_URL,
+        "site_name": "ANIZONEFLIX"
+    })
+
 @app.get("/search")
 async def search_web(request: Request, q: str = ""):
     if os.getenv("TESTING"):

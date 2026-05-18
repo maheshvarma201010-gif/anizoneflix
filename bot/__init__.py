@@ -43,6 +43,7 @@ async def set_commands(client):
         BotCommand("edit", "Manage Content Groups"),
         BotCommand("change_poster", "Update Series Artwork"),
         BotCommand("categories", "Manage Genres/Tags"),
+        BotCommand("schedule", "Manage Airing Schedule"),
         BotCommand("del", "Permanent Archive Erasure"),
         BotCommand("cancel", "Abort Active Process"),
         BotCommand("ping", "System Latency Check")
@@ -56,9 +57,8 @@ def extract_slug(text):
     text = text.strip()
     if "/anime/" in text:
         try:
-            # Handle URLs like https://site.com/anime/slug/extra or https://site.com/anime/slug?q=1
             parts = text.split("/anime/")[-1].split("/")
-            slug_part = parts[0] if parts[0] else parts[1] # handle trailing slash before anime
+            slug_part = parts[0] if parts[0] else parts[1]
             return slug_part.split("?")[0].split("\n")[0].split(" ")[0].rstrip("/").strip()
         except:
             return None
@@ -136,6 +136,7 @@ def register_handlers(bot: Client):
             "• `/change_poster <url>`: Swap series artwork instantly.\n\n"
             "**⚙️ MANAGEMENT**\n"
             "• `/categories`: Manage platform genres & tags.\n"
+            "• `/schedule`: Manage Airtimes & Day releases.\n"
             "• `/del <url/slug>`: Permanent removal of series & files.\n"
             "• `/cancel`: Abort any active administrative process.\n\n"
             "**💎 PREMIUM FEATURES**\n"
@@ -246,7 +247,7 @@ def register_handlers(bot: Client):
             )
         except Exception as e:
             logger.error(f"Edit Cmd Error: {e}")
-            await message.reply("❌ **Database Access Failure.** Verify connection or check logs.")
+            await message.reply("❌ **Database Access Failure.**")
 
     @bot.on_message(filters.command("change_poster"))
     async def change_poster_handler(client, message):
@@ -297,6 +298,25 @@ def register_handlers(bot: Client):
         except Exception as e:
             logger.error(f"Categories Error: {e}")
             await message.reply("❌ **Database Access Failure.**")
+
+    @bot.on_message(filters.command("schedule"))
+    async def schedule_handler(client, message):
+        if not message.from_user: return
+        if not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Access Denied.**")
+
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        buttons = []
+        for i in range(0, len(days), 2):
+            row = [InlineKeyboardButton(days[i], callback_data=f"edit_sched_{days[i]}")]
+            if i+1 < len(days):
+                row.append(InlineKeyboardButton(days[i+1], callback_data=f"edit_sched_{days[i+1]}"))
+            buttons.append(row)
+
+        await message.reply(
+            "📅 **Airing Schedule Management**\n\nSelect a day to update its schedule:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
 
     @bot.on_message(filters.command("del"))
     async def delete_handler(client, message):
@@ -361,6 +381,16 @@ def register_handlers(bot: Client):
         user_state[callback_query.from_user.id] = {"action": "ask_edit_group_name", "slug": slug}
         await callback_query.message.edit_text("📝 **Step 1: Group Identity**\n\nWhat should this content group be named?\n*(e.g. Season 2, Specials, Movie)*", reply_markup=None)
 
+    @bot.on_callback_query(filters.regex("^edit_sched_"))
+    async def edit_sched_cb(client, callback_query):
+        day = callback_query.data.split("edit_sched_")[-1]
+        user_state[callback_query.from_user.id] = {"action": "ask_sched_content", "day": day}
+        current = await db.get_schedule(day)
+        await callback_query.message.edit_text(
+            f"📅 **Updating Schedule: {day}**\n\n🏷 **Current:**\n`{current}`\n\n📥 Please send the new schedule in this format:\n\n1. NAME (TIME)\n2. NAME (TIME)\n\nSend `/skip` to cancel.",
+            reply_markup=None
+        )
+
     @bot.on_callback_query(filters.regex("^cancel_op$"))
     async def cancel_op_cb(client, callback_query):
         user_state.pop(callback_query.from_user.id, None)
@@ -416,7 +446,7 @@ def register_handlers(bot: Client):
 
     # --- INTERACTION HANDLER (GROUP 1) ---
 
-    @bot.on_message(filters.private & filters.text & ~filters.command(["start", "help", "search", "add_post", "edit", "categories", "del", "cancel", "change_poster", "ping"]), group=1)
+    @bot.on_message(filters.private & filters.text & ~filters.command(["start", "help", "search", "add_post", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule"]), group=1)
     async def interaction_handler(client, message):
         uid = message.from_user.id
         state = user_state.get(uid)
@@ -432,6 +462,15 @@ def register_handlers(bot: Client):
                 cat_name = message.text.strip()
                 await db.add_category(cat_name)
                 await message.reply(f"✅ **Category Created:** `{cat_name}`\n📂 Use `/categories` to view updated list.")
+                del user_state[uid]
+
+            elif action == "ask_sched_content":
+                if message.text == "/skip":
+                    del user_state[uid]
+                    return await message.reply("✨ **Cancelled.**")
+                day, content = state["day"], message.text.strip()
+                await db.update_schedule(day, content)
+                await message.reply(f"✅ **Schedule Updated:** `{day}` is now live.")
                 del user_state[uid]
 
             elif action == "ask_new_poster":

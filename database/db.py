@@ -22,6 +22,7 @@ class Database:
         self.users = self.db.users
         self.settings = self.db.settings
         self.categories = self.db.categories
+        self.schedules = self.db.schedules
 
     async def ping(self):
         try:
@@ -90,6 +91,16 @@ class Database:
 
     async def get_all_categories(self):
         return await self.categories.find().to_list(length=100)
+
+    async def update_schedule(self, day, content):
+        return await self.schedules.update_one({"day": day}, {"$set": {"content": content}}, upsert=True)
+
+    async def get_schedule(self, day):
+        res = await self.schedules.find_one({"day": day})
+        return res["content"] if res else "No schedule set for this day."
+
+    async def get_all_schedules(self):
+        return await self.schedules.find().to_list(length=7)
 
     async def add_admin(self, user_id):
         return await self.users.update_one({"user_id": user_id}, {"$set": {"user_id": user_id, "is_admin": True}}, upsert=True)
