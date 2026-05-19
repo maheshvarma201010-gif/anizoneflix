@@ -41,6 +41,8 @@ async def set_commands(client):
         BotCommand("search", "Industrial-Grade Search"),
         BotCommand("add_post", "Rapid One-Shot Post"),
         BotCommand("add_page", "Manual Content Creation"),
+        BotCommand("manual", "Custom Detailed Creation"),
+        BotCommand("edit_m", "Manage Custom Buttons"),
         BotCommand("edit", "Manage Content Groups"),
         BotCommand("change_poster", "Update Series Artwork"),
         BotCommand("categories", "Manage Genres/Tags"),
@@ -343,6 +345,28 @@ def register_handlers(bot: Client):
             logger.error(f"Delete Error: {e}")
             await message.reply("❌ **Erasure Failure.**")
 
+    @bot.on_message(filters.command("manual"))
+    async def manual_handler(client, message):
+        if not await is_authorized(message.from_user.id): return
+        user_state[message.from_user.id] = {"action": "ask_manual_title"}
+        await message.reply("📝 **Step 1: Title**\nSend Title for the custom page:")
+
+    @bot.on_message(filters.command("edit_m"))
+    async def edit_m_handler(client, message):
+        if not await is_authorized(message.from_user.id): return
+        query = message.text.split(" ", 1)[1] if len(message.text.split()) > 1 else ""
+        if not query and message.reply_to_message:
+            query = message.reply_to_message.text or message.reply_to_message.caption or ""
+
+        slug = extract_slug(query)
+        if not slug: return await message.reply("💡 **Usage:** `/edit_m <page_url>`")
+
+        anime = await db.get_anime_by_slug(slug)
+        if not anime: return await message.reply("❌ **Page not found in database.**")
+
+        user_state[message.from_user.id] = {"action": "ask_edit_m_count", "slug": slug, "anime": anime}
+        await message.reply("🖇 **How many buttons do you want to add?**\nSend a number (e.g., 4):")
+
     @bot.on_message(filters.command("cancel"))
     async def cancel_handler(client, message):
         user_state.pop(message.from_user.id, None)
@@ -459,7 +483,7 @@ def register_handlers(bot: Client):
 
     # --- INTERACTION HANDLER (GROUP 1) ---
 
-    @bot.on_message(filters.private & filters.text & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule"]), group=1)
+    @bot.on_message(filters.private & filters.text & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m"]), group=1)
     async def interaction_handler(client, message):
         uid = message.from_user.id
         state = user_state.get(uid)
@@ -469,6 +493,102 @@ def register_handlers(bot: Client):
         try:
             if action == "ask_search_query":
                 return await search_handler(client, message, is_retry=True)
+            elif action == "ask_manual_title":
+                user_state[uid].update({"title": message.text.strip(), "action": "ask_manual_synopsis"})
+                await message.reply("📝 **Step 2: Synopsis**\nSend Synopsis:")
+            elif action == "ask_manual_synopsis":
+                user_state[uid].update({"synopsis": message.text.strip(), "action": "ask_manual_genre"})
+                await message.reply("📝 **Step 3: Genre**\nSend Genre (e.g. Action, Comedy):")
+            elif action == "ask_manual_genre":
+                user_state[uid].update({"genre": message.text.strip(), "action": "ask_manual_image"})
+                await message.reply("📝 **Step 4: Image URL**\nSend direct link to image:")
+            elif action == "ask_manual_image":
+                user_state[uid].update({"image": message.text.strip(), "action": "ask_manual_rating"})
+                await message.reply("📝 **Step 5: Rating**\nSend Rating (e.g. 8.5):")
+            elif action == "ask_manual_rating":
+                user_state[uid].update({"rating": message.text.strip(), "action": "ask_manual_btn_count"})
+                await message.reply("📝 **Step 6: How many buttons do you want to add?**\nSend a number:")
+            elif action == "ask_manual_btn_count":
+                try:
+                    count = int(message.text.strip())
+                    if count < 0: raise ValueError
+                    user_state[uid].update({"btn_count": count, "current_btn": 1, "buttons": [], "action": "ask_manual_btn_name" if count > 0 else "manual_publish"})
+                    if count > 0:
+                        await message.reply(f"🔗 **Button 1 Name:**")
+                    else:
+                        return await interaction_handler(client, message) # Trigger publish
+                except: await message.reply("❌ **Invalid number.** Send a valid integer:")
+            elif action == "ask_manual_btn_name":
+                user_state[uid]["temp_btn_name"] = message.text.strip()
+                user_state[uid]["action"] = "ask_manual_btn_link"
+                await message.reply(f"🔗 **Button {state['current_btn']} Link:**")
+            elif action == "ask_manual_btn_link":
+                if not message.text.strip().startswith("http"):
+                    return await message.reply("❌ **Invalid Link.** Must start with http/https. Send again:")
+                user_state[uid]["buttons"].append({"name": state["temp_btn_name"], "link": message.text.strip()})
+                if state["current_btn"] < state["btn_count"]:
+                    user_state[uid]["current_btn"] += 1
+                    user_state[uid]["action"] = "ask_manual_btn_name"
+                    await message.reply(f"🔗 **Button {user_state[uid]['current_btn']} Name:**")
+                else:
+                    user_state[uid]["action"] = "manual_publish"
+                    return await interaction_handler(client, message)
+
+            # --- PUBLISH MANUAL ---
+            elif action == "manual_publish":
+                slug = slugify(state["title"])
+                entry = {
+                    "mal_id": f"manual_{slug}",
+                    "title": state["title"],
+                    "slug": slug,
+                    "synopsis": state["synopsis"],
+                    "score": state["rating"],
+                    "image": state["image"],
+                    "genres": [g.strip() for g in state["genre"].split(",")],
+                    "category": state["genre"].split(",")[0].strip(),
+                    "status": "Manual",
+                    "year": "N/A",
+                    "custom_buttons": state.get("buttons", []),
+                    "seasons_links": {}
+                }
+                if db.anime is not None:
+                    await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
+                    await message.reply(f"🚀 **Custom Page Published!**\nPortal: {Config.BASE_URL}/anime/{slug}")
+                else:
+                    await message.reply("❌ Database Offline")
+                del user_state[uid]
+
+            # --- EDIT_M FLOW ---
+            elif action == "ask_edit_m_count":
+                try:
+                    count = int(message.text.strip())
+                    if count <= 0: return await message.reply("❌ **Number must be greater than 0.**")
+                    user_state[uid].update({"btn_count": count, "current_btn": 1, "new_buttons": [], "action": "ask_edit_m_btn_name"})
+                    await message.reply(f"🔗 **Button 1 Name:**")
+                except: await message.reply("❌ **Invalid number.** Send a valid integer:")
+            elif action == "ask_edit_m_btn_name":
+                user_state[uid]["temp_btn_name"] = message.text.strip()
+                user_state[uid]["action"] = "ask_edit_m_btn_link"
+                await message.reply(f"🔗 **Button {state['current_btn']} Link:**")
+            elif action == "ask_edit_m_btn_link":
+                if not message.text.strip().startswith("http"):
+                    return await message.reply("❌ **Invalid Link.** Must start with http/https. Send again:")
+                user_state[uid]["new_buttons"].append({"name": state["temp_btn_name"], "link": message.text.strip()})
+                if state["current_btn"] < state["btn_count"]:
+                    user_state[uid]["current_btn"] += 1
+                    user_state[uid]["action"] = "ask_edit_m_btn_name"
+                    await message.reply(f"🔗 **Button {user_state[uid]['current_btn']} Name:**")
+                else:
+                    # Update database
+                    existing_buttons = state["anime"].get("custom_buttons", [])
+                    existing_buttons.extend(state["new_buttons"])
+                    if db.anime is not None:
+                        await db.anime.update_one({"slug": state["slug"]}, {"$set": {"custom_buttons": existing_buttons}})
+                        await message.reply(f"✅ **Buttons Synchronized!**\nPage: {Config.BASE_URL}/anime/{state['slug']}")
+                    else:
+                        await message.reply("❌ Database Offline")
+                    del user_state[uid]
+
             elif action == "ask_cat_name":
                 await db.add_category(message.text.strip())
                 await message.reply(f"✅ **Category Created.** Use /categories to view.")

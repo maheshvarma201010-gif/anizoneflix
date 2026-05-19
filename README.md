@@ -64,6 +64,9 @@ High-speed metadata extraction from:
 
 ### 💎 Executive Bot Suite
 *   `/search <title>`: Interactive intelligence setup with custom metadata calibration.
+*   `/manual`: Custom detailed creation with unlimited direct access buttons.
+*   `/edit_m <url>`: Manage and append custom buttons to existing posts.
+*   `/add_page`: Manual content creation for series metadata.
 *   `/edit <url>`: Real-time content group and archive management.
 *   `/schedule`: Centralized airtime synchronization across the network.
 *   `/categories`: Full CRUD genre management.

@@ -73,7 +73,7 @@
 
             {% for season, links in anime.seasons_links.items() %}
             <div id="season-{{ season|slugify }}" class="season-content hidden animate-fade-in">
-                <p class="text-gray-400 font-medium mb-8 uppercase tracking-widest text-xs">BELOW HAVE LINKS TO GET FILES CLICK ON YOU WANTED QUALITY AND GET FILE </p>
+                <p class="text-gray-400 font-medium mb-8 uppercase tracking-widest text-xs">ABOVE HAVE LINKS TO GET FILES SELECT AND CLICK ON QUALITY GET FILES</p>
 
                 <div class="flex flex-wrap gap-4">
                     {% if links['480p'] %}
@@ -95,7 +95,27 @@
             </div>
             {% endfor %}
         </div>
-        {% else %}
+        {% endif %}
+
+        <!-- Custom Buttons -->
+        {% if anime.custom_buttons %}
+        <div class="glass rounded-[2rem] p-6 md:p-10 border border-white/5 shadow-2xl">
+            <div class="flex items-center gap-2 mb-8">
+                <i class="fa-solid fa-link text-red-600 mr-2"></i>
+                <h3 class="text-2xl font-black">Direct Access</h3>
+            </div>
+
+            <div class="flex flex-wrap gap-4">
+                {% for btn in anime.custom_buttons %}
+                <a href="{{ btn.link }}" target="_blank" class="px-8 py-4 bg-slate-800/40 hover:bg-white hover:text-black rounded-2xl font-black text-sm transition-all flex items-center gap-2 border border-white/5 shadow-xl">
+                    <i class="fa-solid fa-up-right-from-square text-xs"></i> {{ btn.name }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not anime.seasons_links and not anime.custom_buttons %}
             <div class="py-24 text-center glass rounded-[3rem] border-dashed border-2 border-white/5">
                 <i class="fa-solid fa-cloud-moon text-6xl text-slate-800 mb-6"></i>
                 <p class="text-gray-500 font-bold text-xl uppercase tracking-widest">No links synchronized yet.</p>
