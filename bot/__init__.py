@@ -262,6 +262,7 @@ def register_handlers(bot: Client):
 
             buttons = [
                 [InlineKeyboardButton("💎 Add Group", callback_data=f"add_group_yes_{slug}")],
+                [InlineKeyboardButton("📝 Edit Groups", callback_data=f"manage_groups_{slug}")],
                 [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{slug}")],
                 [InlineKeyboardButton("🗑 Purge", callback_data=f"confirm_purge_{slug}")],
                 [InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
@@ -426,6 +427,56 @@ def register_handlers(bot: Client):
         current = await db.get_schedule(day)
         await callback_query.message.edit_text(f"📅 **Update: {day}**\n\nCurrent:\n`{current}`\n\nFormat: 1. NAME (TIME)\nSend `/skip` to cancel.", reply_markup=None)
 
+    @bot.on_callback_query(filters.regex("^manage_groups_"))
+    async def manage_groups_cb(client, callback_query):
+        slug = callback_query.data.split("manage_groups_")[-1]
+        anime = await db.get_anime_by_slug(slug)
+        if not anime: return await callback_query.answer("❌ Not Found", show_alert=True)
+
+        groups = anime.get("seasons_links", {})
+        if not groups: return await callback_query.edit_message_text("❌ **No groups available to edit.**", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{slug}")]]))
+
+        buttons = []
+        for gname in groups.keys():
+            buttons.append([
+                InlineKeyboardButton(f"✏️ {gname}", callback_data=f"rename_group_{slug}_{gname}"),
+                InlineKeyboardButton(f"🗑 Remove", callback_data=f"remove_group_{slug}_{gname}")
+            ])
+        buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{slug}")])
+        await callback_query.message.edit_text(f"📝 **Manage Groups: {anime['title']}**\nSelect an action:", reply_markup=InlineKeyboardMarkup(buttons))
+
+    @bot.on_callback_query(filters.regex("^back_to_edit_"))
+    async def back_to_edit_cb(client, callback_query):
+        slug = callback_query.data.split("back_to_edit_")[-1]
+        # Re-trigger edit_handler logic via fake message if needed, or just repeat buttons
+        anime = await db.get_anime_by_slug(slug)
+        buttons = [
+            [InlineKeyboardButton("💎 Add Group", callback_data=f"add_group_yes_{slug}")],
+            [InlineKeyboardButton("📝 Edit Groups", callback_data=f"manage_groups_{slug}")],
+            [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{slug}")],
+            [InlineKeyboardButton("🗑 Purge", callback_data=f"confirm_purge_{slug}")],
+            [InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
+        ]
+        await callback_query.message.edit_text(f"🏛 **Management: {anime['title']}**\nSlug: `{slug}`", reply_markup=InlineKeyboardMarkup(buttons))
+
+    @bot.on_callback_query(filters.regex("^rename_group_"))
+    async def rename_group_cb(client, callback_query):
+        _, _, slug, gname = callback_query.data.split("_", 3)
+        user_state[callback_query.from_user.id] = {"action": "ask_rename_group_new_name", "slug": slug, "old_name": gname}
+        await callback_query.message.edit_text(f"✏️ **Rename Group: {gname}**\n\nSend the **New Name** for this group:", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^remove_group_"))
+    async def remove_group_cb(client, callback_query):
+        _, _, slug, gname = callback_query.data.split("_", 3)
+        anime = await db.get_anime_by_slug(slug)
+        groups = anime.get("seasons_links", {})
+        if gname in groups:
+            del groups[gname]
+            await db.anime.update_one({"slug": slug}, {"$set": {"seasons_links": groups}})
+            await callback_query.answer(f"🗑 Removed {gname}", show_alert=True)
+            return await manage_groups_cb(client, callback_query)
+        await callback_query.answer("❌ Group already missing")
+
     @bot.on_callback_query(filters.regex("^cancel_op$"))
     async def cancel_op_cb(client, callback_query):
         user_state.pop(callback_query.from_user.id, None)
@@ -556,6 +607,19 @@ def register_handlers(bot: Client):
                     await message.reply(f"🚀 **Custom Page Published!**\nPortal: {Config.BASE_URL}/anime/{slug}")
                 else:
                     await message.reply("❌ Database Offline")
+                del user_state[uid]
+            elif action == "ask_rename_group_new_name":
+                new_name = message.text.strip()
+                slug, old_name = state["slug"], state["old_name"]
+                anime = await db.get_anime_by_slug(slug)
+                if anime:
+                    groups = anime.get("seasons_links", {})
+                    if old_name in groups:
+                        groups[new_name] = groups.pop(old_name)
+                        await db.anime.update_one({"slug": slug}, {"$set": {"seasons_links": groups}})
+                        await message.reply(f"✅ **Group Renamed:** `{old_name}` → `{new_name}`")
+                    else: await message.reply("❌ Group mismatch.")
+                else: await message.reply("❌ Series not found.")
                 del user_state[uid]
 
             # --- EDIT_M FLOW ---
