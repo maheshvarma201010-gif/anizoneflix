@@ -212,6 +212,41 @@ async def search_web(request: Request, q: str = ""):
         logger.error(f"Search error: {e}")
         return templates.TemplateResponse(request=request, name="search.html", context={"results": [], "query": q, "categories": []})
 
+@app.get("/az-index")
+async def az_index(request: Request):
+    try:
+        if db.anime is not None:
+            # Fetch all to build index (for production consider aggregation or separate collection if size is massive)
+            all_anime = await db.anime.find({}, {"title": 1, "slug": 1}).sort("title", 1).to_list(length=5000)
+        else:
+            all_anime = []
+
+        indexed_data = {}
+        chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        for char in chars: indexed_data[char] = []
+        indexed_data["#"] = []
+
+        for item in all_anime:
+            title = item.get("title", "").strip().upper()
+            if not title: continue
+            first_char = title[0]
+            if first_char in chars:
+                indexed_data[first_char].append(item)
+            elif first_char.isdigit() or not first_char.isalpha():
+                indexed_data["#"].append(item)
+
+        categories = await db.get_all_categories()
+        return templates.TemplateResponse(request=request, name="az_index.html", context={
+            "indexed_data": indexed_data,
+            "chars": chars + "#",
+            "categories": categories or [],
+            "logo_url": Config.LOGO_URL,
+            "site_name": "ANIZONEFLIX"
+        })
+    except Exception as e:
+        logger.error(f"AZ Index error: {e}")
+        return templates.TemplateResponse(request=request, name="404.html", context={"error": "Index Generation Failed"}, status_code=500)
+
 # --- ADMIN ROUTES ---
 
 @app.get("/admin/login")

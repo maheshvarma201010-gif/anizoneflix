@@ -54,8 +54,8 @@
                     {% if anime.custom_buttons %}
                         {% for btn in anime.custom_buttons %}
                         <div class="flex gap-2 button-row">
-                            <input type="text" placeholder="Label" class="flex-1 px-4 py-2 rounded-lg" value="{{ btn.label }}">
-                            <input type="text" placeholder="URL" class="flex-[2] px-4 py-2 rounded-lg" value="{{ btn.url }}">
+                            <input type="text" placeholder="Label" class="flex-1 px-4 py-2 rounded-lg" value="{{ btn.name }}">
+                            <input type="text" placeholder="URL" class="flex-[2] px-4 py-2 rounded-lg" value="{{ btn.link }}">
                             <button type="button" onclick="this.parentElement.remove()" class="px-3 py-2 bg-red-600 rounded-lg hover:bg-red-700">
                                 <i class="fa-solid fa-trash"></i>
                             </button>
@@ -103,7 +103,7 @@
             document.querySelectorAll('.button-row').forEach(row => {
                 const inputs = row.querySelectorAll('input');
                 if (inputs[0].value && inputs[1].value) {
-                    buttons.push({ label: inputs[0].value, url: inputs[1].value });
+                    buttons.push({ name: inputs[0].value, link: inputs[1].value });
                 }
             });
             data.custom_buttons = buttons;
@@ -115,10 +115,10 @@
                     body: JSON.stringify(data)
                 });
                 const result = await res.json();
-                if (result.status === 'success') {
+                if (result.success) {
                     alert('Saved successfully!');
                 } else {
-                    alert('Error: ' + result.error);
+                    alert('Error: ' + result.message);
                 }
             } catch (e) {
                 alert('Request failed');

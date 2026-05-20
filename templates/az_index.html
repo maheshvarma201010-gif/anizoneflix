@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-12">
+    <!-- Header Section -->
+    <div class="text-center mb-16 animate-fade-in">
+        <h1 class="text-5xl md:text-7xl font-black mb-6 tracking-tighter">ANIZONE <span class="text-red-600">INDEX</span></h1>
+        <p class="text-gray-400 text-lg max-w-2xl mx-auto font-medium">Automated intelligence-driven archival indexing. Browse the entire network archive by character.</p>
+    </div>
+
+    <!-- Quick Navigation -->
+    <div class="glass rounded-[2.5rem] p-4 md:p-6 mb-12 flex flex-wrap justify-center gap-2 sticky top-24 z-30 border border-white/10 shadow-2xl backdrop-blur-xl">
+        {% for char in chars %}
+        <a href="#char-{{ char }}" class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl glass hover:bg-red-600 hover:text-white transition-all font-black text-sm border border-white/5 shadow-lg active:scale-95">
+            {{ char }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Index Sections -->
+    <div class="space-y-12">
+        {% for char, items in indexed_data.items() %}
+        <div id="char-{{ char }}" class="scroll-mt-40 animate-fade-in">
+            <div class="flex items-center gap-6 mb-8">
+                <div class="w-16 h-16 rounded-[1.5rem] bg-red-600 flex items-center justify-center text-3xl font-black shadow-xl shadow-red-900/40">
+                    {{ char }}
+                </div>
+                <div class="h-px flex-1 bg-gradient-to-r from-red-600/50 to-transparent"></div>
+            </div>
+
+            {% if items %}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for item in items %}
+                <a href="/anime/{{ item.slug }}" class="glass p-5 rounded-2xl flex items-center justify-between hover:bg-white hover:text-black group transition-all border border-white/5 shadow-lg">
+                    <span class="font-bold truncate pr-4">{{ item.title }}</span>
+                    <i class="fa-solid fa-arrow-right text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="glass p-10 rounded-[2rem] text-center border-dashed border-2 border-white/5">
+                <p class="text-gray-500 font-bold uppercase tracking-widest text-sm">No synchronized titles for this sector.</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
