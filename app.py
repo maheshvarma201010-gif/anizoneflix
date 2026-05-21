@@ -189,7 +189,7 @@ async def search_web(request: Request, q: str = ""):
     try:
         results = []
         if q:
-            if db.anime is not None:
+            if db.anime:
                 results = await db.anime.find({"$or": [
                     {"title": {"$regex": q, "$options": "i"}},
                     {"category": q}
@@ -215,7 +215,7 @@ async def search_web(request: Request, q: str = ""):
 @app.get("/az-index")
 async def az_index(request: Request):
     try:
-        if db.anime is not None:
+        if db.anime:
             # Fetch all to build index (for production consider aggregation or separate collection if size is massive)
             all_anime = await db.anime.find({}, {"title": 1, "slug": 1}).sort("title", 1).to_list(length=5000)
         else:
@@ -285,7 +285,7 @@ async def save_post(request: Request, mal_id: str, admin=Depends(get_current_adm
         data = await request.json()
         try: query_id = int(mal_id)
         except: query_id = mal_id
-        if db.anime is not None:
+        if db.anime:
             await db.anime.update_one({"mal_id": query_id}, {"$set": data})
             return safe_api_response(True)
         return safe_api_response(False, message="Database Offline")

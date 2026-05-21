@@ -2,7 +2,7 @@ import asyncio
 import logging
 import traceback
 import os
-from pyrogram import Client, filters, enums
+from pyrogram import Client, filters, enums, ContinuePropagation
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, BotCommand
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from config.config import Config
@@ -74,7 +74,7 @@ def register_handlers(bot: Client):
     @bot.on_message(filters.all, group=-3)
     async def debug_logger(client, message):
         # logger.debug(f"UPDATE: {message.chat.id} -> {message.text or 'MEDIA'}")
-        message.continue_propagation()
+        raise ContinuePropagation
 
     # --- AUTO-LINK HANDLER (GROUP -2) ---
     @bot.on_message(filters.all, group=-2)
@@ -97,7 +97,7 @@ def register_handlers(bot: Client):
             except Exception as e:
                 logger.error(f"Auto-Link Error: {e}")
 
-        message.continue_propagation()
+        raise ContinuePropagation
 
     # --- COMMAND HANDLERS (GROUP 0) ---
 
@@ -437,14 +437,17 @@ def register_handlers(bot: Client):
         groups = anime.get("seasons_links", {})
         if not groups: return await callback_query.edit_message_text("❌ **No groups available to edit.**", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{slug}")]]))
 
+        # Store current groups in state for index-based access (prevents 64-byte callback limit issues)
+        group_list = list(groups.keys())
+        user_state[callback_query.from_user.id] = {"slug": slug, "group_names": group_list}
+
         buttons = []
-        for gname in groups.keys():
-            # Shorten display name if needed but keep it unique
-            display_name = (gname[:20] + '..') if len(gname) > 22 else gname
-            # Use shorter callback keys to avoid 64-byte limit
+        for idx, gname in enumerate(group_list):
+            display_name = (gname[:15] + '..') if len(gname) > 17 else gname
             buttons.append([
-                InlineKeyboardButton(f"✏️ {display_name}", callback_data=f"reng_{slug}_{gname}"[:64]),
-                InlineKeyboardButton(f"🗑", callback_data=f"remg_{slug}_{gname}"[:64])
+                InlineKeyboardButton(f"✏️ {display_name}", callback_data=f"rengidx_{idx}"),
+                InlineKeyboardButton(f"🔗 Links", callback_data=f"editlidx_{idx}"),
+                InlineKeyboardButton(f"🗑", callback_data=f"remgidx_{idx}")
             ])
         buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{slug}")])
         await callback_query.message.edit_text(f"📝 **Manage Groups: {anime['title']}**\nSelect an action:", reply_markup=InlineKeyboardMarkup(buttons))
@@ -463,17 +466,33 @@ def register_handlers(bot: Client):
         ]
         await callback_query.message.edit_text(f"🏛 **Management: {anime['title']}**\nSlug: `{slug}`", reply_markup=InlineKeyboardMarkup(buttons))
 
-    @bot.on_callback_query(filters.regex("^reng_"))
+    @bot.on_callback_query(filters.regex("^rengidx_"))
     async def rename_group_cb(client, callback_query):
-        parts = callback_query.data.split("_")
-        slug, gname = parts[1], "_".join(parts[2:])
-        user_state[callback_query.from_user.id] = {"action": "ask_rename_group_new_name", "slug": slug, "old_name": gname}
+        idx = int(callback_query.data.split("_")[-1])
+        state = user_state.get(callback_query.from_user.id)
+        if not state or "group_names" not in state: return await callback_query.answer("❌ Session Expired", show_alert=True)
+
+        gname = state["group_names"][idx]
+        user_state[callback_query.from_user.id].update({"action": "ask_rename_group_new_name", "old_name": gname})
         await callback_query.message.edit_text(f"✏️ **Rename Group: {gname}**\n\nSend the **New Name** for this group:", reply_markup=None)
 
-    @bot.on_callback_query(filters.regex("^remg_"))
+    @bot.on_callback_query(filters.regex("^editlidx_"))
+    async def edit_links_cb(client, callback_query):
+        idx = int(callback_query.data.split("_")[-1])
+        state = user_state.get(callback_query.from_user.id)
+        if not state or "group_names" not in state: return await callback_query.answer("❌ Session Expired", show_alert=True)
+
+        gname = state["group_names"][idx]
+        user_state[callback_query.from_user.id].update({"action": "ask_edit_group_name", "group_name": gname})
+        await callback_query.message.edit_text(f"🔗 **Updating Links: {gname}**\n\nExisting links for this quality will be replaced.\n🛰 **480p Link** (or `/skip`):", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^remgidx_"))
     async def remove_group_cb(client, callback_query):
-        parts = callback_query.data.split("_")
-        slug, gname = parts[1], "_".join(parts[2:])
+        idx = int(callback_query.data.split("_")[-1])
+        state = user_state.get(callback_query.from_user.id)
+        if not state or "group_names" not in state: return await callback_query.answer("❌ Session Expired", show_alert=True)
+
+        gname, slug = state["group_names"][idx], state["slug"]
         anime = await db.get_anime_by_slug(slug)
         groups = anime.get("seasons_links", {})
         if gname in groups:
@@ -519,7 +538,7 @@ def register_handlers(bot: Client):
         slug = slugify(data["title"])
         entry = {"mal_id": f"series_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": state["seasons_data"], "custom_buttons": []}
         try:
-            if db.anime is not None:
+            if db.anime:
                 await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
                 await callback_query.message.edit_text(text=f"💎 **LIVE:** `{data['title']}`\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
                 del user_state[uid]
@@ -536,7 +555,7 @@ def register_handlers(bot: Client):
         slug = slugify(data["title"])
         entry = {"mal_id": f"auto_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {"1": {"480p": None, "720p": None, "1080p": None}}, "custom_buttons": []}
         try:
-            if db.anime is not None:
+            if db.anime:
                 await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
                 await callback_query.message.edit_caption(caption=f"⚡ **Deployment Success!**\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
                 del user_state[uid]
@@ -614,7 +633,7 @@ def register_handlers(bot: Client):
                     "custom_buttons": state.get("buttons", []),
                     "seasons_links": {}
                 }
-                if db.anime is not None:
+                if db.anime:
                     await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
                     await message.reply(f"🚀 **Custom Page Published!**\nPortal: {Config.BASE_URL}/anime/{slug}")
                 else:
@@ -636,7 +655,7 @@ def register_handlers(bot: Client):
             elif action == "ask_change_series_title":
                 new_title = message.text.strip()
                 slug = state["slug"]
-                if db.anime is not None:
+                if db.anime:
                     res = await db.anime.update_one({"slug": slug}, {"$set": {"title": new_title}})
                     await message.reply(f"✅ **Series Title Updated:** `{new_title}`" if res.modified_count else "❌ **Update Failed.**")
                 else:
@@ -667,7 +686,7 @@ def register_handlers(bot: Client):
                     # Update database
                     existing_buttons = state["anime"].get("custom_buttons", [])
                     existing_buttons.extend(state["new_buttons"])
-                    if db.anime is not None:
+                    if db.anime:
                         await db.anime.update_one({"slug": state["slug"]}, {"$set": {"custom_buttons": existing_buttons}})
                         await message.reply(f"✅ **Buttons Synchronized!**\nPage: {Config.BASE_URL}/anime/{state['slug']}")
                     else:
@@ -684,15 +703,16 @@ def register_handlers(bot: Client):
                 del user_state[uid]
             elif action == "ask_new_poster":
                 slug = state["slug"]
-                if db.anime is not None:
+                if db.anime:
                     res = await db.anime.update_one({"slug": slug}, {"$set": {"image": message.text.strip()}})
                     await message.reply("✅ **Visual Synchronized.**" if res.modified_count else "❌ **Update Failed.**")
                 else:
                     await message.reply("❌ Database Offline")
                 del user_state[uid]
             elif action == "ask_edit_group_name":
-                user_state[uid].update({"action": "ask_edit_480p", "group_name": message.text.strip()})
-                await message.reply(f"📦 **Group: {message.text.strip()}**\n\n🛰 **480p Link** (or /skip):")
+                gname = state.get("group_name") or message.text.strip()
+                user_state[uid].update({"action": "ask_edit_480p", "group_name": gname})
+                await message.reply(f"📦 **Group: {gname}**\n\n🛰 **480p Link** (or /skip):")
             elif action == "ask_edit_480p":
                 user_state[uid]["480p"] = message.text if message.text != "/skip" else None
                 user_state[uid]["action"] = "ask_edit_720p"
@@ -705,7 +725,7 @@ def register_handlers(bot: Client):
                 anime = await db.get_anime_by_slug(state["slug"])
                 links = anime.get("seasons_links", {}) if anime else {}
                 links[state["group_name"]] = {"480p": state.get("480p"), "720p": state.get("720p"), "1080p": message.text if message.text != "/skip" else None}
-                if db.anime is not None:
+                if db.anime:
                     await db.anime.update_one({"slug": state["slug"]}, {"$set": {"seasons_links": links}})
                     await message.reply(f"💎 **Success!** Added group.")
                 else:
