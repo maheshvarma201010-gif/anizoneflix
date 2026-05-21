@@ -263,6 +263,7 @@ def register_handlers(bot: Client):
             buttons = [
                 [InlineKeyboardButton("💎 Add Group", callback_data=f"add_group_yes_{slug}")],
                 [InlineKeyboardButton("📝 Edit Groups", callback_data=f"manage_groups_{slug}")],
+                [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{slug}")],
                 [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{slug}")],
                 [InlineKeyboardButton("🗑 Purge", callback_data=f"confirm_purge_{slug}")],
                 [InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
@@ -438,9 +439,12 @@ def register_handlers(bot: Client):
 
         buttons = []
         for gname in groups.keys():
+            # Shorten display name if needed but keep it unique
+            display_name = (gname[:20] + '..') if len(gname) > 22 else gname
+            # Use shorter callback keys to avoid 64-byte limit
             buttons.append([
-                InlineKeyboardButton(f"✏️ {gname}", callback_data=f"rename_group_{slug}_{gname}"),
-                InlineKeyboardButton(f"🗑 Remove", callback_data=f"remove_group_{slug}_{gname}")
+                InlineKeyboardButton(f"✏️ {display_name}", callback_data=f"reng_{slug}_{gname}"[:64]),
+                InlineKeyboardButton(f"🗑", callback_data=f"remg_{slug}_{gname}"[:64])
             ])
         buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{slug}")])
         await callback_query.message.edit_text(f"📝 **Manage Groups: {anime['title']}**\nSelect an action:", reply_markup=InlineKeyboardMarkup(buttons))
@@ -448,26 +452,28 @@ def register_handlers(bot: Client):
     @bot.on_callback_query(filters.regex("^back_to_edit_"))
     async def back_to_edit_cb(client, callback_query):
         slug = callback_query.data.split("back_to_edit_")[-1]
-        # Re-trigger edit_handler logic via fake message if needed, or just repeat buttons
         anime = await db.get_anime_by_slug(slug)
         buttons = [
             [InlineKeyboardButton("💎 Add Group", callback_data=f"add_group_yes_{slug}")],
             [InlineKeyboardButton("📝 Edit Groups", callback_data=f"manage_groups_{slug}")],
+            [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{slug}")],
             [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{slug}")],
             [InlineKeyboardButton("🗑 Purge", callback_data=f"confirm_purge_{slug}")],
             [InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
         ]
         await callback_query.message.edit_text(f"🏛 **Management: {anime['title']}**\nSlug: `{slug}`", reply_markup=InlineKeyboardMarkup(buttons))
 
-    @bot.on_callback_query(filters.regex("^rename_group_"))
+    @bot.on_callback_query(filters.regex("^reng_"))
     async def rename_group_cb(client, callback_query):
-        _, _, slug, gname = callback_query.data.split("_", 3)
+        parts = callback_query.data.split("_")
+        slug, gname = parts[1], "_".join(parts[2:])
         user_state[callback_query.from_user.id] = {"action": "ask_rename_group_new_name", "slug": slug, "old_name": gname}
         await callback_query.message.edit_text(f"✏️ **Rename Group: {gname}**\n\nSend the **New Name** for this group:", reply_markup=None)
 
-    @bot.on_callback_query(filters.regex("^remove_group_"))
+    @bot.on_callback_query(filters.regex("^remg_"))
     async def remove_group_cb(client, callback_query):
-        _, _, slug, gname = callback_query.data.split("_", 3)
+        parts = callback_query.data.split("_")
+        slug, gname = parts[1], "_".join(parts[2:])
         anime = await db.get_anime_by_slug(slug)
         groups = anime.get("seasons_links", {})
         if gname in groups:
@@ -476,6 +482,12 @@ def register_handlers(bot: Client):
             await callback_query.answer(f"🗑 Removed {gname}", show_alert=True)
             return await manage_groups_cb(client, callback_query)
         await callback_query.answer("❌ Group already missing")
+
+    @bot.on_callback_query(filters.regex("^edit_title_"))
+    async def edit_title_cb(client, callback_query):
+        slug = callback_query.data.split("edit_title_")[-1]
+        user_state[callback_query.from_user.id] = {"action": "ask_change_series_title", "slug": slug}
+        await callback_query.message.edit_text("🏷 **Change Series Title:**\n\nSend the **New Title** for this series:", reply_markup=None)
 
     @bot.on_callback_query(filters.regex("^cancel_op$"))
     async def cancel_op_cb(client, callback_query):
@@ -620,6 +632,15 @@ def register_handlers(bot: Client):
                         await message.reply(f"✅ **Group Renamed:** `{old_name}` → `{new_name}`")
                     else: await message.reply("❌ Group mismatch.")
                 else: await message.reply("❌ Series not found.")
+                del user_state[uid]
+            elif action == "ask_change_series_title":
+                new_title = message.text.strip()
+                slug = state["slug"]
+                if db.anime is not None:
+                    res = await db.anime.update_one({"slug": slug}, {"$set": {"title": new_title}})
+                    await message.reply(f"✅ **Series Title Updated:** `{new_title}`" if res.modified_count else "❌ **Update Failed.**")
+                else:
+                    await message.reply("❌ Database Offline")
                 del user_state[uid]
 
             # --- EDIT_M FLOW ---
