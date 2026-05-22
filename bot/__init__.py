@@ -538,7 +538,7 @@ def register_handlers(bot: Client):
         slug = slugify(data["title"])
         entry = {"mal_id": f"series_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": state["seasons_data"], "custom_buttons": []}
         try:
-            if db.anime:
+            if await db.ping():
                 await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
                 await callback_query.message.edit_text(text=f"💎 **LIVE:** `{data['title']}`\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
                 del user_state[uid]
@@ -555,7 +555,7 @@ def register_handlers(bot: Client):
         slug = slugify(data["title"])
         entry = {"mal_id": f"auto_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {"1": {"480p": None, "720p": None, "1080p": None}}, "custom_buttons": []}
         try:
-            if db.anime:
+            if await db.ping():
                 await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
                 await callback_query.message.edit_caption(caption=f"⚡ **Deployment Success!**\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
                 del user_state[uid]
@@ -633,7 +633,7 @@ def register_handlers(bot: Client):
                     "custom_buttons": state.get("buttons", []),
                     "seasons_links": {}
                 }
-                if db.anime:
+                if await db.ping():
                     await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
                     await message.reply(f"🚀 **Custom Page Published!**\nPortal: {Config.BASE_URL}/anime/{slug}")
                 else:
@@ -654,10 +654,14 @@ def register_handlers(bot: Client):
                 del user_state[uid]
             elif action == "ask_change_series_title":
                 new_title = message.text.strip()
-                slug = state["slug"]
-                if db.anime:
-                    res = await db.anime.update_one({"slug": slug}, {"$set": {"title": new_title}})
-                    await message.reply(f"✅ **Series Title Updated:** `{new_title}`" if res.modified_count else "❌ **Update Failed.**")
+                old_slug = state["slug"]
+                new_slug = slugify(new_title)
+                if await db.ping():
+                    res = await db.anime.update_one({"slug": old_slug}, {"$set": {"title": new_title, "slug": new_slug}})
+                    if res.modified_count:
+                        await message.reply(f"✅ **Identity Synchronized!**\n🏷 New Title: `{new_title}`\n🔗 New URL: {Config.BASE_URL}/anime/{new_slug}")
+                    else:
+                        await message.reply("❌ **Update Failed.** Identity already matches or series missing.")
                 else:
                     await message.reply("❌ Database Offline")
                 del user_state[uid]
@@ -686,7 +690,7 @@ def register_handlers(bot: Client):
                     # Update database
                     existing_buttons = state["anime"].get("custom_buttons", [])
                     existing_buttons.extend(state["new_buttons"])
-                    if db.anime:
+                    if await db.ping():
                         await db.anime.update_one({"slug": state["slug"]}, {"$set": {"custom_buttons": existing_buttons}})
                         await message.reply(f"✅ **Buttons Synchronized!**\nPage: {Config.BASE_URL}/anime/{state['slug']}")
                     else:
@@ -703,7 +707,7 @@ def register_handlers(bot: Client):
                 del user_state[uid]
             elif action == "ask_new_poster":
                 slug = state["slug"]
-                if db.anime:
+                if await db.ping():
                     res = await db.anime.update_one({"slug": slug}, {"$set": {"image": message.text.strip()}})
                     await message.reply("✅ **Visual Synchronized.**" if res.modified_count else "❌ **Update Failed.**")
                 else:
@@ -725,7 +729,7 @@ def register_handlers(bot: Client):
                 anime = await db.get_anime_by_slug(state["slug"])
                 links = anime.get("seasons_links", {}) if anime else {}
                 links[state["group_name"]] = {"480p": state.get("480p"), "720p": state.get("720p"), "1080p": message.text if message.text != "/skip" else None}
-                if db.anime:
+                if await db.ping():
                     await db.anime.update_one({"slug": state["slug"]}, {"$set": {"seasons_links": links}})
                     await message.reply(f"💎 **Success!** Added group.")
                 else:
