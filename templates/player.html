@@ -4,20 +4,7 @@
 <div class="max-w-6xl mx-auto px-4 py-8">
     <div class="relative rounded-[2.5rem] overflow-hidden glass shadow-2xl animate-fade-in mb-8">
         <!-- Player Container -->
-        <div class="aspect-video bg-black relative group">
-            <video id="player" controls crossorigin playsinline class="w-full h-full rounded-t-[2.5rem]">
-                <source src="/stream/{{ episode.hash }}" type="video/mp4">
-                Your browser does not support the video tag.
-            </video>
-
-            <!-- Loading Overlay -->
-            <div id="loading-overlay" class="absolute inset-0 flex items-center justify-center bg-slate-950/80 z-40 transition-opacity duration-500">
-                <div class="flex flex-col items-center">
-                    <div class="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p class="text-white font-black tracking-widest text-xs uppercase">Initializing Stream...</p>
-                </div>
-            </div>
-        </div>
+        <div class="aspect-video bg-black relative rounded-t-[2.5rem] overflow-hidden" id="artplayer-container"></div>
 
         <!-- Info Section -->
         <div class="p-8 md:p-12">
@@ -44,10 +31,9 @@
             <div class="mt-12 border-t border-white/5 pt-12">
                 <h3 class="text-xl font-black mb-8 uppercase tracking-widest text-gray-400">Play in External Player</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {% set stream_url = Config.BASE_URL.replace("https://", "http://") ~ "/stream/" ~ episode.hash %}
-                    {% if "localhost" in stream_url %}{% set stream_url = stream_url.replace("http://", "https://") %}{% endif %}
+                    {% set stream_url = Config.BASE_URL ~ "/stream/" ~ episode.hash %}
                     <!-- VLC -->
-                    <a href="vlc://{{ stream_url }}" class="flex items-center gap-4 p-6 glass rounded-2xl border border-white/5 hover:border-orange-500/50 transition-all group">
+                    <a href="intent:{{ stream_url }}#Intent;package=org.videolan.vlc;type=video/*;end" class="flex items-center gap-4 p-6 glass rounded-2xl border border-white/5 hover:border-orange-500/50 transition-all group">
                         <div class="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform">
                             <i class="fa-solid fa-brands fa-vlc text-2xl"></i>
                         </div>
@@ -58,7 +44,7 @@
                     </a>
 
                     <!-- MX Player -->
-                    <a href="mxvp://{{ stream_url }}" class="flex items-center gap-4 p-6 glass rounded-2xl border border-white/5 hover:border-blue-500/50 transition-all group">
+                    <a href="intent:{{ stream_url }}#Intent;package=com.mxtech.videoplayer.ad;S.title={{ anime.title|urlencode }};end" class="flex items-center gap-4 p-6 glass rounded-2xl border border-white/5 hover:border-blue-500/50 transition-all group">
                         <div class="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
                             <i class="fa-solid fa-play text-2xl"></i>
                         </div>
@@ -69,7 +55,7 @@
                     </a>
 
                     <!-- PlayIt -->
-                    <a href="playit://{{ stream_url }}" class="flex items-center gap-4 p-6 glass rounded-2xl border border-white/5 hover:border-purple-500/50 transition-all group">
+                    <a href="intent:{{ stream_url }}#Intent;package=com.nex.vicat;end" class="flex items-center gap-4 p-6 glass rounded-2xl border border-white/5 hover:border-purple-500/50 transition-all group">
                         <div class="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
                             <i class="fa-solid fa-bolt text-2xl"></i>
                         </div>
@@ -96,29 +82,60 @@
     }
 </style>
 
+<script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const player = document.getElementById('player');
-        const loader = document.getElementById('loading-overlay');
+        const art = new ArtPlayer({
+            container: '#artplayer-container',
+            url: '/stream/{{ episode.hash }}',
+            type: '{{ "mkv" if ".mkv" in episode.file_name|lower else "mp4" }}',
+            title: '{{ anime.title }} - S{{ episode.season }}E{{ episode.episode }}',
+            poster: '{{ anime.image }}',
+            volume: 0.7,
+            isLive: false,
+            muted: false,
+            autoplay: false,
+            pip: true,
+            autoSize: true,
+            autoMini: true,
+            screenshot: false, // User requested protection
+            setting: true,
+            loop: false,
+            flip: true,
+            playbackRate: true,
+            aspectRatio: true,
+            fullscreen: true,
+            fullscreenWeb: true,
+            subtitleOffset: true,
+            miniProgressBar: true,
+            mutex: true,
+            backdrop: true,
+            playsInline: true,
+            autoPlayback: true,
+            airplay: true,
+            theme: '#E11D48',
+            lang: 'en',
+            moreVideoAttr: {
+                crossOrigin: 'anonymous',
+            },
+        });
 
-        player.oncanplay = () => {
-            loader.style.opacity = '0';
-            setTimeout(() => loader.classList.add('hidden'), 500);
-        };
-
-        // Screenshot Protection Simulation
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'PrintScreen' || (e.ctrlKey && e.key === 'p')) {
-                e.preventDefault();
-                showSecurityMsg();
+        art.on('error', (error) => {
+            console.error('ArtPlayer Error:', error);
+            if (art.url.toLowerCase().endsWith('.mkv') || '{{ episode.file_name|lower }}'.endsWith('.mkv')) {
+                art.notice.show = 'MKV playback may not be supported in this browser. Please use VLC or MX Player below.';
             }
         });
 
-        function showSecurityMsg() {
-            const msg = document.getElementById('security-msg');
-            msg.classList.remove('hidden');
-            setTimeout(() => msg.classList.add('hidden'), 3000);
-        }
+        // Screenshot Protection
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'PrintScreen' || (e.ctrlKey && e.key === 'p') || (e.metaKey && e.shiftKey && e.key === '4')) {
+                e.preventDefault();
+                const msg = document.getElementById('security-msg');
+                msg.classList.remove('hidden');
+                setTimeout(() => msg.classList.add('hidden'), 3000);
+            }
+        });
     });
 </script>
 {% endblock %}

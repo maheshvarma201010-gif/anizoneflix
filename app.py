@@ -137,7 +137,10 @@ async def health_ping():
     return safe_api_response(True, {"status": "ok", "db": await db.ping(), "bot": bot.is_connected})
 
 @app.get("/watch")
+@app.get("/watch/{path}")
 async def watch_episode(request: Request, path: str = None):
+    if not path:
+        path = request.query_params.get("path")
     if not path: raise HTTPException(status_code=400)
 
     settings = await db.get_settings()
@@ -208,6 +211,10 @@ async def stream_media_handler(request: Request, ep_id: str, disposition: str):
         file_size = int(file_size)
         mime_type = media.mime_type or mimetypes.guess_type(file_name)[0] or "application/octet-stream"
 
+        # Explicit MKV support
+        if file_name.lower().endswith(".mkv"):
+            mime_type = "video/x-matroska"
+
         range_header = request.headers.get("Range")
         start = 0
         end = file_size - 1
@@ -223,12 +230,10 @@ async def stream_media_handler(request: Request, ep_id: str, disposition: str):
 
         async def file_generator():
             # Standard Pyrogram stream_media can be slow.
-            # We'll rely on the client to handle the stream efficiently.
-            # Using 1MB chunks for better throughput if supported by the client implementation
+            # We remove the sleep(0) to maximize throughput as requested for "Ultra Speed"
             async for chunk in bot.stream_media(media, offset=start, limit=content_length):
                 if chunk:
                     yield chunk
-                await asyncio.sleep(0) # Yield control to avoid blocking the event loop
 
         headers = {
             "Content-Range": f"bytes {start}-{end}/{file_size}",
