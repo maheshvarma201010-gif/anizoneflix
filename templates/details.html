@@ -209,6 +209,9 @@
         document.getElementById('episode-selection').classList.remove('hidden');
     }
 
+    const streamEnabled = {{ settings.get('stream_enabled', True)|tojson }};
+    const downloadEnabled = {{ settings.get('download_enabled', True)|tojson }};
+
     function selectEpisode(ep) {
         // Update Buttons Styling
         document.querySelectorAll('.episode-opt-btn').forEach(btn => {
@@ -220,18 +223,34 @@
 
         // Show Actions
         const container = document.getElementById('action-buttons');
-        container.innerHTML = `
+        let html = `
             <div class="text-center w-full mb-4">
-                <h4 class="text-lg font-bold">${ep.file_name || 'Episode ' + ep.episode}</h4>
+                <h4 class="text-lg font-bold">${ep.episode_title || 'Episode ' + ep.episode}</h4>
                 <p class="text-xs text-gray-500 font-bold uppercase">${ep.quality} • ${ep.audio} • ${ep.codec}</p>
             </div>
-            <a href="/watch/${ep._id}" target="_blank" class="flex-1 px-10 py-5 bg-blue-600 text-white rounded-2xl font-black text-center hover:bg-blue-700 transition-all shadow-xl">
-                <i class="fa-solid fa-play mr-2"></i> STREAM NOW
-            </a>
-            <a href="/dl/${ep._id}" target="_blank" class="flex-1 px-10 py-5 bg-red-600 text-white rounded-2xl font-black text-center hover:bg-red-700 transition-all shadow-xl">
-                <i class="fa-solid fa-download mr-2"></i> DOWNLOAD NOW
-            </a>
         `;
+
+        if (streamEnabled) {
+            html += `
+                <a href="/watch?path=${ep.hash}" class="flex-1 px-10 py-5 bg-blue-600 text-white rounded-2xl font-black text-center hover:bg-blue-700 transition-all shadow-xl">
+                    <i class="fa-solid fa-play mr-2"></i> STREAM NOW
+                </a>
+            `;
+        }
+
+        if (downloadEnabled) {
+            html += `
+                <a href="/dl/${ep.hash}" target="_blank" class="flex-1 px-10 py-5 bg-red-600 text-white rounded-2xl font-black text-center hover:bg-red-700 transition-all shadow-xl">
+                    <i class="fa-solid fa-download mr-2"></i> DOWNLOAD NOW
+                </a>
+            `;
+        }
+
+        if (!streamEnabled && !downloadEnabled) {
+            html += `<p class="text-gray-500 font-bold">Actions temporarily disabled by administrator.</p>`;
+        }
+
+        container.innerHTML = html;
         document.getElementById('action-selection').classList.remove('hidden');
         document.getElementById('action-selection').scrollIntoView({ behavior: 'smooth', block: 'center' });
     }

@@ -3,6 +3,7 @@ from config.config import Config
 import os
 import logging
 import asyncio
+import secrets
 from bson import ObjectId
 
 logger = logging.getLogger("ANIZONEFLIX_DB")
@@ -34,6 +35,7 @@ class Database:
         self._users = None
         self._categories = None
         self._schedules = None
+        self._settings = None
 
     async def connect(self):
         """Initialize connection with absolute persistence focus and retries"""
@@ -64,6 +66,7 @@ class Database:
                 self._users = self._db.users
                 self._categories = self._db.categories
                 self._schedules = self._db.schedules
+                self._settings = self._db.settings
 
                 logger.info(f"Database Persistence Verified: {Config.DB_NAME} is active.")
                 return
@@ -93,6 +96,10 @@ class Database:
     @property
     def schedules(self):
         return self._schedules if self._schedules is not None else self.MockCollection("schedules")
+
+    @property
+    def settings(self):
+        return self._settings if self._settings is not None else self.MockCollection("settings")
 
     class MockCollection:
         """Emergency layer to prevent system crashes if Atlas is unreachable"""
@@ -188,10 +195,14 @@ class Database:
     async def add_episode(self, data):
         try:
             if self._episodes is None: return None
+            # Generate unique hash if not present
+            if "hash" not in data:
+                data["hash"] = secrets.token_hex(12)
+
             query = {"mal_id": data["mal_id"], "season": data.get("season"), "episode": data.get("episode"), "quality": data.get("quality")}
             await self._episodes.update_one(query, {"$set": data}, upsert=True)
             doc = await self._episodes.find_one(query)
-            return str(doc["_id"]) if doc else None
+            return doc["hash"] if doc else None
         except Exception as e:
             logger.error(f"Persistence Error (add_episode): {e}")
             return None
@@ -199,10 +210,23 @@ class Database:
     async def get_episode_by_id(self, ep_id):
         try:
             if self._episodes is None: return None
-            doc = await self._episodes.find_one({"_id": ObjectId(ep_id)})
+            try:
+                query = {"_id": ObjectId(ep_id)}
+            except:
+                query = {"hash": ep_id}
+            doc = await self._episodes.find_one(query)
             return clean_doc(doc)
         except Exception as e:
             logger.error(f"Read Error (get_episode_by_id): {e}")
+            return None
+
+    async def get_episode_by_hash(self, ep_hash):
+        try:
+            if self._episodes is None: return None
+            doc = await self._episodes.find_one({"hash": ep_hash})
+            return clean_doc(doc)
+        except Exception as e:
+            logger.error(f"Read Error (get_episode_by_hash): {e}")
             return None
 
     async def get_episodes(self, mal_id):
@@ -265,5 +289,27 @@ class Database:
             user = await self._users.find_one({"user_id": user_id, "is_admin": True})
             return user is not None
         except: return False
+
+    async def get_settings(self):
+        try:
+            if self._settings is None: return {}
+            settings = await self._settings.find_one({"_id": "global_settings"})
+            if not settings:
+                default = {"_id": "global_settings", "stream_enabled": True, "download_enabled": True}
+                await self._settings.insert_one(default)
+                return default
+            return settings
+        except Exception as e:
+            logger.error(f"Error getting settings: {e}")
+            return {"stream_enabled": True, "download_enabled": True}
+
+    async def update_setting(self, key, value):
+        try:
+            if self._settings is None: return False
+            await self._settings.update_one({"_id": "global_settings"}, {"$set": {key: value}}, upsert=True)
+            return True
+        except Exception as e:
+            logger.error(f"Error updating setting {key}: {e}")
+            return False
 
 db = Database()

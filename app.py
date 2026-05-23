@@ -135,13 +135,39 @@ async def index(request: Request):
 async def health_ping():
     return safe_api_response(True, {"status": "ok", "db": await db.ping(), "bot": bot.is_connected})
 
-@app.get("/watch/{ep_id}")
-async def watch_episode(request: Request, ep_id: str):
-    return await stream_media_handler(request, ep_id, "inline")
+@app.get("/watch")
+async def watch_episode(request: Request, path: str = None):
+    if not path: raise HTTPException(status_code=400)
 
-@app.get("/dl/{ep_id}")
-async def download_episode(request: Request, ep_id: str):
-    return await stream_media_handler(request, ep_id, "attachment")
+    settings = await db.get_settings()
+    if not settings.get("stream_enabled", True):
+        return templates.TemplateResponse(request=request, name="404.html", context={"error": "Streaming is currently disabled by administrator."}, status_code=403)
+
+    episode = await db.get_episode_by_hash(path)
+    if not episode: raise HTTPException(status_code=404)
+
+    anime = await db.get_anime_by_mal_id(episode["mal_id"])
+
+    return templates.TemplateResponse(request=request, name="player.html", context={
+        "anime": anime,
+        "episode": episode,
+        "logo_url": Config.LOGO_URL,
+        "site_name": "ANIZONEFLIX"
+    })
+
+@app.get("/stream/{ep_hash}")
+async def stream_file(request: Request, ep_hash: str):
+    settings = await db.get_settings()
+    if not settings.get("stream_enabled", True):
+        raise HTTPException(status_code=403)
+    return await stream_media_handler(request, ep_hash, "inline")
+
+@app.get("/dl/{ep_hash}")
+async def download_episode(request: Request, ep_hash: str):
+    settings = await db.get_settings()
+    if not settings.get("download_enabled", True):
+        raise HTTPException(status_code=403, detail="Downloads are disabled.")
+    return await stream_media_handler(request, ep_hash, "attachment")
 
 async def stream_media_handler(request: Request, ep_id: str, disposition: str):
     try:
@@ -256,6 +282,7 @@ async def anime_detail(request: Request, slug: str):
 
         categories = await db.get_all_categories()
         episodes = await db.get_episodes(anime.get("mal_id", "0"))
+        settings = await db.get_settings()
 
         # Sort and clean episodes for display
         clean_episodes = []
@@ -266,6 +293,7 @@ async def anime_detail(request: Request, slug: str):
             "anime": anime,
             "episodes": clean_episodes,
             "categories": categories or [],
+            "settings": settings,
             "logo_url": Config.LOGO_URL,
             "site_name": "ANIZONEFLIX"
         })

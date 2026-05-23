@@ -1,24 +1,25 @@
-# 👑 ANIZONEFLIX ULTRA: The Executive Anime Suite
+# 👑 ANIZONEFLIX ULTRA: Industrial-Grade Anime Suite
 
-ANIZONEFLIX ULTRA is an industrial-grade, automated anime management portal and Telegram bot suite. Engineered for extreme performance, it transforms Telegram media files into high-speed streaming and download links with a premium web interface.
+ANIZONEFLIX ULTRA is a professional-grade anime management portal and Telegram bot suite. Engineered for absolute performance, it transforms Telegram media into secure, high-speed streaming and download links with a premium "Anime-Style" web interface.
 
 ---
 
 ## ⚡ Core Features
 
 ### 🚀 Ultra-Speed File-to-Link
-- **Zero-Link Admin Flow:** Admins simply send files/videos to the bot. No manual links required.
-- **Smart Metadata Extraction:** Automated extraction of **Season**, **Episode**, **Quality** (480p to 4K), **Audio** (Multi/Hindi/Tamil/Telugu), and **Codec** (HEVC/AVC).
-- **Persistent Storage:** Integrated `BIN_CHANNEL` support ensuring files remain accessible and links never expire.
+- **Zero-Link Admin Flow:** Simply send media to the bot. It automatically requests files after title selection.
+- **Strict Caption Parser:** Mandatory metadata extraction (**Season**, **Episode**, **Title**, **Quality**) strictly from captions.
+- **Persistent Storage:** Integrated `BIN_CHANNEL` ensures permanent link stability.
 
-### 🎬 Premium Streaming Experience
-- **High-Speed Delivery:** Optimized chunked streaming for ultra-fast buffering and zero-stock downloads.
-- **Advanced Seeking:** Full support for `Range` requests, enabling instant seeking in web players.
-- **Tiered Selection UI:** A modern, multi-step web interface: **Select Season** ➔ **Select Quality** ➔ **Select Episode** ➔ **Watch/Download**.
+### 🎬 Advanced Streaming System
+- **Secure Hash-Based URLs:** All media accessed via `/watch?path=UNIQUE_HASH`. No File IDs exposed.
+- **Modern Anime UI:** Responsive web player with loading animations and screenshot protection.
+- **External Player Support:** Instant deep-linking to **VLC**, **MX Player**, and **PlayIt** using direct streaming protocols.
+- **Global Toggles:** Admins can enable/disable Streaming and Downloading globally via bot commands.
 
-### 🛰 Intelligence Aggregator
-- Instant metadata fetching from **MAL**, **AniList**, **Kitsu**, and **TMDb**.
-- Automated series grouping and synchronization.
+### 🛡️ Admin Management
+- `/manage`: Interactive dashboard to toggle global stream/download visibility.
+- Permanent MongoDB settings persistence.
 
 ---
 
@@ -29,30 +30,27 @@ ANIZONEFLIX ULTRA is an industrial-grade, automated anime management portal and 
 |-----|-------------|
 | `API_ID` | Telegram API ID |
 | `API_HASH` | Telegram API Hash |
-| `BOT_TOKEN` | Bot Token from @BotFather |
+| `BOT_TOKEN` | Bot Token |
 | `MONGO_URI` | MongoDB Connection String |
-| `BIN_CHANNEL` | ID of the Telegram channel for persistent storage |
-| `BASE_URL` | Your application URL (e.g., `https://your-app.onrender.com`) |
+| `BIN_CHANNEL` | Telegram ID for file storage |
+| `BASE_URL` | Your App URL (e.g., `https://anizone.onrender.com`) |
 
-### 2. Manual Installation
+### 2. Quick Start
 ```bash
-# Clone the repository
-git clone https://github.com/anizoneflix/suite.git && cd suite
-
-# Install dependencies
+# Clone and install
+git clone https://github.com/anizone/suite.git && cd suite
 pip install -r requirements.txt
 
-# Start the application
+# Run
 python main.py
 ```
 
 ---
 
-## 💎 Bot Command Suite
-- `/search <name>`: Rapid series setup with automated metadata calibration.
-- `/add_post <name>`: One-shot publication with instant file request.
-- `/manual`: Custom creation with unlimited direct access buttons.
-- `/categories`: Full CRUD genre management.
-- `/schedule`: Centralized airtime synchronization.
+## 💎 Command Suite
+- `/manage`: Global system controls (Stream/Download toggles).
+- `/search <name>`: Rapid automated metadata calibration.
+- `/add_post <name>`: One-shot series publication.
+- `/manual`: Custom button management.
 
-**ANIZONEFLIX** — *Powering the next generation of anime streaming.*
+**ANIZONEFLIX** — *Engineered for Perfection.*

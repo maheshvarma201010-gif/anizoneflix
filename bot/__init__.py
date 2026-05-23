@@ -47,6 +47,7 @@ async def set_commands(client):
         BotCommand("change_poster", "Update Series Artwork"),
         BotCommand("categories", "Manage Genres/Tags"),
         BotCommand("schedule", "Manage Airing Schedule"),
+        BotCommand("manage", "Global Visibility Controls"),
         BotCommand("del", "Permanent Archive Erasure"),
         BotCommand("cancel", "Abort Active Process"),
         BotCommand("ping", "System Latency Check")
@@ -94,10 +95,10 @@ def register_handlers(bot: Client):
             slug = state.get("slug")
 
             try:
-                from utils.parser import parse_filename
+                from utils.parser import parse_caption
                 media = message.document or message.video
-                fname = media.file_name or (message.caption.split("\n")[0] if message.caption else "video.mp4")
-                parsed = parse_filename(fname)
+                # ALWAYS use caption for parsing as per rule
+                parsed = parse_caption(message.caption or media.file_name or "")
 
                 # Forward to BIN_CHANNEL
                 if Config.BIN_CHANNEL:
@@ -143,10 +144,9 @@ def register_handlers(bot: Client):
         # Fallback to auto-link grouping for other authorized users/untracked files
         if await is_authorized(uid):
             try:
-                from utils.parser import parse_filename
+                from utils.parser import parse_caption
                 media = message.document or message.video
-                fname = media.file_name or (message.caption.split("\n")[0] if message.caption else "video.mp4")
-                parsed = parse_filename(fname)
+                parsed = parse_caption(message.caption or media.file_name or "")
                 if await db.ping():
                     anime = await db.anime.find_one({"title": {"$regex": parsed["title"], "$options": "i"}})
                     if anime:
@@ -163,9 +163,10 @@ def register_handlers(bot: Client):
                             "mal_id": anime["mal_id"],
                             "season": parsed["season"],
                             "episode": parsed["episode"],
+                    "episode_title": parsed.get("episode_title"),
                             "quality": parsed["quality"],
-                            "audio": parsed["audio"],
-                            "codec": parsed["codec"],
+                    "audio": parsed.get("audio", "Japanese"),
+                    "codec": parsed.get("codec", "H.264"),
                             "file_id": file_id,
                             "msg_id": msg_id,
                             "file_name": fname,
@@ -449,12 +450,62 @@ def register_handlers(bot: Client):
         user_state[message.from_user.id] = {"action": "ask_edit_m_count", "slug": slug, "anime": anime}
         await message.reply("🖇 **How many buttons do you want to add?**\nSend a number (e.g., 4):")
 
+    @bot.on_message(filters.command("manage"))
+    async def manage_handler(client, message):
+        if not await is_authorized(message.from_user.id): return
+
+        settings = await db.get_settings()
+        s_status = "✅ ENABLED" if settings.get("stream_enabled", True) else "❌ DISABLED"
+        d_status = "✅ ENABLED" if settings.get("download_enabled", True) else "❌ DISABLED"
+
+        text = (
+            "⚙️ **ANIZONEFLIX: Global Management**\n\n"
+            f"🎬 **Streaming:** {s_status}\n"
+            f"📥 **Downloading:** {d_status}\n\n"
+            "Use buttons below to toggle visibility:"
+        )
+
+        buttons = [
+            [
+                InlineKeyboardButton("Enable Stream", callback_data="toggle_stream_on"),
+                InlineKeyboardButton("Disable Stream", callback_data="toggle_stream_off")
+            ],
+            [
+                InlineKeyboardButton("Enable Download", callback_data="toggle_download_on"),
+                InlineKeyboardButton("Disable Download", callback_data="toggle_download_off")
+            ]
+        ]
+        await message.reply(text, reply_markup=InlineKeyboardMarkup(buttons))
+
     @bot.on_message(filters.command("cancel"))
     async def cancel_handler(client, message):
         user_state.pop(message.from_user.id, None)
         await message.reply("✨ **Action Cancelled.** standby.")
 
     # --- CALLBACK HANDLERS ---
+
+    @bot.on_callback_query(filters.regex("^toggle_"))
+    async def toggle_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id): return
+
+        data = callback_query.data
+        if "stream_on" in data: await db.update_setting("stream_enabled", True)
+        elif "stream_off" in data: await db.update_setting("stream_enabled", False)
+        elif "download_on" in data: await db.update_setting("download_enabled", True)
+        elif "download_off" in data: await db.update_setting("download_enabled", False)
+
+        settings = await db.get_settings()
+        s_status = "✅ ENABLED" if settings.get("stream_enabled", True) else "❌ DISABLED"
+        d_status = "✅ ENABLED" if settings.get("download_enabled", True) else "❌ DISABLED"
+
+        await callback_query.message.edit_text(
+            "⚙️ **ANIZONEFLIX: Global Management**\n\n"
+            f"🎬 **Streaming:** {s_status}\n"
+            f"📥 **Downloading:** {d_status}\n\n"
+            "Use buttons below to toggle visibility:",
+            reply_markup=callback_query.message.reply_markup
+        )
+        await callback_query.answer("Settings Synchronized.")
 
     @bot.on_callback_query(filters.regex("^help_guide$"))
     async def help_cb(client, callback_query):

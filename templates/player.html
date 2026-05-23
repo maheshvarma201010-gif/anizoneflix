@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-8">
+    <div class="relative rounded-[2.5rem] overflow-hidden glass shadow-2xl animate-fade-in mb-8">
+        <!-- Player Container -->
+        <div class="aspect-video bg-black relative group">
+            <video id="player" controls crossorigin playsinline class="w-full h-full rounded-t-[2.5rem]">
+                <source src="/stream/{{ episode.hash }}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+
+            <!-- Loading Overlay -->
+            <div id="loading-overlay" class="absolute inset-0 flex items-center justify-center bg-slate-950/80 z-40 transition-opacity duration-500">
+                <div class="flex flex-col items-center">
+                    <div class="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p class="text-white font-black tracking-widest text-xs uppercase">Initializing Stream...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Section -->
+        <div class="p-8 md:p-12">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div>
+                    <h1 class="text-3xl md:text-5xl font-black mb-4 tracking-tighter">{{ anime.title }}</h1>
+                    <div class="flex flex-wrap gap-3">
+                        <span class="px-4 py-1.5 bg-red-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg">{{ episode.quality }}</span>
+                        <span class="px-4 py-1.5 glass text-gray-300 text-[10px] font-black rounded-full uppercase tracking-widest border border-white/5">S{{ episode.season }}E{{ episode.episode }}</span>
+                        <span class="px-4 py-1.5 glass text-gray-300 text-[10px] font-black rounded-full uppercase tracking-widest border border-white/5">{{ episode.episode_title }}</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-4 w-full md:w-auto">
+                    <a href="/dl/{{ episode.hash }}" class="flex-1 md:flex-none px-8 py-4 bg-white text-black font-black rounded-2xl hover:bg-red-600 hover:text-white transition-all text-center shadow-xl">
+                        <i class="fa-solid fa-download mr-2"></i> DOWNLOAD
+                    </a>
+                </div>
+            </div>
+
+            <!-- External Players -->
+            <div class="mt-12 border-t border-white/5 pt-12">
+                <h3 class="text-xl font-black mb-8 uppercase tracking-widest text-gray-400">Play in External Player</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {% set stream_url = Config.BASE_URL.replace("https://", "http://") ~ "/stream/" ~ episode.hash %}
+                    <!-- VLC -->
+                    <a href="vlc://{{ stream_url }}" class="flex items-center gap-4 p-6 glass rounded-2xl border border-white/5 hover:border-orange-500/50 transition-all group">
+                        <div class="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-brands fa-vlc text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="font-black text-sm uppercase">VLC Player</p>
+                            <p class="text-[10px] text-gray-500 font-bold">Stable Streaming</p>
+                        </div>
+                    </a>
+
+                    <!-- MX Player -->
+                    <a href="mxvp://{{ stream_url }}" class="flex items-center gap-4 p-6 glass rounded-2xl border border-white/5 hover:border-blue-500/50 transition-all group">
+                        <div class="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-play text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="font-black text-sm uppercase">MX Player</p>
+                            <p class="text-[10px] text-gray-500 font-bold">Best Performance</p>
+                        </div>
+                    </a>
+
+                    <!-- PlayIt -->
+                    <a href="playit://{{ stream_url }}" class="flex items-center gap-4 p-6 glass rounded-2xl border border-white/5 hover:border-purple-500/50 transition-all group">
+                        <div class="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-bolt text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="font-black text-sm uppercase">PlayIt Player</p>
+                            <p class="text-[10px] text-gray-500 font-bold">Ultra Fast</p>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Overlay -->
+    <div id="security-msg" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-red-600 text-white font-black rounded-full text-xs shadow-2xl animate-bounce">
+        SCREENSHOT PROTECTION ACTIVE
+    </div>
+</div>
+
+<style>
+    /* Player Customization */
+    video::webkit-media-controls-panel {
+        background-image: linear-gradient(transparent, rgba(0,0,0,0.8)) !important;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const player = document.getElementById('player');
+        const loader = document.getElementById('loading-overlay');
+
+        player.oncanplay = () => {
+            loader.style.opacity = '0';
+            setTimeout(() => loader.classList.add('hidden'), 500);
+        };
+
+        // Screenshot Protection Simulation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'PrintScreen' || (e.ctrlKey && e.key === 'p')) {
+                e.preventDefault();
+                showSecurityMsg();
+            }
+        });
+
+        function showSecurityMsg() {
+            const msg = document.getElementById('security-msg');
+            msg.classList.remove('hidden');
+            setTimeout(() => msg.classList.add('hidden'), 3000);
+        }
+    });
+</script>
+{% endblock %}
