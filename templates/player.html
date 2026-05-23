@@ -4,14 +4,19 @@
 <style>
     :root {
         --accent: #ef4444;
-        --accent-glow: rgba(239, 68, 68, 0.3);
+        --accent-glow: rgba(239, 68, 68, 0.4);
+        --glass-bg: rgba(15, 15, 20, 0.7);
+        --glass-border: rgba(255, 255, 255, 0.08);
+    }
+
+    body {
+        background: #050507;
     }
 
     .anime-hero {
         position: relative;
         width: 100%;
         min-height: 100vh;
-        background-color: #0b0b0d;
         overflow: hidden;
     }
 
@@ -24,9 +29,24 @@
         z-index: 0;
         background-image: url('{{ anime.image }}');
         background-size: cover;
-        background-position: center;
-        filter: blur(80px) brightness(0.3);
+        background-position: center 20%;
+        filter: blur(60px) brightness(0.25);
         transform: scale(1.1);
+    }
+
+    /* Animated background glow */
+    .hero-backdrop::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 50% 50%, var(--accent-glow) 0%, transparent 70%);
+        opacity: 0.5;
+        animation: pulse-glow 8s infinite alternate;
+    }
+
+    @keyframes pulse-glow {
+        from { opacity: 0.3; transform: scale(1); }
+        to { opacity: 0.6; transform: scale(1.2); }
     }
 
     .content-wrapper {
@@ -36,28 +56,26 @@
     }
 
     .player-card {
-        background: rgba(22, 22, 24, 0.6);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 2rem;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        background: var(--glass-bg);
+        backdrop-filter: blur(25px);
+        border: 1px solid var(--glass-border);
+        border-radius: 2.5rem;
+        box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.8);
         overflow: hidden;
-        transition: transform 0.3s ease;
     }
 
     .player-container {
         position: relative;
         aspect-ratio: 16/9;
         background: #000;
-        border-radius: 2rem 2rem 0 0;
-        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
 
-    /* Skeleton Loading */
+    /* Skeleton & Shimmer */
     .skeleton {
-        background: linear-gradient(90deg, #1a1a1d 25%, #2a2a2d 50%, #1a1a1d 75%);
+        background: linear-gradient(90deg, #0f0f12 25%, #1a1a20 50%, #0f0f12 75%);
         background-size: 200% 100%;
-        animation: shimmer 1.5s infinite;
+        animation: shimmer 2s infinite linear;
     }
 
     @keyframes shimmer {
@@ -72,53 +90,96 @@
         align-items: center;
         justify-content: center;
         z-index: 10;
+        flex-direction: column;
     }
 
-    /* External Player Buttons */
-    .external-btn {
+    /* Modern External Buttons */
+    .ext-player-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .ext-player-btn {
+        position: relative;
         display: flex;
         align-items: center;
         gap: 1rem;
         padding: 1.25rem;
-        background: rgba(255, 255, 255, 0.03);
+        background: rgba(255, 255, 255, 0.02);
         border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 1.25rem;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        text-align: left;
+        border-radius: 1.5rem;
+        transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        overflow: hidden;
     }
 
-    .external-btn:hover {
-        background: rgba(255, 255, 255, 0.08);
+    .ext-player-btn::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(45deg, transparent, rgba(255,255,255,0.05), transparent);
+        transform: translateX(-100%);
+        transition: 0.5s;
+    }
+
+    .ext-player-btn:hover::before {
+        transform: translateX(100%);
+    }
+
+    .ext-player-btn:hover {
+        background: rgba(255, 255, 255, 0.06);
         border-color: var(--accent);
-        transform: translateY(-2px);
-        box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
+        transform: translateY(-5px);
+        box-shadow: 0 15px 30px -10px rgba(0,0,0,0.5);
     }
 
-    .external-icon {
+    .ext-icon-box {
         width: 3.5rem;
         height: 3.5rem;
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 1rem;
-        font-size: 1.5rem;
+        border-radius: 1.2rem;
+        font-size: 1.75rem;
+        transition: 0.3s;
     }
 
-    .vlc-icon { background: rgba(255, 136, 0, 0.1); color: #ff8800; }
-    .mx-icon { background: rgba(0, 102, 255, 0.1); color: #0066ff; }
-    .playit-icon { background: rgba(138, 43, 226, 0.1); color: #8a2be2; }
+    .ext-player-btn:hover .ext-icon-box {
+        transform: scale(1.1) rotate(-5deg);
+    }
 
-    .glow-red { box-shadow: 0 0 20px rgba(239, 68, 68, 0.2); }
+    .vlc-theme { background: rgba(255, 136, 0, 0.15); color: #ff8800; text-shadow: 0 0 15px rgba(255,136,0,0.3); }
+    .mx-theme { background: rgba(0, 102, 255, 0.15); color: #0066ff; text-shadow: 0 0 15px rgba(0,102,255,0.3); }
+    .playit-theme { background: rgba(168, 85, 247, 0.15); color: #a855f7; text-shadow: 0 0 15px rgba(168,85,247,0.3); }
 
-    /* Custom ArtPlayer UI */
+    /* ArtPlayer Overrides */
     .artplayer-app {
-        border-radius: 2rem 2rem 0 0;
+        width: 100%;
+        height: 100%;
     }
 
-    @media (max-width: 768px) {
-        .content-wrapper { padding-top: 1rem; }
+    /* Mobile Responsive Fixes */
+    @media (max-width: 640px) {
         .player-card { border-radius: 1.5rem; }
-        .player-container { border-radius: 1.5rem 1.5rem 0 0; }
+        .content-wrapper { padding-top: 1rem; }
+        .ext-player-grid { grid-template-columns: 1fr; }
+    }
+
+    .neon-text-red {
+        color: #fff;
+        text-shadow: 0 0 10px rgba(239, 68, 68, 0.8), 0 0 20px rgba(239, 68, 68, 0.4);
+    }
+
+    .shimmer-text {
+        background: linear-gradient(90deg, #666, #fff, #666);
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer-text 3s linear infinite;
+    }
+
+    @keyframes shimmer-text {
+        to { background-position: 200% center; }
     }
 </style>
 {% endblock %}
@@ -128,108 +189,114 @@
     <div class="hero-backdrop"></div>
 
     <div class="content-wrapper max-w-6xl mx-auto px-4 pb-20">
-        <!-- Breadcrumbs / Back -->
-        <div class="mb-6 animate-fade-in">
-            <a href="/anime/{{ anime.slug }}" class="inline-flex items-center text-sm font-bold text-gray-400 hover:text-white transition">
-                <i class="fa-solid fa-arrow-left mr-2"></i> Back to Series
+        <!-- Breadcrumbs -->
+        <div class="mb-6 animate-fade-in" style="animation-delay: 0.1s">
+            <a href="/anime/{{ anime.slug }}" class="inline-flex items-center text-xs font-black uppercase tracking-[0.2em] text-white/40 hover:text-red-500 transition-all group">
+                <span class="w-8 h-px bg-white/20 mr-3 group-hover:w-12 group-hover:bg-red-500 transition-all"></span>
+                Back to Archive
             </a>
         </div>
 
-        <div class="player-card animate-fade-in">
-            <!-- Player Section -->
-            <div class="player-container shadow-2xl" id="artplayer-container">
+        <div class="player-card animate-fade-in" style="animation-delay: 0.2s">
+            <!-- Large Cleaner Player -->
+            <div class="player-container overflow-hidden" id="artplayer-container">
                 <div class="player-placeholder skeleton" id="player-skeleton">
-                    <div class="text-center">
-                        <i class="fa-solid fa-circle-play text-6xl text-white/20 mb-4 animate-pulse"></i>
-                        <p class="text-white/40 font-bold uppercase tracking-widest text-sm">Initializing High-Speed Stream...</p>
-                    </div>
+                    <i class="fa-solid fa-play text-7xl text-white/10 mb-6"></i>
+                    <p class="shimmer-text font-black uppercase tracking-[0.3em] text-xs">Calibrating Ultra-Stream...</p>
                 </div>
             </div>
 
-            <!-- Meta Section -->
-            <div class="p-6 md:p-10">
-                <div class="flex flex-col md:flex-row justify-between items-start gap-6">
+            <!-- Meta Data Section -->
+            <div class="p-6 md:p-12">
+                <div class="flex flex-col lg:flex-row justify-between items-start gap-8">
                     <div class="flex-1">
-                        <div class="flex items-center gap-3 mb-4">
-                            <span class="px-3 py-1 bg-red-600 text-white text-[10px] font-black rounded-lg uppercase tracking-widest shadow-lg">{{ episode.quality }}</span>
-                            <span class="px-3 py-1 glass text-gray-300 text-[10px] font-black rounded-lg uppercase tracking-widest border border-white/5">Season {{ episode.season }}</span>
-                            <span class="px-3 py-1 glass text-gray-300 text-[10px] font-black rounded-lg uppercase tracking-widest border border-white/5">Episode {{ episode.episode }}</span>
+                        <div class="flex flex-wrap items-center gap-3 mb-6">
+                            <span class="px-4 py-1.5 bg-red-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-[0_0_20px_rgba(239,68,68,0.4)]">Premium Stream</span>
+                            <span class="px-4 py-1.5 glass text-white/60 text-[10px] font-black rounded-full uppercase tracking-widest border border-white/10">S{{ episode.season }} • E{{ episode.episode }}</span>
+                            <span class="px-4 py-1.5 glass text-white/60 text-[10px] font-black rounded-full uppercase tracking-widest border border-white/10">{{ episode.quality }}</span>
                         </div>
-                        <h1 class="text-2xl md:text-4xl font-black tracking-tighter mb-2">{{ anime.title }}</h1>
-                        <p class="text-gray-400 font-bold text-sm md:text-base">{{ episode.episode_title or 'Watching Episode ' ~ episode.episode }}</p>
+
+                        <h1 class="text-3xl md:text-5xl font-black tracking-tighter mb-4 text-white leading-tight">
+                            {{ anime.title }}
+                        </h1>
+                        <p class="text-white/40 font-bold tracking-wide uppercase text-xs md:text-sm">
+                            {{ episode.episode_title or 'UNSPECIFIED EPISODE DATA' }}
+                        </p>
                     </div>
                 </div>
 
-                <!-- External Players Grid -->
-                <div class="mt-10 pt-10 border-t border-white/5">
+                <!-- External Player System -->
+                <div class="mt-12 pt-12 border-t border-white/5">
                     <div class="flex items-center justify-between mb-8">
                         <div>
-                            <h3 class="text-lg font-black uppercase tracking-widest text-white">External Players</h3>
-                            <p class="text-xs text-gray-500 font-bold">Launch directly into your favorite app</p>
+                            <h3 class="text-xl font-black uppercase tracking-widest text-white mb-2">Direct Link Launch</h3>
+                            <p class="text-[10px] text-white/30 font-black uppercase tracking-widest">Bypass browser player for maximum performance</p>
                         </div>
-                        <div class="hidden md:block">
-                            <span class="px-3 py-1 bg-blue-500/10 text-blue-500 text-[10px] font-black rounded-full uppercase">Ultra Speed</span>
+                        <div class="hidden sm:flex items-center gap-2">
+                            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            <span class="text-[10px] font-black text-green-500 uppercase tracking-widest">System Stable</span>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="ext-player-grid">
                         {% set ext = ".mkv" if ".mkv" in (episode.file_name|default('')|lower) else ".mp4" %}
                         {% set stream_url = Config.BASE_URL ~ "/stream/" ~ episode.hash ~ "/" ~ (anime.title|slugify) ~ "-S" ~ episode.season ~ "E" ~ episode.episode ~ ext %}
 
                         <!-- VLC -->
-                        <a href="javascript:void(0)" onclick="launchPlayer('vlc', '{{ stream_url }}')" class="external-btn group">
-                            <div class="external-icon vlc-icon group-hover:scale-110 transition-transform">
+                        <button onclick="launchPlayer('vlc', '{{ stream_url }}')" class="ext-player-btn group">
+                            <div class="ext-icon-box vlc-theme">
                                 <i class="fa-solid fa-brands fa-vlc"></i>
                             </div>
                             <div>
-                                <p class="font-black text-sm uppercase text-white">VLC Player</p>
-                                <p class="text-[10px] text-gray-500 font-bold">Stable & Reliable</p>
+                                <p class="font-black text-sm uppercase text-white tracking-widest">VLC Media</p>
+                                <p class="text-[10px] text-white/30 font-bold uppercase">Stable Seeking</p>
                             </div>
-                        </a>
+                            <i class="fa-solid fa-chevron-right ml-auto text-white/10 group-hover:text-red-500 transition-colors"></i>
+                        </button>
 
-                        <!-- MX Player -->
-                        <a href="javascript:void(0)" onclick="launchPlayer('mx', '{{ stream_url }}')" class="external-btn group">
-                            <div class="external-icon mx-icon group-hover:scale-110 transition-transform">
+                        <!-- MX -->
+                        <button onclick="launchPlayer('mx', '{{ stream_url }}')" class="ext-player-btn group">
+                            <div class="ext-icon-box mx-theme">
                                 <i class="fa-solid fa-play"></i>
                             </div>
                             <div>
-                                <p class="font-black text-sm uppercase text-white">MX Player</p>
-                                <p class="text-[10px] text-gray-500 font-bold">Pro Hardware Accel</p>
+                                <p class="font-black text-sm uppercase text-white tracking-widest">MX Player</p>
+                                <p class="text-[10px] text-white/30 font-bold uppercase">HW+ Accelerated</p>
                             </div>
-                        </a>
+                            <i class="fa-solid fa-chevron-right ml-auto text-white/10 group-hover:text-red-500 transition-colors"></i>
+                        </button>
 
-                        <!-- PlayIt -->
-                        <a href="javascript:void(0)" onclick="launchPlayer('playit', '{{ stream_url }}')" class="external-btn group">
-                            <div class="external-icon playit-icon group-hover:scale-110 transition-transform">
+                        <!-- PLAYit -->
+                        <button onclick="launchPlayer('playit', '{{ stream_url }}')" class="ext-player-btn group">
+                            <div class="ext-icon-box playit-theme">
                                 <i class="fa-solid fa-bolt-lightning"></i>
                             </div>
                             <div>
-                                <p class="font-black text-sm uppercase text-white">PlayIt Player</p>
-                                <p class="text-[10px] text-gray-500 font-bold">Multi-format Speed</p>
+                                <p class="font-black text-sm uppercase text-white tracking-widest">PLAYit Pro</p>
+                                <p class="text-[10px] text-white/30 font-bold uppercase">Ultra Decoding</p>
                             </div>
-                        </a>
+                            <i class="fa-solid fa-chevron-right ml-auto text-white/10 group-hover:text-red-500 transition-colors"></i>
+                        </button>
                     </div>
                 </div>
 
-                <!-- Info Cards -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-                    <div class="p-4 glass rounded-2xl border border-white/5">
-                        <p class="text-[10px] text-gray-500 font-black uppercase mb-1">Status</p>
-                        <p class="text-sm font-bold text-green-500 flex items-center gap-2">
-                            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Online
-                        </p>
+                <!-- Tech Stats -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12">
+                    <div class="p-5 glass rounded-3xl border border-white/5 group hover:border-red-500/30 transition-colors">
+                        <p class="text-[10px] text-white/20 font-black uppercase tracking-widest mb-2">Protocol</p>
+                        <p class="text-sm font-black text-white group-hover:text-red-500 transition-colors">HTTPS/SSL</p>
                     </div>
-                    <div class="p-4 glass rounded-2xl border border-white/5">
-                        <p class="text-[10px] text-gray-500 font-black uppercase mb-1">Server</p>
-                        <p class="text-sm font-bold text-white">Ultra-X1</p>
+                    <div class="p-5 glass rounded-3xl border border-white/5 group hover:border-red-500/30 transition-colors">
+                        <p class="text-[10px] text-white/20 font-black uppercase tracking-widest mb-2">Engine</p>
+                        <p class="text-sm font-black text-white group-hover:text-red-500 transition-colors">ULTRA-X2</p>
                     </div>
-                    <div class="p-4 glass rounded-2xl border border-white/5">
-                        <p class="text-[10px] text-gray-500 font-black uppercase mb-1">Format</p>
-                        <p class="text-sm font-bold text-white uppercase">{{ "MKV" if ".mkv" in episode.file_name|lower else "MP4" }}</p>
+                    <div class="p-5 glass rounded-3xl border border-white/5 group hover:border-red-500/30 transition-colors">
+                        <p class="text-[10px] text-white/20 font-black uppercase tracking-widest mb-2">Buffering</p>
+                        <p class="text-sm font-black text-white group-hover:text-red-500 transition-colors">ADAPTIVE</p>
                     </div>
-                    <div class="p-4 glass rounded-2xl border border-white/5">
-                        <p class="text-[10px] text-gray-500 font-black uppercase mb-1">Quality</p>
-                        <p class="text-sm font-bold text-white">{{ episode.quality }}</p>
+                    <div class="p-5 glass rounded-3xl border border-white/5 group hover:border-red-500/30 transition-colors">
+                        <p class="text-[10px] text-white/20 font-black uppercase tracking-widest mb-2">Bitrate</p>
+                        <p class="text-sm font-black text-white group-hover:text-red-500 transition-colors">UNLIMITED</p>
                     </div>
                 </div>
             </div>
@@ -239,11 +306,12 @@
 
 <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
 <script>
-    function launchPlayer(player, fullUrl) {
-        const strippedUrl = fullUrl.replace(/^https?:\/\//, "");
-        const scheme = fullUrl.startsWith('https') ? 'https' : 'http';
+    function launchPlayer(player, streamUrl) {
+        // Correct encoding for intent URLs
         const title = {{ (anime.title ~ " - S" ~ episode.season ~ "E" ~ episode.episode)|tojson }};
         const encodedTitle = encodeURIComponent(title);
+        const strippedUrl = streamUrl.replace(/^https?:\/\//, "");
+        const scheme = streamUrl.startsWith('https') ? 'https' : 'http';
 
         const pkgs = {
             'vlc': 'org.videolan.vlc',
@@ -253,11 +321,25 @@
 
         const fallback = `https://play.google.com/store/apps/details?id=${pkgs[player]}`;
 
-        // Use the absolute best intent format for Android browsers
+        // Standard Android Intent Scheme
         let intent = `intent://${strippedUrl}#Intent;package=${pkgs[player]};type=video/*;scheme=${scheme};S.title=${encodedTitle};S.browser_fallback_url=${encodeURIComponent(fallback)};end`;
 
+        if (player === 'vlc') {
+            // VLC specifically likes its own scheme sometimes, but intent:// is more universal for browsers
+             intent = `intent://${strippedUrl}#Intent;package=org.videolan.vlc;type=video/*;scheme=${scheme};S.title=${encodedTitle};end`;
+        }
+
         console.log(`Launching ${player}: ${intent}`);
+
+        // Use a hidden iframe or direct location change
         window.location.href = intent;
+
+        // Fallback timeout for non-android or broken intents
+        setTimeout(() => {
+            if (confirm(`Could not open ${player.toUpperCase()}. Would you like to download it from Play Store?`)) {
+                window.location.href = fallback;
+            }
+        }, 2000);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -267,7 +349,7 @@
             type: '{{ "mkv" if ".mkv" in (episode.file_name|default('')|lower) else "mp4" }}',
             title: '{{ anime.title }} - S{{ episode.season }}E{{ episode.episode }}',
             poster: '{{ anime.image }}',
-            volume: 0.7,
+            volume: 1,
             autoplay: false,
             pip: true,
             autoSize: true,
@@ -276,7 +358,7 @@
             playbackRate: true,
             aspectRatio: true,
             fullscreen: true,
-            fullscreenWeb: true,
+            fullscreenWeb: false,
             mutex: true,
             backdrop: true,
             playsInline: true,
@@ -285,35 +367,37 @@
             theme: '#ef4444',
             moreVideoAttr: {
                 crossOrigin: 'anonymous',
-                preload: 'auto'
+                preload: 'auto',
+                'webkit-playsinline': true
             },
             settings: [
                 {
-                    html: 'Playback Quality',
-                    width: 150,
+                    html: 'Streaming Quality',
+                    width: 200,
                     tooltip: '{{ episode.quality }}',
                     selector: [
                         {
                             default: true,
-                            html: '{{ episode.quality }}',
+                            html: '{{ episode.quality }} (Source)',
                         }
                     ],
                 },
             ],
-            contextmenu: [
-                {
-                    html: 'AnizoneFlix Player',
-                },
-            ],
+            icons: {
+                loading: '<i class="fa-solid fa-spinner fa-spin text-4xl text-red-500"></i>',
+                state: '<i class="fa-solid fa-play text-5xl text-white"></i>',
+            }
         });
 
         art.on('ready', () => {
             document.getElementById('player-skeleton').style.display = 'none';
+            console.log('ArtPlayer Ready - Source: {{ stream_url }}');
         });
 
         art.on('error', (error) => {
             console.error('ArtPlayer Error:', error);
-            art.notice.show = 'Stable stream active. If playback fails, use External Players below.';
+            // If primary player fails, guide user to external players
+            art.notice.show = 'Primary player encountered an issue. Please use EXTERNAL PLAYERS below for 100% stability.';
         });
     });
 </script>

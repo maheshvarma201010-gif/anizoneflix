@@ -38,6 +38,34 @@ async def lifespan(app: FastAPI):
     logger.info("AniZoneFlix Production Engine starting...")
     try:
         await db.connect()
+        if not Config.MONGO_URI:
+            # Seed data for testing
+            await db.add_anime({
+                "mal_id": "12345",
+                "title": "Naruto Shippuden",
+                "slug": "naruto-shippuden",
+                "synopsis": "A young ninja who seeks recognition from his peers and dreams of becoming the Hokage.",
+                "score": 8.5,
+                "image": "https://m.media-amazon.com/images/M/MV5BZGFiMWFhNDAtMzUyZS00NmQ2LTljNDYtMmZjNTc5MDUxMzViXkEyXkFqcGdeQXVyNjAwNDUxODI@._V1_.jpg",
+                "genres": ["Action", "Adventure"],
+                "category": "Anime",
+                "status": "Finished Airing",
+                "year": "2007",
+                "trailer": None,
+                "studios": ["Studio Pierrot"]
+            })
+            await db.episodes.insert_one({
+                "hash": "abc123test",
+                "mal_id": "12345",
+                "season": 1,
+                "episode": 1,
+                "episode_title": "Homecoming",
+                "quality": "1080p",
+                "file_id": "mock_file_id",
+                "file_name": "Naruto_S1E1_1080p.mkv",
+                "file_size": 1000000,
+                "views": 0
+            })
         loop = asyncio.get_running_loop()
         bot.loop = loop
         if hasattr(bot, "dispatcher"):
@@ -49,11 +77,13 @@ async def lifespan(app: FastAPI):
         loop.set_exception_handler(loop_exception_handler)
 
         register_handlers(bot)
-        await bot.start()
-        await set_commands(bot)
-
-        me = await bot.get_me()
-        logger.info(f"Production Suite LIVE -> @{me.username}")
+        if Config.API_ID and Config.API_HASH and Config.BOT_TOKEN:
+            await bot.start()
+            await set_commands(bot)
+            me = await bot.get_me()
+            logger.info(f"Production Suite LIVE -> @{me.username}")
+        else:
+            logger.warning("Bot credentials missing, skipping bot startup.")
     except Exception as e:
         logger.critical(f"STARTUP FAILURE: {e}")
         logger.error(traceback.format_exc())
@@ -141,6 +171,15 @@ async def health_ping():
 @app.get("/watch/{mal_id}/{slug}")
 async def watch_episode(request: Request, path: str = None, mal_id: str = None, slug: str = None):
     ep_hash = request.query_params.get("hash") or path or request.query_params.get("path")
+    # Redirect if using old-style links to the new SEO format
+    if ep_hash and not slug:
+         episode = await db.get_episode_by_hash(ep_hash)
+         if episode:
+              anime = await db.get_anime_by_mal_id(episode["mal_id"])
+              if anime:
+                   new_slug = slugify(f"{anime['title']}-episode-{episode['episode']}")
+                   return RedirectResponse(url=f"/watch/{episode['mal_id']}/{new_slug}?hash={ep_hash}")
+
     if not ep_hash: raise HTTPException(status_code=400)
 
     settings = await db.get_settings()
@@ -167,16 +206,10 @@ async def stream_file(request: Request, ep_hash: str, filename: str = None):
         raise HTTPException(status_code=403)
     return await stream_media_handler(request, ep_hash, "inline")
 
-@app.get("/dl/{ep_hash}")
-async def download_episode(request: Request, ep_hash: str):
-    settings = await db.get_settings()
-    if not settings.get("download_enabled", True):
-        raise HTTPException(status_code=403, detail="Downloads are disabled.")
-    return await stream_media_handler(request, ep_hash, "attachment")
-
 async def stream_media_handler(request: Request, ep_id: str, disposition: str):
     try:
-        episode = await db.get_episode_by_id(ep_id)
+        # Explicitly lookup by hash as ep_id is always a token_hex(12)
+        episode = await db.get_episode_by_hash(ep_id)
         if not episode:
             raise HTTPException(status_code=404, detail="Episode not found")
 
@@ -230,11 +263,14 @@ async def stream_media_handler(request: Request, ep_id: str, disposition: str):
         content_length = end - start + 1
 
         async def file_generator():
-            # Standard Pyrogram stream_media can be slow.
-            # We remove the sleep(0) to maximize throughput as requested for "Ultra Speed"
-            async for chunk in bot.stream_media(media, offset=start, limit=content_length):
-                if chunk:
-                    yield chunk
+            try:
+                # Optimized chunk size for "Ultra Speed" streaming
+                # Pyrogram's default is often 1MB or less, we can try to yield as fast as possible
+                async for chunk in bot.stream_media(media, offset=start, limit=content_length):
+                    if chunk:
+                        yield chunk
+            except Exception as e:
+                logger.error(f"Generator Error during stream: {e}")
 
         headers = {
             "Content-Range": f"bytes {start}-{end}/{file_size}",

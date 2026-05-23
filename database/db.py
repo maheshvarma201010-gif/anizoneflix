@@ -44,8 +44,17 @@ class Database:
 
         uri = Config.MONGO_URI
         if not uri:
-            logger.critical("MONGO_URI IS NOT SET. DATA PERSISTENCE IS DISABLED.")
-            uri = "mongodb://localhost:27017"
+            logger.critical("MONGO_URI IS NOT SET. USING MOCK MOTOR FOR TESTING.")
+            from mongomock_motor import AsyncMongoMockClient
+            self.client = AsyncMongoMockClient()
+            self._db = self.client[Config.DB_NAME]
+            self._anime = self._db.anime
+            self._episodes = self._db.episodes
+            self._users = self._db.users
+            self._categories = self._db.categories
+            self._schedules = self._db.schedules
+            self._settings = self._db.settings
+            return
 
         for attempt in range(1, 6):
             try:

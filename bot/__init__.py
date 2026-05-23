@@ -122,19 +122,16 @@ def register_handlers(bot: Client):
                     "msg_id": msg_id,
                     "file_name": fname,
                     "file_size": media.file_size,
-                    "views": 0,
-                    "downloads": 0
+                    "views": 0
                 })
 
                 stream_link = f"{Config.BASE_URL}/watch/{ep_id}"
-                dl_link = f"{Config.BASE_URL}/dl/{ep_id}"
 
                 await message.reply(
                     f"✅ **Episode Added Successfully!**\n\n"
                     f"📂 **File:** `{fname}`\n"
                     f"🔢 **S{parsed['season']}E{parsed['episode']}** | {parsed['quality']}\n\n"
-                    f"🔗 **Stream:** {stream_link}\n"
-                    f"📥 **Download:** {dl_link}\n\n"
+                    f"🔗 **Stream:** {stream_link}\n\n"
                     "Keep sending more files or use /cancel to stop."
                 )
             except Exception as e:
@@ -174,8 +171,7 @@ def register_handlers(bot: Client):
                             "msg_id": msg_id,
                             "file_name": fname,
                             "file_size": media.file_size,
-                            "views": 0,
-                            "downloads": 0
+                            "views": 0
                         })
                         logger.info(f"Auto-Link Success: {fname} -> {anime['title']}")
             except Exception as e:
@@ -459,12 +455,10 @@ def register_handlers(bot: Client):
 
         settings = await db.get_settings()
         s_status = "✅ ENABLED" if settings.get("stream_enabled", True) else "❌ DISABLED"
-        d_status = "✅ ENABLED" if settings.get("download_enabled", True) else "❌ DISABLED"
 
         text = (
             "⚙️ **ANIZONEFLIX: Global Management**\n\n"
-            f"🎬 **Streaming:** {s_status}\n"
-            f"📥 **Downloading:** {d_status}\n\n"
+            f"🎬 **Streaming:** {s_status}\n\n"
             "Use buttons below to toggle visibility:"
         )
 
@@ -472,10 +466,6 @@ def register_handlers(bot: Client):
             [
                 InlineKeyboardButton("Enable Stream", callback_data="toggle_stream_on"),
                 InlineKeyboardButton("Disable Stream", callback_data="toggle_stream_off")
-            ],
-            [
-                InlineKeyboardButton("Enable Download", callback_data="toggle_download_on"),
-                InlineKeyboardButton("Disable Download", callback_data="toggle_download_off")
             ]
         ]
         await message.reply(text, reply_markup=InlineKeyboardMarkup(buttons))
@@ -494,17 +484,13 @@ def register_handlers(bot: Client):
         data = callback_query.data
         if "stream_on" in data: await db.update_setting("stream_enabled", True)
         elif "stream_off" in data: await db.update_setting("stream_enabled", False)
-        elif "download_on" in data: await db.update_setting("download_enabled", True)
-        elif "download_off" in data: await db.update_setting("download_enabled", False)
 
         settings = await db.get_settings()
         s_status = "✅ ENABLED" if settings.get("stream_enabled", True) else "❌ DISABLED"
-        d_status = "✅ ENABLED" if settings.get("download_enabled", True) else "❌ DISABLED"
 
         await callback_query.message.edit_text(
             "⚙️ **ANIZONEFLIX: Global Management**\n\n"
-            f"🎬 **Streaming:** {s_status}\n"
-            f"📥 **Downloading:** {d_status}\n\n"
+            f"🎬 **Streaming:** {s_status}\n\n"
             "Use buttons below to toggle visibility:",
             reply_markup=callback_query.message.reply_markup
         )
