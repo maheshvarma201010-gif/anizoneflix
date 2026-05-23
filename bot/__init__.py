@@ -97,8 +97,9 @@ def register_handlers(bot: Client):
             try:
                 from utils.parser import parse_caption
                 media = message.document or message.video
+                fname = media.file_name or "video.mp4"
                 # ALWAYS use caption for parsing as per rule
-                parsed = parse_caption(message.caption or media.file_name or "")
+                parsed = parse_caption(message.caption or fname)
 
                 # Forward to BIN_CHANNEL
                 file_id = media.file_id
@@ -137,8 +138,8 @@ def register_handlers(bot: Client):
                     "Keep sending more files or use /cancel to stop."
                 )
             except Exception as e:
-                logger.error(f"File Handling Error: {e}")
-                await message.reply(f"❌ **Error processing file:** `{str(e)}`")
+                logger.error(f"File Handling Error: {e}\n{traceback.format_exc()}")
+                await message.reply(f"❌ **Error processing file:** `{str(e)}` (System will attempt to continue)")
 
             return # Don't propagate if handled here
 
@@ -147,7 +148,8 @@ def register_handlers(bot: Client):
             try:
                 from utils.parser import parse_caption
                 media = message.document or message.video
-                parsed = parse_caption(message.caption or media.file_name or "")
+                fname = media.file_name or "video.mp4"
+                parsed = parse_caption(message.caption or fname)
                 if await db.ping():
                     anime = await db.anime.find_one({"title": {"$regex": parsed["title"], "$options": "i"}})
                     if anime:
