@@ -173,8 +173,8 @@
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {% set clean_title = anime.title|slugify %}
-                        {% set stream_url = Config.BASE_URL ~ "/stream/" ~ episode.hash ~ "/" ~ clean_title ~ "-" ~ episode.episode ~ ".mp4" %}
+                        {% set ext = ".mkv" if ".mkv" in (episode.file_name|default('')|lower) else ".mp4" %}
+                        {% set stream_url = Config.BASE_URL ~ "/stream/" ~ episode.hash ~ "/" ~ (anime.title|slugify) ~ "-S" ~ episode.season ~ "E" ~ episode.episode ~ ext %}
 
                         <!-- VLC -->
                         <a href="javascript:void(0)" onclick="launchPlayer('vlc', '{{ stream_url }}')" class="external-btn group">
@@ -239,40 +239,32 @@
 
 <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
 <script>
-    function launchPlayer(player, url) {
-        let intent = '';
-        const title = "{{ anime.title }} - Episode {{ episode.episode }}";
+    function launchPlayer(player, fullUrl) {
+        const strippedUrl = fullUrl.replace(/^https?:\/\//, "");
+        const scheme = fullUrl.startsWith('https') ? 'https' : 'http';
+        const title = {{ (anime.title ~ " - S" ~ episode.season ~ "E" ~ episode.episode)|tojson }};
+        const encodedTitle = encodeURIComponent(title);
 
-        if (player === 'vlc') {
-            intent = `intent:${url}#Intent;package=org.videolan.vlc;type=video/*;S.title=${encodeURIComponent(title)};end`;
-        } else if (player === 'mx') {
-            intent = `intent:${url}#Intent;package=com.mxtech.videoplayer.ad;S.title=${encodeURIComponent(title)};end`;
-        } else if (player === 'playit') {
-            intent = `intent:${url}#Intent;package=com.nex.vicat;S.title=${encodeURIComponent(title)};end`;
-        }
+        const pkgs = {
+            'vlc': 'org.videolan.vlc',
+            'mx': 'com.mxtech.videoplayer.ad',
+            'playit': 'com.playit.videoplayer'
+        };
 
-        if (intent) {
-            window.location.href = intent;
+        const fallback = `https://play.google.com/store/apps/details?id=${pkgs[player]}`;
 
-            // Fallback for non-android or if app not installed (though intent usually handles it)
-            setTimeout(() => {
-                if (confirm(`Could not open ${player.toUpperCase()}. Would you like to download it from Play Store?`)) {
-                    const pkgs = {
-                        'vlc': 'org.videolan.vlc',
-                        'mx': 'com.mxtech.videoplayer.ad',
-                        'playit': 'com.nex.vicat'
-                    };
-                    window.open(`https://play.google.com/store/apps/details?id=${pkgs[player]}`, '_blank');
-                }
-            }, 2000);
-        }
+        // Use the absolute best intent format for Android browsers
+        let intent = `intent://${strippedUrl}#Intent;package=${pkgs[player]};type=video/*;scheme=${scheme};S.title=${encodedTitle};S.browser_fallback_url=${encodeURIComponent(fallback)};end`;
+
+        console.log(`Launching ${player}: ${intent}`);
+        window.location.href = intent;
     }
 
     document.addEventListener('DOMContentLoaded', () => {
         const art = new ArtPlayer({
             container: '#artplayer-container',
-            url: '/stream/{{ episode.hash }}/{{ anime.title|slugify }}-{{ episode.episode }}.mp4',
-            type: '{{ "mkv" if ".mkv" in episode.file_name|lower else "mp4" }}',
+            url: '{{ stream_url }}',
+            type: '{{ "mkv" if ".mkv" in (episode.file_name|default('')|lower) else "mp4" }}',
             title: '{{ anime.title }} - S{{ episode.season }}E{{ episode.episode }}',
             poster: '{{ anime.image }}',
             volume: 0.7,
@@ -295,6 +287,24 @@
                 crossOrigin: 'anonymous',
                 preload: 'auto'
             },
+            settings: [
+                {
+                    html: 'Playback Quality',
+                    width: 150,
+                    tooltip: '{{ episode.quality }}',
+                    selector: [
+                        {
+                            default: true,
+                            html: '{{ episode.quality }}',
+                        }
+                    ],
+                },
+            ],
+            contextmenu: [
+                {
+                    html: 'AnizoneFlix Player',
+                },
+            ],
         });
 
         art.on('ready', () => {

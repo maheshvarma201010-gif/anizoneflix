@@ -242,6 +242,8 @@ async def stream_media_handler(request: Request, ep_id: str, disposition: str):
             "Content-Length": str(content_length),
             "Content-Type": mime_type,
             "Content-Disposition": f"{disposition}; filename=\"{file_name}\"",
+            "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
+            "Access-Control-Allow-Origin": "*",
         }
 
         return StreamingResponse(
