@@ -240,7 +240,8 @@
 
                     <div class="ext-player-grid">
                         {% set ext = ".mkv" if ".mkv" in (episode.file_name|default('')|lower) else ".mp4" %}
-                        {% set stream_url = Config.BASE_URL ~ "/stream/" ~ episode.hash ~ "/" ~ (anime.title|slugify) ~ "-S" ~ episode.season ~ "E" ~ episode.episode ~ ext %}
+                        {% set base = Config.BASE_URL.rstrip('/') %}
+                        {% set stream_url = base ~ "/stream/" ~ episode.hash ~ "/" ~ (anime.title|slugify) ~ "-S" ~ episode.season ~ "E" ~ episode.episode ~ ext %}
 
                         <!-- VLC -->
                         <button onclick="launchPlayer('vlc', '{{ stream_url }}')" class="ext-player-btn group">
@@ -313,23 +314,32 @@
         const strippedUrl = streamUrl.replace(/^https?:\/\//, "");
         const scheme = streamUrl.startsWith('https') ? 'https' : 'http';
 
+        // Accurate MIME detection for external players
+        const isMkv = streamUrl.toLowerCase().endsWith('.mkv');
+        const mime = isMkv ? 'video/x-matroska' : 'video/mp4';
+
         const pkgs = {
             'vlc': 'org.videolan.vlc',
             'mx': 'com.mxtech.videoplayer.ad',
-            'playit': 'com.playit.videoplayer'
+            'playit': 'com.nex.vicat'
         };
 
         const fallback = `https://play.google.com/store/apps/details?id=${pkgs[player]}`;
 
-        // Standard Android Intent Scheme
-        let intent = `intent://${strippedUrl}#Intent;package=${pkgs[player]};type=video/*;scheme=${scheme};S.title=${encodedTitle};S.browser_fallback_url=${encodeURIComponent(fallback)};end`;
-
-        if (player === 'vlc') {
-            // VLC specifically likes its own scheme sometimes, but intent:// is more universal for browsers
-             intent = `intent://${strippedUrl}#Intent;package=org.videolan.vlc;type=video/*;scheme=${scheme};S.title=${encodedTitle};end`;
+        let extras = '';
+        if (player === 'mx') {
+            // Force HW+ Decoder (mode 4) and provide title
+            extras = `;i.decode_mode=4;S.title=${encodedTitle}`;
+        } else if (player === 'vlc') {
+            extras = `;S.title=${encodedTitle}`;
+        } else if (player === 'playit') {
+            extras = `;S.title=${encodedTitle}`;
         }
 
-        console.log(`Launching ${player}: ${intent}`);
+        // Standard Android Intent Scheme with Hardware Decoding Hints
+        const intent = `intent://${strippedUrl}#Intent;package=${pkgs[player]};type=${mime};scheme=${scheme}${extras};S.browser_fallback_url=${encodeURIComponent(fallback)};end`;
+
+        console.log(`Launching ${player} with Advanced Decoding: ${intent}`);
 
         // Use a hidden iframe or direct location change
         window.location.href = intent;
