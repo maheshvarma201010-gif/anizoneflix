@@ -50,7 +50,7 @@
     <div class="space-y-12">
         <div class="flex items-center justify-between">
             <h2 class="text-4xl font-black tracking-tight flex items-center">
-                <i class="fa-solid fa-download text-red-600 mr-4"></i>
+                <i class="fa-solid fa-play-circle text-red-600 mr-4"></i>
                 Selection
             </h2>
         </div>
@@ -95,7 +95,7 @@
 
                 <!-- 4. Final Actions (Hidden initially) -->
                 <div id="action-selection" class="hidden animate-fade-in">
-                    <h3 class="text-xl font-black mb-6 uppercase tracking-widest text-gray-400">Watch or Download</h3>
+                    <h3 class="text-xl font-black mb-6 uppercase tracking-widest text-gray-400">Ready to Watch</h3>
                     <div id="action-buttons" class="flex flex-wrap gap-4 p-8 glass rounded-[2rem] border border-red-500/20 items-center justify-center">
                         <!-- JS Dynamic -->
                     </div>
@@ -210,7 +210,15 @@
     }
 
     const streamEnabled = {{ settings.get('stream_enabled', True)|tojson }};
-    const downloadEnabled = {{ settings.get('download_enabled', True)|tojson }};
+
+    function slugify(text) {
+        return text.toString().toLowerCase()
+            .replace(/\s+/g, '-')           // Replace spaces with -
+            .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
+            .replace(/\-\-+/g, '-')         // Replace multiple - with single -
+            .replace(/^-+/, '')             // Trim - from start of text
+            .replace(/-+$/, '');            // Trim - from end of text
+    }
 
     function selectEpisode(ep) {
         // Update Buttons Styling
@@ -231,23 +239,17 @@
         `;
 
         if (streamEnabled) {
+            const slug = slugify({{ anime.title|tojson }}) + "-episode-" + ep.episode;
+            const watchUrl = `/watch/${ep.mal_id}/${slug}?hash=${ep.hash}`;
             html += `
-                <a href="/watch?path=${ep.hash}" class="flex-1 px-10 py-5 bg-blue-600 text-white rounded-2xl font-black text-center hover:bg-blue-700 transition-all shadow-xl">
+                <a href="${watchUrl}" class="flex-1 px-10 py-5 bg-blue-600 text-white rounded-2xl font-black text-center hover:bg-blue-700 transition-all shadow-xl">
                     <i class="fa-solid fa-play mr-2"></i> STREAM NOW
                 </a>
             `;
         }
 
-        if (downloadEnabled) {
-            html += `
-                <a href="/dl/${ep.hash}" target="_blank" class="flex-1 px-10 py-5 bg-red-600 text-white rounded-2xl font-black text-center hover:bg-red-700 transition-all shadow-xl">
-                    <i class="fa-solid fa-download mr-2"></i> DOWNLOAD NOW
-                </a>
-            `;
-        }
-
-        if (!streamEnabled && !downloadEnabled) {
-            html += `<p class="text-gray-500 font-bold">Actions temporarily disabled by administrator.</p>`;
+        if (!streamEnabled) {
+            html += `<p class="text-gray-500 font-bold">Streaming is temporarily disabled by administrator.</p>`;
         }
 
         container.innerHTML = html;

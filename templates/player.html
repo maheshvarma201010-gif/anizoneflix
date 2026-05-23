@@ -1,140 +1,309 @@
 {% extends "base.html" %}
 
+{% block head %}
+<style>
+    :root {
+        --accent: #ef4444;
+        --accent-glow: rgba(239, 68, 68, 0.3);
+    }
+
+    .anime-hero {
+        position: relative;
+        width: 100%;
+        min-height: 100vh;
+        background-color: #0b0b0d;
+        overflow: hidden;
+    }
+
+    .hero-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        background-image: url('{{ anime.image }}');
+        background-size: cover;
+        background-position: center;
+        filter: blur(80px) brightness(0.3);
+        transform: scale(1.1);
+    }
+
+    .content-wrapper {
+        position: relative;
+        z-index: 1;
+        padding-top: 2rem;
+    }
+
+    .player-card {
+        background: rgba(22, 22, 24, 0.6);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 2rem;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+        transition: transform 0.3s ease;
+    }
+
+    .player-container {
+        position: relative;
+        aspect-ratio: 16/9;
+        background: #000;
+        border-radius: 2rem 2rem 0 0;
+        overflow: hidden;
+    }
+
+    /* Skeleton Loading */
+    .skeleton {
+        background: linear-gradient(90deg, #1a1a1d 25%, #2a2a2d 50%, #1a1a1d 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    .player-placeholder {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    }
+
+    /* External Player Buttons */
+    .external-btn {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.25rem;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 1.25rem;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        text-align: left;
+    }
+
+    .external-btn:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: var(--accent);
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
+    }
+
+    .external-icon {
+        width: 3.5rem;
+        height: 3.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 1rem;
+        font-size: 1.5rem;
+    }
+
+    .vlc-icon { background: rgba(255, 136, 0, 0.1); color: #ff8800; }
+    .mx-icon { background: rgba(0, 102, 255, 0.1); color: #0066ff; }
+    .playit-icon { background: rgba(138, 43, 226, 0.1); color: #8a2be2; }
+
+    .glow-red { box-shadow: 0 0 20px rgba(239, 68, 68, 0.2); }
+
+    /* Custom ArtPlayer UI */
+    .artplayer-app {
+        border-radius: 2rem 2rem 0 0;
+    }
+
+    @media (max-width: 768px) {
+        .content-wrapper { padding-top: 1rem; }
+        .player-card { border-radius: 1.5rem; }
+        .player-container { border-radius: 1.5rem 1.5rem 0 0; }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="max-w-6xl mx-auto px-4 py-8">
-    <div class="relative rounded-[2.5rem] overflow-hidden glass shadow-2xl animate-fade-in mb-8">
-        <!-- Player Container -->
-        <div class="aspect-video bg-black relative rounded-t-[2.5rem] overflow-hidden" id="artplayer-container"></div>
+<div class="anime-hero">
+    <div class="hero-backdrop"></div>
 
-        <!-- Info Section -->
-        <div class="p-8 md:p-12">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div>
-                    <h1 class="text-3xl md:text-5xl font-black mb-4 tracking-tighter">{{ anime.title }}</h1>
-                    <div class="flex flex-wrap gap-3">
-                        <span class="px-4 py-1.5 bg-red-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg">{{ episode.quality }}</span>
-                        <span class="px-4 py-1.5 glass text-gray-300 text-[10px] font-black rounded-full uppercase tracking-widest border border-white/5">S{{ episode.season }}E{{ episode.episode }}</span>
-                        {% if episode.episode_title %}
-                        <span class="px-4 py-1.5 glass text-gray-300 text-[10px] font-black rounded-full uppercase tracking-widest border border-white/5">{{ episode.episode_title }}</span>
-                        {% endif %}
+    <div class="content-wrapper max-w-6xl mx-auto px-4 pb-20">
+        <!-- Breadcrumbs / Back -->
+        <div class="mb-6 animate-fade-in">
+            <a href="/anime/{{ anime.slug }}" class="inline-flex items-center text-sm font-bold text-gray-400 hover:text-white transition">
+                <i class="fa-solid fa-arrow-left mr-2"></i> Back to Series
+            </a>
+        </div>
+
+        <div class="player-card animate-fade-in">
+            <!-- Player Section -->
+            <div class="player-container shadow-2xl" id="artplayer-container">
+                <div class="player-placeholder skeleton" id="player-skeleton">
+                    <div class="text-center">
+                        <i class="fa-solid fa-circle-play text-6xl text-white/20 mb-4 animate-pulse"></i>
+                        <p class="text-white/40 font-bold uppercase tracking-widest text-sm">Initializing High-Speed Stream...</p>
                     </div>
-                </div>
-
-                <div class="flex flex-wrap gap-4 w-full md:w-auto">
-                    <a href="/dl/{{ episode.hash }}" class="flex-1 md:flex-none px-8 py-4 bg-white text-black font-black rounded-2xl hover:bg-red-600 hover:text-white transition-all text-center shadow-xl">
-                        <i class="fa-solid fa-download mr-2"></i> DOWNLOAD
-                    </a>
                 </div>
             </div>
 
-            <!-- External Players -->
-            <div class="mt-12 border-t border-white/5 pt-12">
-                <h3 class="text-xl font-black mb-8 uppercase tracking-widest text-gray-400">Play in External Player</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {% set stream_url = Config.BASE_URL ~ "/stream/" ~ episode.hash %}
-                    <!-- VLC -->
-                    <a href="intent:{{ stream_url }}#Intent;package=org.videolan.vlc;type=video/*;end" class="flex items-center gap-4 p-6 glass rounded-2xl border border-white/5 hover:border-orange-500/50 transition-all group">
-                        <div class="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform">
-                            <i class="fa-solid fa-brands fa-vlc text-2xl"></i>
+            <!-- Meta Section -->
+            <div class="p-6 md:p-10">
+                <div class="flex flex-col md:flex-row justify-between items-start gap-6">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-4">
+                            <span class="px-3 py-1 bg-red-600 text-white text-[10px] font-black rounded-lg uppercase tracking-widest shadow-lg">{{ episode.quality }}</span>
+                            <span class="px-3 py-1 glass text-gray-300 text-[10px] font-black rounded-lg uppercase tracking-widest border border-white/5">Season {{ episode.season }}</span>
+                            <span class="px-3 py-1 glass text-gray-300 text-[10px] font-black rounded-lg uppercase tracking-widest border border-white/5">Episode {{ episode.episode }}</span>
                         </div>
-                        <div>
-                            <p class="font-black text-sm uppercase">VLC Player</p>
-                            <p class="text-[10px] text-gray-500 font-bold">Stable Streaming</p>
-                        </div>
-                    </a>
+                        <h1 class="text-2xl md:text-4xl font-black tracking-tighter mb-2">{{ anime.title }}</h1>
+                        <p class="text-gray-400 font-bold text-sm md:text-base">{{ episode.episode_title or 'Watching Episode ' ~ episode.episode }}</p>
+                    </div>
+                </div>
 
-                    <!-- MX Player -->
-                    <a href="intent:{{ stream_url }}#Intent;package=com.mxtech.videoplayer.ad;S.title={{ anime.title|urlencode }};end" class="flex items-center gap-4 p-6 glass rounded-2xl border border-white/5 hover:border-blue-500/50 transition-all group">
-                        <div class="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
-                            <i class="fa-solid fa-play text-2xl"></i>
-                        </div>
+                <!-- External Players Grid -->
+                <div class="mt-10 pt-10 border-t border-white/5">
+                    <div class="flex items-center justify-between mb-8">
                         <div>
-                            <p class="font-black text-sm uppercase">MX Player</p>
-                            <p class="text-[10px] text-gray-500 font-bold">Best Performance</p>
+                            <h3 class="text-lg font-black uppercase tracking-widest text-white">External Players</h3>
+                            <p class="text-xs text-gray-500 font-bold">Launch directly into your favorite app</p>
                         </div>
-                    </a>
+                        <div class="hidden md:block">
+                            <span class="px-3 py-1 bg-blue-500/10 text-blue-500 text-[10px] font-black rounded-full uppercase">Ultra Speed</span>
+                        </div>
+                    </div>
 
-                    <!-- PlayIt -->
-                    <a href="intent:{{ stream_url }}#Intent;package=com.nex.vicat;end" class="flex items-center gap-4 p-6 glass rounded-2xl border border-white/5 hover:border-purple-500/50 transition-all group">
-                        <div class="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
-                            <i class="fa-solid fa-bolt text-2xl"></i>
-                        </div>
-                        <div>
-                            <p class="font-black text-sm uppercase">PlayIt Player</p>
-                            <p class="text-[10px] text-gray-500 font-bold">Ultra Fast</p>
-                        </div>
-                    </a>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {% set clean_title = anime.title|slugify %}
+                        {% set stream_url = Config.BASE_URL ~ "/stream/" ~ episode.hash ~ "/" ~ clean_title ~ "-" ~ episode.episode ~ ".mp4" %}
+
+                        <!-- VLC -->
+                        <a href="javascript:void(0)" onclick="launchPlayer('vlc', '{{ stream_url }}')" class="external-btn group">
+                            <div class="external-icon vlc-icon group-hover:scale-110 transition-transform">
+                                <i class="fa-solid fa-brands fa-vlc"></i>
+                            </div>
+                            <div>
+                                <p class="font-black text-sm uppercase text-white">VLC Player</p>
+                                <p class="text-[10px] text-gray-500 font-bold">Stable & Reliable</p>
+                            </div>
+                        </a>
+
+                        <!-- MX Player -->
+                        <a href="javascript:void(0)" onclick="launchPlayer('mx', '{{ stream_url }}')" class="external-btn group">
+                            <div class="external-icon mx-icon group-hover:scale-110 transition-transform">
+                                <i class="fa-solid fa-play"></i>
+                            </div>
+                            <div>
+                                <p class="font-black text-sm uppercase text-white">MX Player</p>
+                                <p class="text-[10px] text-gray-500 font-bold">Pro Hardware Accel</p>
+                            </div>
+                        </a>
+
+                        <!-- PlayIt -->
+                        <a href="javascript:void(0)" onclick="launchPlayer('playit', '{{ stream_url }}')" class="external-btn group">
+                            <div class="external-icon playit-icon group-hover:scale-110 transition-transform">
+                                <i class="fa-solid fa-bolt-lightning"></i>
+                            </div>
+                            <div>
+                                <p class="font-black text-sm uppercase text-white">PlayIt Player</p>
+                                <p class="text-[10px] text-gray-500 font-bold">Multi-format Speed</p>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Info Cards -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+                    <div class="p-4 glass rounded-2xl border border-white/5">
+                        <p class="text-[10px] text-gray-500 font-black uppercase mb-1">Status</p>
+                        <p class="text-sm font-bold text-green-500 flex items-center gap-2">
+                            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Online
+                        </p>
+                    </div>
+                    <div class="p-4 glass rounded-2xl border border-white/5">
+                        <p class="text-[10px] text-gray-500 font-black uppercase mb-1">Server</p>
+                        <p class="text-sm font-bold text-white">Ultra-X1</p>
+                    </div>
+                    <div class="p-4 glass rounded-2xl border border-white/5">
+                        <p class="text-[10px] text-gray-500 font-black uppercase mb-1">Format</p>
+                        <p class="text-sm font-bold text-white uppercase">{{ "MKV" if ".mkv" in episode.file_name|lower else "MP4" }}</p>
+                    </div>
+                    <div class="p-4 glass rounded-2xl border border-white/5">
+                        <p class="text-[10px] text-gray-500 font-black uppercase mb-1">Quality</p>
+                        <p class="text-sm font-bold text-white">{{ episode.quality }}</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Security Overlay -->
-    <div id="security-msg" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-red-600 text-white font-black rounded-full text-xs shadow-2xl animate-bounce">
-        SCREENSHOT PROTECTION ACTIVE
-    </div>
 </div>
-
-<style>
-    /* Player Customization */
-    video::webkit-media-controls-panel {
-        background-image: linear-gradient(transparent, rgba(0,0,0,0.8)) !important;
-    }
-</style>
 
 <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
 <script>
+    function launchPlayer(player, url) {
+        let intent = '';
+        const title = "{{ anime.title }} - Episode {{ episode.episode }}";
+
+        if (player === 'vlc') {
+            intent = `intent:${url}#Intent;package=org.videolan.vlc;type=video/*;S.title=${encodeURIComponent(title)};end`;
+        } else if (player === 'mx') {
+            intent = `intent:${url}#Intent;package=com.mxtech.videoplayer.ad;S.title=${encodeURIComponent(title)};end`;
+        } else if (player === 'playit') {
+            intent = `intent:${url}#Intent;package=com.nex.vicat;S.title=${encodeURIComponent(title)};end`;
+        }
+
+        if (intent) {
+            window.location.href = intent;
+
+            // Fallback for non-android or if app not installed (though intent usually handles it)
+            setTimeout(() => {
+                if (confirm(`Could not open ${player.toUpperCase()}. Would you like to download it from Play Store?`)) {
+                    const pkgs = {
+                        'vlc': 'org.videolan.vlc',
+                        'mx': 'com.mxtech.videoplayer.ad',
+                        'playit': 'com.nex.vicat'
+                    };
+                    window.open(`https://play.google.com/store/apps/details?id=${pkgs[player]}`, '_blank');
+                }
+            }, 2000);
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         const art = new ArtPlayer({
             container: '#artplayer-container',
-            url: '/stream/{{ episode.hash }}',
+            url: '/stream/{{ episode.hash }}/{{ anime.title|slugify }}-{{ episode.episode }}.mp4',
             type: '{{ "mkv" if ".mkv" in episode.file_name|lower else "mp4" }}',
             title: '{{ anime.title }} - S{{ episode.season }}E{{ episode.episode }}',
             poster: '{{ anime.image }}',
             volume: 0.7,
-            isLive: false,
-            muted: false,
             autoplay: false,
             pip: true,
             autoSize: true,
-            autoMini: true,
-            screenshot: false, // User requested protection
             setting: true,
             loop: false,
-            flip: true,
             playbackRate: true,
             aspectRatio: true,
             fullscreen: true,
             fullscreenWeb: true,
-            subtitleOffset: true,
-            miniProgressBar: true,
             mutex: true,
             backdrop: true,
             playsInline: true,
             autoPlayback: true,
             airplay: true,
-            theme: '#E11D48',
-            lang: 'en',
+            theme: '#ef4444',
             moreVideoAttr: {
                 crossOrigin: 'anonymous',
+                preload: 'auto'
             },
+        });
+
+        art.on('ready', () => {
+            document.getElementById('player-skeleton').style.display = 'none';
         });
 
         art.on('error', (error) => {
             console.error('ArtPlayer Error:', error);
-            if (art.url.toLowerCase().endsWith('.mkv') || '{{ episode.file_name|lower }}'.endsWith('.mkv')) {
-                art.notice.show = 'MKV playback may not be supported in this browser. Please use VLC or MX Player below.';
-            }
-        });
-
-        // Screenshot Protection
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'PrintScreen' || (e.ctrlKey && e.key === 'p') || (e.metaKey && e.shiftKey && e.key === '4')) {
-                e.preventDefault();
-                const msg = document.getElementById('security-msg');
-                msg.classList.remove('hidden');
-                setTimeout(() => msg.classList.add('hidden'), 3000);
-            }
+            art.notice.show = 'Stable stream active. If playback fails, use External Players below.';
         });
     });
 </script>

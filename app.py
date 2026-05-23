@@ -138,16 +138,16 @@ async def health_ping():
 
 @app.get("/watch")
 @app.get("/watch/{path}")
-async def watch_episode(request: Request, path: str = None):
-    if not path:
-        path = request.query_params.get("path")
-    if not path: raise HTTPException(status_code=400)
+@app.get("/watch/{mal_id}/{slug}")
+async def watch_episode(request: Request, path: str = None, mal_id: str = None, slug: str = None):
+    ep_hash = request.query_params.get("hash") or path or request.query_params.get("path")
+    if not ep_hash: raise HTTPException(status_code=400)
 
     settings = await db.get_settings()
     if not settings.get("stream_enabled", True):
         return templates.TemplateResponse(request=request, name="404.html", context={"error": "Streaming is currently disabled by administrator."}, status_code=403)
 
-    episode = await db.get_episode_by_hash(path)
+    episode = await db.get_episode_by_hash(ep_hash)
     if not episode: raise HTTPException(status_code=404)
 
     anime = await db.get_anime_by_mal_id(episode["mal_id"])
@@ -160,7 +160,8 @@ async def watch_episode(request: Request, path: str = None):
     })
 
 @app.get("/stream/{ep_hash}")
-async def stream_file(request: Request, ep_hash: str):
+@app.get("/stream/{ep_hash}/{filename}")
+async def stream_file(request: Request, ep_hash: str, filename: str = None):
     settings = await db.get_settings()
     if not settings.get("stream_enabled", True):
         raise HTTPException(status_code=403)

@@ -19,11 +19,22 @@
             color: #f8fafc;
             font-family: 'Inter', sans-serif;
             -webkit-tap-highlight-color: transparent;
+            overflow-x: hidden;
         }
         .glass { background: var(--tg-glass); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
-        .glass-nav { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .glass-nav { background: rgba(11, 11, 13, 0.8); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .animate-fade-in { animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Page Transitions */
+        .page-transition-enter { opacity: 0; }
+        .page-transition-enter-active { opacity: 1; transition: opacity 300ms; }
+        .page-transition-exit { opacity: 1; }
+        .page-transition-exit-active { opacity: 0; transition: opacity 300ms; }
+
+        /* Neon Glows */
+        .neon-border { border-color: var(--tg-accent); box-shadow: 0 0 15px var(--tg-accent); }
+        .neon-text { text-shadow: 0 0 10px var(--tg-accent); }
 
         /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
