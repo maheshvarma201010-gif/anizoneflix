@@ -51,90 +51,62 @@
         <div class="flex items-center justify-between">
             <h2 class="text-4xl font-black tracking-tight flex items-center">
                 <i class="fa-solid fa-download text-red-600 mr-4"></i>
-                Episodes
+                Selection
             </h2>
         </div>
 
         {% if episodes %}
-            {% set grouped_episodes = {} %}
-            {% for ep in episodes %}
-                {% if ep.season not in grouped_episodes %}
-                    {% set _ = grouped_episodes.update({ep.season: []}) %}
-                {% endif %}
-                {% set _ = grouped_episodes[ep.season].append(ep) %}
-            {% endfor %}
+            <div class="glass rounded-[2rem] p-6 md:p-10 border border-white/5 shadow-2xl space-y-10">
 
-            <div class="glass rounded-[2rem] p-6 md:p-10 border border-white/5 shadow-2xl">
-                <div class="flex flex-wrap gap-3 mb-10">
-                    {% for season in grouped_episodes.keys()|sort %}
-                    <button onclick="showSeason('{{ season }}')" id="btn-{{ season }}"
-                            class="season-btn px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all border border-white/5 shadow-lg">
-                        <i class="fa-solid fa-layer-group"></i> Season {{ season }}
-                    </button>
-                    {% endfor %}
-                </div>
-
-                {% for season, s_episodes in grouped_episodes.items() %}
-                <div id="season-{{ season }}" class="season-content hidden animate-fade-in space-y-4">
-                    {% for ep in s_episodes|sort(attribute='episode') %}
-                    <div class="p-4 glass rounded-2xl border border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 hover:bg-white/5 transition-all">
-                        <div class="flex items-center gap-4">
-                            <div class="w-12 h-12 bg-red-600 text-white rounded-xl flex items-center justify-center font-black">
-                                {{ ep.episode }}
-                            </div>
-                            <div>
-                                <h4 class="font-bold text-lg line-clamp-1">{{ ep.file_name or 'Episode ' ~ ep.episode }}</h4>
-                                <div class="flex gap-2 text-[10px] uppercase font-bold text-gray-500">
-                                    <span>{{ ep.quality }}</span>
-                                    <span>•</span>
-                                    <span>{{ ep.audio }}</span>
-                                    <span>•</span>
-                                    <span>{{ ep.codec }}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="flex gap-2">
-                            <a href="/watch/{{ ep._id }}" target="_blank" class="px-6 py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl font-bold text-xs transition-all border border-blue-500/20">
-                                <i class="fa-solid fa-play mr-1"></i> STREAM
-                            </a>
-                            <a href="/dl/{{ ep._id }}" target="_blank" class="px-6 py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-xl font-bold text-xs transition-all border border-red-500/20">
-                                <i class="fa-solid fa-download mr-1"></i> DOWNLOAD
-                            </a>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endfor %}
-            </div>
-        {% else %}
-            <!-- Legacy fallback if no episodes but seasons_links exist -->
-            {% if anime.seasons_links %}
-            <div class="glass rounded-[2rem] p-6 md:p-10 border border-white/5 shadow-2xl">
-                <div class="flex flex-wrap gap-3 mb-10">
-                    {% for season, links in anime.seasons_links.items() %}
-                    <button onclick="showSeason('{{ season|slugify }}')" id="btn-{{ season|slugify }}"
-                            class="season-btn px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all border border-white/5 shadow-lg">
-                        <i class="fa-solid fa-layer-group"></i> {{ season }}
-                    </button>
-                    {% endfor %}
-                </div>
-
-                {% for season, links in anime.seasons_links.items() %}
-                <div id="season-{{ season|slugify }}" class="season-content hidden animate-fade-in">
-                    <div class="flex flex-wrap gap-4">
-                        {% for q, url in links.items() %}
-                            {% if url %}
-                            {% set q_color = 'blue' if '480' in q else ('purple' if '720' in q else 'red') %}
-                            <a href="{{ url }}" target="_blank" class="px-8 py-4 bg-{{ q_color }}-600/20 hover:bg-{{ q_color }}-600 text-{{ q_color }}-400 hover:text-white rounded-2xl font-black text-sm transition-all flex items-center gap-2 border border-{{ q_color }}-500/20 shadow-xl shadow-{{ q_color }}-900/10">
-                                <i class="fa-solid fa-download"></i> {{ q }}
-                            </a>
+                <!-- 1. Season Selection -->
+                <div id="season-selection">
+                    <h3 class="text-xl font-black mb-6 uppercase tracking-widest text-gray-400">Select Season</h3>
+                    <div class="flex flex-wrap gap-3">
+                        {% set seasons = [] %}
+                        {% for ep in episodes %}
+                            {% if ep.season not in seasons %}
+                                {% set _ = seasons.append(ep.season) %}
                             {% endif %}
+                        {% endfor %}
+                        {% for season in seasons|sort %}
+                        <button onclick="selectSeason('{{ season }}')" id="s-btn-{{ season }}"
+                                class="season-opt-btn px-8 py-4 glass rounded-2xl font-black text-sm flex items-center gap-2 transition-all border border-white/5 shadow-lg hover:bg-red-600 hover:text-white">
+                            SEASON {{ season }}
+                        </button>
                         {% endfor %}
                     </div>
                 </div>
-                {% endfor %}
+
+                <!-- 2. Quality Selection (Hidden initially) -->
+                <div id="quality-selection" class="hidden animate-fade-in">
+                    <h3 class="text-xl font-black mb-6 uppercase tracking-widest text-gray-400">Select Quality</h3>
+                    <div id="quality-buttons" class="flex flex-wrap gap-3">
+                        <!-- JS Dynamic -->
+                    </div>
+                </div>
+
+                <!-- 3. Episode Selection (Hidden initially) -->
+                <div id="episode-selection" class="hidden animate-fade-in">
+                    <h3 class="text-xl font-black mb-6 uppercase tracking-widest text-gray-400">Select Episode</h3>
+                    <div id="episode-buttons" class="flex flex-wrap gap-3">
+                        <!-- JS Dynamic -->
+                    </div>
+                </div>
+
+                <!-- 4. Final Actions (Hidden initially) -->
+                <div id="action-selection" class="hidden animate-fade-in">
+                    <h3 class="text-xl font-black mb-6 uppercase tracking-widest text-gray-400">Watch or Download</h3>
+                    <div id="action-buttons" class="flex flex-wrap gap-4 p-8 glass rounded-[2rem] border border-red-500/20 items-center justify-center">
+                        <!-- JS Dynamic -->
+                    </div>
+                </div>
+
             </div>
-            {% endif %}
+        {% else %}
+             <div class="py-24 text-center glass rounded-[3rem] border-dashed border-2 border-white/5">
+                <i class="fa-solid fa-cloud-moon text-6xl text-slate-800 mb-6"></i>
+                <p class="text-gray-500 font-bold text-xl uppercase tracking-widest">No content available for this title.</p>
+            </div>
         {% endif %}
 
         <!-- Custom Buttons -->
@@ -155,19 +127,12 @@
         </div>
         {% endif %}
 
-        {% if not episodes and not anime.seasons_links and not anime.custom_buttons %}
-            <div class="py-24 text-center glass rounded-[3rem] border-dashed border-2 border-white/5">
-                <i class="fa-solid fa-cloud-moon text-6xl text-slate-800 mb-6"></i>
-                <p class="text-gray-500 font-bold text-xl uppercase tracking-widest">No links synchronized yet.</p>
-            </div>
-        {% endif %}
     </div>
     {% else %}
     <div class="py-32 text-center">
         <i class="fa-solid fa-ban text-8xl text-red-600 mb-8 opacity-50"></i>
-        <h2 class="text-4xl font-black">Title Blocked or Missing</h2>
-        <p class="text-gray-500 mt-4">The content identifier was invalid or the archive has been purged.</p>
-        <a href="/" class="inline-block mt-8 px-10 py-4 bg-red-600 rounded-2xl font-black">BACK TO BASE</a>
+        <h2 class="text-4xl font-black">Archive Not Found</h2>
+        <a href="/" class="inline-block mt-8 px-10 py-4 bg-red-600 rounded-2xl font-black">RETURN HOME</a>
     </div>
     {% endif %}
 </div>
@@ -175,23 +140,95 @@
 
 {% block scripts %}
 <script>
-    function showSeason(seasonId) {
-        document.querySelectorAll('.season-content').forEach(el => el.classList.add('hidden'));
-        document.querySelectorAll('.season-btn').forEach(btn => {
-            btn.classList.remove('bg-red-600', 'text-white', 'border-red-500');
-            btn.classList.add('glass', 'text-gray-300', 'border-white/5');
+    const episodesData = {{ episodes|tojson|safe }};
+    let currentSeason = null;
+    let currentQuality = null;
+
+    function selectSeason(season) {
+        currentSeason = parseInt(season);
+        currentQuality = null;
+
+        // Update Buttons Styling
+        document.querySelectorAll('.season-opt-btn').forEach(btn => {
+            btn.classList.remove('bg-red-600', 'text-white');
+            btn.classList.add('glass');
         });
-        const activeContent = document.getElementById('season-' + seasonId);
-        if (activeContent) activeContent.classList.remove('hidden');
-        const activeBtn = document.getElementById('btn-' + seasonId);
-        if (activeBtn) {
-            activeBtn.classList.remove('glass', 'text-gray-300', 'border-white/5');
-            activeBtn.classList.add('bg-red-600', 'text-white', 'border-red-500');
-        }
+        document.getElementById(`s-btn-${season}`).classList.add('bg-red-600', 'text-white');
+        document.getElementById(`s-btn-${season}`).classList.remove('glass');
+
+        // Hide downstream selections
+        document.getElementById('episode-selection').classList.add('hidden');
+        document.getElementById('action-selection').classList.add('hidden');
+
+        // Show Quality Selection
+        const qualities = [...new Set(episodesData.filter(ep => ep.season == currentSeason).map(ep => ep.quality))].sort();
+        const container = document.getElementById('quality-buttons');
+        container.innerHTML = '';
+        qualities.forEach(q => {
+            const btn = document.createElement('button');
+            btn.className = 'quality-opt-btn px-8 py-4 glass rounded-2xl font-black text-sm transition-all border border-white/5 shadow-lg hover:bg-red-600 hover:text-white';
+            btn.id = `q-btn-${q}`;
+            btn.innerText = q;
+            btn.onclick = () => selectQuality(q);
+            container.appendChild(btn);
+        });
+        document.getElementById('quality-selection').classList.remove('hidden');
     }
-    document.addEventListener('DOMContentLoaded', () => {
-        const firstBtn = document.querySelector('.season-btn');
-        if (firstBtn) showSeason(firstBtn.id.replace('btn-', ''));
-    });
+
+    function selectQuality(quality) {
+        currentQuality = quality;
+
+        // Update Buttons Styling
+        document.querySelectorAll('.quality-opt-btn').forEach(btn => {
+            btn.classList.remove('bg-red-600', 'text-white');
+            btn.classList.add('glass');
+        });
+        document.getElementById(`q-btn-${quality}`).classList.add('bg-red-600', 'text-white');
+        document.getElementById(`q-btn-${quality}`).classList.remove('glass');
+
+        // Hide action selection
+        document.getElementById('action-selection').classList.add('hidden');
+
+        // Show Episode Selection
+        const eps = episodesData.filter(ep => ep.season == currentSeason && ep.quality == currentQuality).sort((a, b) => a.episode - b.episode);
+        const container = document.getElementById('episode-buttons');
+        container.innerHTML = '';
+        eps.forEach(ep => {
+            const btn = document.createElement('button');
+            btn.className = 'episode-opt-btn w-14 h-14 glass rounded-xl font-black text-lg flex items-center justify-center transition-all border border-white/5 shadow-lg hover:bg-red-600 hover:text-white';
+            btn.id = `e-btn-${ep._id}`;
+            btn.innerText = ep.episode;
+            btn.onclick = () => selectEpisode(ep);
+            container.appendChild(btn);
+        });
+        document.getElementById('episode-selection').classList.remove('hidden');
+    }
+
+    function selectEpisode(ep) {
+        // Update Buttons Styling
+        document.querySelectorAll('.episode-opt-btn').forEach(btn => {
+            btn.classList.remove('bg-red-600', 'text-white');
+            btn.classList.add('glass');
+        });
+        document.getElementById(`e-btn-${ep._id}`).classList.add('bg-red-600', 'text-white');
+        document.getElementById(`e-btn-${ep._id}`).classList.remove('glass');
+
+        // Show Actions
+        const container = document.getElementById('action-buttons');
+        container.innerHTML = `
+            <div class="text-center w-full mb-4">
+                <h4 class="text-lg font-bold">${ep.file_name || 'Episode ' + ep.episode}</h4>
+                <p class="text-xs text-gray-500 font-bold uppercase">${ep.quality} • ${ep.audio} • ${ep.codec}</p>
+            </div>
+            <a href="/watch/${ep._id}" target="_blank" class="flex-1 px-10 py-5 bg-blue-600 text-white rounded-2xl font-black text-center hover:bg-blue-700 transition-all shadow-xl">
+                <i class="fa-solid fa-play mr-2"></i> STREAM NOW
+            </a>
+            <a href="/dl/${ep._id}" target="_blank" class="flex-1 px-10 py-5 bg-red-600 text-white rounded-2xl font-black text-center hover:bg-red-700 transition-all shadow-xl">
+                <i class="fa-solid fa-download mr-2"></i> DOWNLOAD NOW
+            </a>
+        `;
+        document.getElementById('action-selection').classList.remove('hidden');
+        document.getElementById('action-selection').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
 </script>
 {% endblock %}

@@ -601,9 +601,14 @@ def register_handlers(bot: Client):
         if not state or state["action"] != "ask_image_choice": return
         choice = callback_query.data.split("_")[1]
         user_state[uid]["image"] = state["anime_data"]["image"] if choice == "api" else None
+
         if choice == "api":
-            user_state[uid]["action"] = "ask_seasons"
-            await callback_query.message.edit_caption(caption="✅ **Asset Selected.**\n\nDefine group names:", reply_markup=None)
+            # Skip asking for group names, go straight to category
+            user_state[uid]["seasons_data"] = {}
+            user_state[uid]["action"] = "ask_category_final"
+            cats = await db.get_all_categories()
+            buttons = [[InlineKeyboardButton(c['name'], callback_data=f"finalcat_{c['name']}")] for c in (cats if cats else [{"name": "Anime"}])]
+            await callback_query.message.edit_caption(caption="✅ **Asset Selected.**\n\nTarget **Category**:", reply_markup=InlineKeyboardMarkup(buttons))
         else:
             user_state[uid]["action"] = "ask_manual_img"
             await callback_query.message.edit_caption(caption="🛰 **Direct Asset URL:**", reply_markup=None)

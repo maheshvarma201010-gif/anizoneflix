@@ -154,15 +154,36 @@ async def stream_media_handler(request: Request, ep_id: str, disposition: str):
             raise HTTPException(status_code=404, detail="File ID not found")
 
         # Get file properties from Telegram
-        file_info = await bot.get_messages(Config.BIN_CHANNEL, episode.get("msg_id")) if episode.get("msg_id") else None
-        if not file_info or not (file_info.document or file_info.video):
-             # Fallback if msg_id is missing or invalid, though it might be slower/fail if file_id is old
-             # In a real scenario, we'd want to ensure msg_id is stored
-             raise HTTPException(status_code=404, detail="Media not found in BIN_CHANNEL")
+        media = None
+        if Config.BIN_CHANNEL and episode.get("msg_id"):
+            try:
+                file_info = await bot.get_messages(Config.BIN_CHANNEL, episode.get("msg_id"))
+                if file_info and (file_info.document or file_info.video):
+                    media = file_info.document or file_info.video
+            except Exception as e:
+                logger.error(f"Error fetching message from BIN_CHANNEL: {e}")
 
-        media = file_info.document or file_info.video
-        file_size = media.file_size
-        file_name = media.file_name or "video.mp4"
+        # Fallback to file_id if msg_id failed or BIN_CHANNEL not set
+        if not media:
+            media = file_id
+
+        # If we have a media object (from get_messages), we can get size and name
+        # If it's just a file_id string, we might need to handle it differently or expect it to work
+        # Pyrogram's stream_media handles file_id strings too, but we need file_size for Range headers.
+
+        file_size = episode.get("file_size")
+        if file_size == "N/A" or not file_size:
+            # We really need file_size for Range support.
+            # If we don't have it, we might have to fetch file info once.
+            if isinstance(media, str):
+                # This is a bit of a hack/limitation if we don't store file_size
+                # We'll assume a large size or try to avoid range if unknown,
+                # but better to have stored it during upload.
+                # In my previous step, I updated the bot to store media.file_size.
+                raise HTTPException(status_code=400, detail="File size unknown, cannot stream.")
+
+        file_size = int(file_size)
+        file_name = episode.get("file_name") or "video.mp4"
         mime_type = media.mime_type or mimetypes.guess_type(file_name)[0] or "application/octet-stream"
 
         range_header = request.headers.get("Range")
@@ -231,9 +252,14 @@ async def anime_detail(request: Request, slug: str):
         categories = await db.get_all_categories()
         episodes = await db.get_episodes(anime.get("mal_id", "0"))
 
+        # Sort and clean episodes for display
+        clean_episodes = []
+        for ep in episodes:
+            clean_episodes.append(clean_doc(ep))
+
         return templates.TemplateResponse(request=request, name="details.html", context={
             "anime": anime,
-            "episodes": episodes or [],
+            "episodes": clean_episodes,
             "categories": categories or [],
             "logo_url": Config.LOGO_URL,
             "site_name": "ANIZONEFLIX"
