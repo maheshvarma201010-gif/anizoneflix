@@ -79,21 +79,52 @@ def register_handlers(bot: Client):
     # --- AUTO-LINK HANDLER (GROUP -2) ---
     @bot.on_message(filters.all, group=-2)
     async def auto_file_grouping(client, message):
+        if not message.from_user: raise ContinuePropagation
         if (message.document or message.video) and not message.from_user.is_bot:
+            if not await is_authorized(message.from_user.id):
+                raise ContinuePropagation
+
             try:
                 from utils.parser import parse_filename
-                fname = message.document.file_name if message.document else "video.mp4"
-                parsed = parse_filename(fname)
-                if await db.ping():
-                    anime = await db.anime.find_one({"title": {"$regex": parsed["title"], "$options": "i"}})
-                    if anime:
-                        await db.add_episode({
-                            "mal_id": anime["mal_id"], "season": parsed["season"], "episode": parsed["episode"],
-                            "quality": parsed["quality"], "audio": parsed["audio"], "codec": parsed["codec"],
-                            "file_id": message.document.file_id if message.document else message.video.file_id,
-                            "file_name": fname, "file_size": "N/A", "views": 0, "downloads": 0
-                        })
-                        logger.info(f"Auto-Link Success: {fname} -> {anime['title']}")
+                caption = message.caption or ""
+                fname = message.document.file_name if message.document else (message.video.file_name if message.video else "video.mp4")
+
+                # Use caption if present, otherwise filename
+                parsed = parse_filename(caption if caption else fname)
+
+                uid = message.from_user.id
+                state = user_state.get(uid)
+
+                anime = None
+                if state and state.get("action") == "waiting_for_files":
+                    mal_id = state.get("mal_id")
+                    anime = await db.get_anime_by_mal_id(mal_id)
+
+                if not anime:
+                    # Try to match by title from filename/caption
+                    if await db.ping():
+                        anime = await db.anime.find_one({"title": {"$regex": parsed["title"], "$options": "i"}})
+
+                if anime:
+                    # Forward to log channel to get persistent file_id
+                    log_msg = await message.copy(Config.FLOG_CHANNEL)
+                    file_id = log_msg.document.file_id if log_msg.document else log_msg.video.file_id
+
+                    await db.add_episode({
+                        "mal_id": anime["mal_id"],
+                        "season": parsed["season"],
+                        "episode": parsed["episode"],
+                        "quality": parsed["quality"],
+                        "audio": parsed["audio"],
+                        "codec": parsed["codec"],
+                        "file_id": file_id,
+                        "file_name": fname,
+                        "file_size": message.document.file_size if message.document else message.video.file_size,
+                        "views": 0,
+                        "downloads": 0
+                    })
+                    logger.info(f"Auto-Link Success: {fname} -> {anime['title']}")
+                    await message.reply(f"✅ **Linked to {anime['title']}**\nS{parsed['season']} E{parsed['episode']} ({parsed['quality']})")
             except Exception as e:
                 logger.error(f"Auto-Link Error: {e}")
 
@@ -261,8 +292,7 @@ def register_handlers(bot: Client):
             if not anime: return await message.reply(f"❌ **Not Found:** `{slug}`")
 
             buttons = [
-                [InlineKeyboardButton("💎 Add Group", callback_data=f"add_group_yes_{slug}")],
-                [InlineKeyboardButton("📝 Edit Groups", callback_data=f"manage_groups_{slug}")],
+                [InlineKeyboardButton("📥 Add Files", callback_data=f"wait_files_{anime['mal_id']}")],
                 [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{slug}")],
                 [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{slug}")],
                 [InlineKeyboardButton("🗑 Purge", callback_data=f"confirm_purge_{slug}")],
@@ -395,11 +425,11 @@ def register_handlers(bot: Client):
             await categories_handler(client, callback_query.message)
         except Exception as e: logger.error(f"Del Cat CB Error: {e}")
 
-    @bot.on_callback_query(filters.regex("^add_group_yes_"))
-    async def add_group_yes_cb(client, callback_query):
-        slug = callback_query.data.split("add_group_yes_")[-1]
-        user_state[callback_query.from_user.id] = {"action": "ask_edit_group_name", "slug": slug}
-        await callback_query.message.edit_text("📝 **Group Identity:**\n*(e.g. Season 2, OVA, Movie)*", reply_markup=None)
+    @bot.on_callback_query(filters.regex("^wait_files_"))
+    async def wait_files_cb(client, callback_query):
+        mal_id = callback_query.data.split("wait_files_")[-1]
+        user_state[callback_query.from_user.id] = {"action": "waiting_for_files", "mal_id": mal_id}
+        await callback_query.message.edit_text("📥 **Waiting for Files/Videos...**\n\nSend them now and I will link them automatically.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ Done", callback_data="cancel_op")]]))
 
     @bot.on_callback_query(filters.regex("^trigger_poster_"))
     async def trigger_poster_cb(client, callback_query):
@@ -428,79 +458,6 @@ def register_handlers(bot: Client):
         current = await db.get_schedule(day)
         await callback_query.message.edit_text(f"📅 **Update: {day}**\n\nCurrent:\n`{current}`\n\nFormat: 1. NAME (TIME)\nSend `/skip` to cancel.", reply_markup=None)
 
-    @bot.on_callback_query(filters.regex("^manage_groups_"))
-    async def manage_groups_cb(client, callback_query):
-        slug = callback_query.data.split("manage_groups_")[-1]
-        anime = await db.get_anime_by_slug(slug)
-        if not anime: return await callback_query.answer("❌ Not Found", show_alert=True)
-
-        groups = anime.get("seasons_links", {})
-        if not groups: return await callback_query.edit_message_text("❌ **No groups available to edit.**", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{slug}")]]))
-
-        # Store current groups in state for index-based access (prevents 64-byte callback limit issues)
-        group_list = list(groups.keys())
-        user_state[callback_query.from_user.id] = {"slug": slug, "group_names": group_list}
-
-        buttons = []
-        for idx, gname in enumerate(group_list):
-            display_name = (gname[:15] + '..') if len(gname) > 17 else gname
-            buttons.append([
-                InlineKeyboardButton(f"✏️ {display_name}", callback_data=f"rengidx_{idx}"),
-                InlineKeyboardButton(f"🔗 Links", callback_data=f"editlidx_{idx}"),
-                InlineKeyboardButton(f"🗑", callback_data=f"remgidx_{idx}")
-            ])
-        buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{slug}")])
-        await callback_query.message.edit_text(f"📝 **Manage Groups: {anime['title']}**\nSelect an action:", reply_markup=InlineKeyboardMarkup(buttons))
-
-    @bot.on_callback_query(filters.regex("^back_to_edit_"))
-    async def back_to_edit_cb(client, callback_query):
-        slug = callback_query.data.split("back_to_edit_")[-1]
-        anime = await db.get_anime_by_slug(slug)
-        buttons = [
-            [InlineKeyboardButton("💎 Add Group", callback_data=f"add_group_yes_{slug}")],
-            [InlineKeyboardButton("📝 Edit Groups", callback_data=f"manage_groups_{slug}")],
-            [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{slug}")],
-            [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{slug}")],
-            [InlineKeyboardButton("🗑 Purge", callback_data=f"confirm_purge_{slug}")],
-            [InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
-        ]
-        await callback_query.message.edit_text(f"🏛 **Management: {anime['title']}**\nSlug: `{slug}`", reply_markup=InlineKeyboardMarkup(buttons))
-
-    @bot.on_callback_query(filters.regex("^rengidx_"))
-    async def rename_group_cb(client, callback_query):
-        idx = int(callback_query.data.split("_")[-1])
-        state = user_state.get(callback_query.from_user.id)
-        if not state or "group_names" not in state: return await callback_query.answer("❌ Session Expired", show_alert=True)
-
-        gname = state["group_names"][idx]
-        user_state[callback_query.from_user.id].update({"action": "ask_rename_group_new_name", "old_name": gname})
-        await callback_query.message.edit_text(f"✏️ **Rename Group: {gname}**\n\nSend the **New Name** for this group:", reply_markup=None)
-
-    @bot.on_callback_query(filters.regex("^editlidx_"))
-    async def edit_links_cb(client, callback_query):
-        idx = int(callback_query.data.split("_")[-1])
-        state = user_state.get(callback_query.from_user.id)
-        if not state or "group_names" not in state: return await callback_query.answer("❌ Session Expired", show_alert=True)
-
-        gname = state["group_names"][idx]
-        user_state[callback_query.from_user.id].update({"action": "ask_edit_group_name", "group_name": gname})
-        await callback_query.message.edit_text(f"🔗 **Updating Links: {gname}**\n\nExisting links for this quality will be replaced.\n🛰 **480p Link** (or `/skip`):", reply_markup=None)
-
-    @bot.on_callback_query(filters.regex("^remgidx_"))
-    async def remove_group_cb(client, callback_query):
-        idx = int(callback_query.data.split("_")[-1])
-        state = user_state.get(callback_query.from_user.id)
-        if not state or "group_names" not in state: return await callback_query.answer("❌ Session Expired", show_alert=True)
-
-        gname, slug = state["group_names"][idx], state["slug"]
-        anime = await db.get_anime_by_slug(slug)
-        groups = anime.get("seasons_links", {})
-        if gname in groups:
-            del groups[gname]
-            await db.anime.update_one({"slug": slug}, {"$set": {"seasons_links": groups}})
-            await callback_query.answer(f"🗑 Removed {gname}", show_alert=True)
-            return await manage_groups_cb(client, callback_query)
-        await callback_query.answer("❌ Group already missing")
 
     @bot.on_callback_query(filters.regex("^edit_title_"))
     async def edit_title_cb(client, callback_query):
@@ -522,8 +479,10 @@ def register_handlers(bot: Client):
         choice = callback_query.data.split("_")[1]
         user_state[uid]["image"] = state["anime_data"]["image"] if choice == "api" else None
         if choice == "api":
-            user_state[uid]["action"] = "ask_seasons"
-            await callback_query.message.edit_caption(caption="✅ **Asset Selected.**\n\nDefine group names:", reply_markup=None)
+            user_state[uid]["action"] = "ask_category_final"
+            cats = await db.get_all_categories()
+            buttons = [[InlineKeyboardButton(c['name'], callback_data=f"finalcat_{c['name']}")] for c in (cats if cats else [{"name": "Anime"}])]
+            await callback_query.message.edit_caption(caption="✅ **Asset Selected.**\n\nTarget **Category**:", reply_markup=InlineKeyboardMarkup(buttons))
         else:
             user_state[uid]["action"] = "ask_manual_img"
             await callback_query.message.edit_caption(caption="🛰 **Direct Asset URL:**", reply_markup=None)
@@ -536,12 +495,13 @@ def register_handlers(bot: Client):
         if not state or state["action"] != "ask_category_final": return
         cat, data = callback_query.data.split("_")[1], state["anime_data"]
         slug = slugify(data["title"])
-        entry = {"mal_id": f"series_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": state["seasons_data"], "custom_buttons": []}
+        mal_id = f"series_{slug}"
+        entry = {"mal_id": mal_id, "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {}, "custom_buttons": []}
         try:
             if await db.ping():
                 await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
-                await callback_query.message.edit_text(text=f"💎 **LIVE:** `{data['title']}`\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
-                del user_state[uid]
+                user_state[uid] = {"action": "waiting_for_files", "mal_id": mal_id}
+                await callback_query.message.edit_text(text=f"💎 **LIVE:** `{data['title']}`\nPortal: {Config.BASE_URL}/anime/{slug}\n\n📥 **Now send the Files/Videos for this series.**", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ Done", callback_data="cancel_op")]]))
             else:
                 await callback_query.answer("❌ Database Offline", show_alert=True)
         except Exception as e: await callback_query.answer(f"DB Error: {e}", show_alert=True)
@@ -553,12 +513,13 @@ def register_handlers(bot: Client):
         if not state or state["action"] != "ask_category": return
         cat, data = callback_query.data.split("_")[1], state["anime_data"]
         slug = slugify(data["title"])
-        entry = {"mal_id": f"auto_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {"1": {"480p": None, "720p": None, "1080p": None}}, "custom_buttons": []}
+        mal_id = f"auto_{slug}"
+        entry = {"mal_id": mal_id, "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {}, "custom_buttons": []}
         try:
             if await db.ping():
                 await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
-                await callback_query.message.edit_caption(caption=f"⚡ **Deployment Success!**\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
-                del user_state[uid]
+                user_state[uid] = {"action": "waiting_for_files", "mal_id": mal_id}
+                await callback_query.message.edit_caption(caption=f"⚡ **Anime Created!**\nPortal: {Config.BASE_URL}/anime/{slug}\n\n📥 **Now send the Files/Videos for this series.**", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ Done", callback_data="cancel_op")]]))
             else:
                 await callback_query.answer("❌ Database Offline", show_alert=True)
         except Exception as e: await callback_query.answer(f"DB Error: {e}", show_alert=True)
@@ -760,35 +721,10 @@ def register_handlers(bot: Client):
                 await message.reply_photo(photo=user_state[uid]["anime_data"]["image"] or Config.LOGO_URL, caption="✨ **Step 4: Visual Selection**", reply_markup=InlineKeyboardMarkup(buttons))
             elif action == "ask_manual_img":
                 user_state[uid]["image"] = message.text.strip()
-                user_state[uid]["action"] = "ask_seasons"
-                await message.reply("✅ **Asset Registered.**\n\n**Step 5: Groups** (e.g. `Season 1, OVA`):")
-            elif action == "ask_seasons":
-                groups = [s.strip() for s in message.text.split(",")]
-                user_state[uid].update({"seasons_list": groups, "current_season_idx": 0, "seasons_data": {}, "action": f"ask_480p_{groups[0]}"})
-                await message.reply(f"📦 **Architecting: {groups[0]}**\n\n🛰 **480p Link** or `/skip`:")
-            elif "ask_480p_" in action:
-                g = action.split("ask_480p_")[-1]
-                user_state[uid]["seasons_data"][g] = {"480p": message.text if message.text != "/skip" else None}
-                user_state[uid]["action"] = f"ask_720p_{g}"
-                await message.reply(f"🛰 **720p Link** (or /skip):")
-            elif "ask_720p_" in action:
-                g = action.split("ask_720p_")[-1]
-                user_state[uid]["seasons_data"][g]["720p"] = message.text if message.text != "/skip" else None
-                user_state[uid]["action"] = f"ask_1080p_{g}"
-                await message.reply(f"🛰 **1080p Link** (or /skip):")
-            elif "ask_1080p_" in action:
-                g = action.split("ask_1080p_")[-1]
-                user_state[uid]["seasons_data"][g]["1080p"] = message.text if message.text != "/skip" else None
-                user_state[uid]["current_season_idx"] += 1
-                if user_state[uid]["current_season_idx"] < len(user_state[uid]["seasons_list"]):
-                    next_s = user_state[uid]["seasons_list"][user_state[uid]["current_season_idx"]]
-                    user_state[uid]["action"] = f"ask_480p_{next_s}"
-                    await message.reply(f"📦 **Architecting: {next_s}**\n\n🛰 **480p Link** or `/skip`:")
-                else:
-                    user_state[uid]["action"] = "ask_category_final"
-                    cats = await db.get_all_categories()
-                    buttons = [[InlineKeyboardButton(c['name'], callback_data=f"finalcat_{c['name']}")] for c in (cats if cats else [{"name": "Anime"}])]
-                    await message.reply("🛰 **Aggregation Complete.**\nTarget **Category**:", reply_markup=InlineKeyboardMarkup(buttons))
+                user_state[uid]["action"] = "ask_category_final"
+                cats = await db.get_all_categories()
+                buttons = [[InlineKeyboardButton(c['name'], callback_data=f"finalcat_{c['name']}")] for c in (cats if cats else [{"name": "Anime"}])]
+                await message.reply("✅ **Asset Registered.**\n\nTarget **Category**:", reply_markup=InlineKeyboardMarkup(buttons))
         except Exception as e:
             logger.error(f"Interaction Error: {e}\n{traceback.format_exc()}")
             await message.reply(f"❌ **System Error:** `{str(e)}`")

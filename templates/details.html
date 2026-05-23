@@ -51,20 +51,53 @@
         <div class="flex items-center justify-between">
             <h2 class="text-4xl font-black tracking-tight flex items-center">
                 <i class="fa-solid fa-download text-red-600 mr-4"></i>
-                Download
+                Episodes
             </h2>
         </div>
+
+        {% if episodes %}
+        <div class="glass rounded-[2rem] p-6 md:p-10 border border-white/5 shadow-2xl">
+            {% set seasons = episodes|groupby('season') %}
+            <div class="flex flex-wrap gap-3 mb-10">
+                {% for season in seasons %}
+                <button onclick="showSeason('s{{ season.grouper }}')" id="btn-s{{ season.grouper }}"
+                        class="season-btn px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all border border-white/5 shadow-lg">
+                    <i class="fa-solid fa-layer-group"></i> Season {{ season.grouper }}
+                </button>
+                {% endfor %}
+            </div>
+
+            {% for season in seasons %}
+            <div id="season-s{{ season.grouper }}" class="season-content hidden animate-fade-in">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {% for ep in season.list|sort(attribute='episode') %}
+                    <div class="glass p-4 rounded-2xl border border-white/5 flex flex-col gap-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-lg font-black">Episode {{ ep.episode }}</span>
+                            <span class="px-2 py-1 bg-red-600/20 text-red-500 text-[10px] font-bold rounded-lg">{{ ep.quality }}</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <a href="/watch/{{ ep._id }}" class="flex-1 text-center py-2 bg-white text-black text-xs font-black rounded-xl hover:bg-red-600 hover:text-white transition-all">STREAM</a>
+                            <a href="/dl/{{ ep._id }}" class="flex-1 text-center py-2 bg-slate-800 text-white text-xs font-black rounded-xl hover:bg-slate-700 transition-all">DOWNLOAD</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
 
         {% if anime.seasons_links %}
         <div class="glass rounded-[2rem] p-6 md:p-10 border border-white/5 shadow-2xl">
             <div class="flex items-center gap-2 mb-8">
                 <i class="fa-solid fa-film text-red-600 mr-2"></i>
-                <h3 class="text-2xl font-black">Content Available</h3>
+                <h3 class="text-2xl font-black">Legacy Links</h3>
             </div>
 
             <div class="flex flex-wrap gap-3 mb-10">
                 {% for season, links in anime.seasons_links.items() %}
-                <button onclick="showSeason('{{ season|slugify }}')" id="btn-{{ season|slugify }}"
+                <button onclick="showSeason('legacy-{{ season|slugify }}')" id="btn-legacy-{{ season|slugify }}"
                         class="season-btn px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all border border-white/5 shadow-lg">
                     <i class="fa-solid fa-layer-group"></i> {{ season }}
                 </button>
@@ -72,7 +105,7 @@
             </div>
 
             {% for season, links in anime.seasons_links.items() %}
-            <div id="season-{{ season|slugify }}" class="season-content hidden animate-fade-in">
+            <div id="season-legacy-{{ season|slugify }}" class="season-content hidden animate-fade-in">
                 <p class="text-gray-400 font-medium mb-8 uppercase tracking-widest text-xs">ABOVE HAVE LINKS TO GET FILES SELECT AND CLICK ON QUALITY GET FILES</p>
 
                 <div class="flex flex-wrap gap-4">
