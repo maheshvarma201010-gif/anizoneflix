@@ -76,22 +76,102 @@ def register_handlers(bot: Client):
         # logger.debug(f"UPDATE: {message.chat.id} -> {message.text or 'MEDIA'}")
         raise ContinuePropagation
 
-    # --- AUTO-LINK HANDLER (GROUP -2) ---
-    @bot.on_message(filters.all, group=-2)
-    async def auto_file_grouping(client, message):
-        if (message.document or message.video) and not message.from_user.is_bot:
+    # --- AUTO-LINK & FILE HANDLING HANDLER (GROUP -2) ---
+    @bot.on_message((filters.document | filters.video) & filters.private, group=-2)
+    async def file_handler(client, message):
+        if message.from_user.is_bot:
+             raise ContinuePropagation
+
+        uid = message.from_user.id
+        state = user_state.get(uid)
+
+        # If admin is in 'ask_files' state, process for the specific anime
+        if state and state.get("action") == "ask_files":
+            if not await is_authorized(uid):
+                raise ContinuePropagation
+
+            mal_id = state.get("mal_id")
+            slug = state.get("slug")
+
             try:
                 from utils.parser import parse_filename
-                fname = message.document.file_name if message.document else "video.mp4"
+                media = message.document or message.video
+                fname = media.file_name or (message.caption.split("\n")[0] if message.caption else "video.mp4")
+                parsed = parse_filename(fname)
+
+                # Forward to BIN_CHANNEL
+                if Config.BIN_CHANNEL:
+                    fwd_msg = await message.forward(Config.BIN_CHANNEL)
+                    file_id = fwd_msg.document.file_id if fwd_msg.document else fwd_msg.video.file_id
+                    msg_id = fwd_msg.id
+                else:
+                    file_id = media.file_id
+                    msg_id = None
+
+                ep_id = await db.add_episode({
+                    "mal_id": mal_id,
+                    "season": parsed["season"],
+                    "episode": parsed["episode"],
+                    "quality": parsed["quality"],
+                    "audio": parsed["audio"],
+                    "codec": parsed["codec"],
+                    "file_id": file_id,
+                    "msg_id": msg_id,
+                    "file_name": fname,
+                    "file_size": media.file_size,
+                    "views": 0,
+                    "downloads": 0
+                })
+
+                stream_link = f"{Config.BASE_URL}/watch/{ep_id}"
+                dl_link = f"{Config.BASE_URL}/dl/{ep_id}"
+
+                await message.reply(
+                    f"✅ **Episode Added Successfully!**\n\n"
+                    f"📂 **File:** `{fname}`\n"
+                    f"🔢 **S{parsed['season']}E{parsed['episode']}** | {parsed['quality']}\n\n"
+                    f"🔗 **Stream:** {stream_link}\n"
+                    f"📥 **Download:** {dl_link}\n\n"
+                    "Keep sending more files or use /cancel to stop."
+                )
+            except Exception as e:
+                logger.error(f"File Handling Error: {e}")
+                await message.reply(f"❌ **Error processing file:** `{str(e)}`")
+
+            return # Don't propagate if handled here
+
+        # Fallback to auto-link grouping for other authorized users/untracked files
+        if await is_authorized(uid):
+            try:
+                from utils.parser import parse_filename
+                media = message.document or message.video
+                fname = media.file_name or (message.caption.split("\n")[0] if message.caption else "video.mp4")
                 parsed = parse_filename(fname)
                 if await db.ping():
                     anime = await db.anime.find_one({"title": {"$regex": parsed["title"], "$options": "i"}})
                     if anime:
+                        # Forward to BIN_CHANNEL for auto-link as well
+                        if Config.BIN_CHANNEL:
+                            fwd_msg = await message.forward(Config.BIN_CHANNEL)
+                            file_id = fwd_msg.document.file_id if fwd_msg.document else fwd_msg.video.file_id
+                            msg_id = fwd_msg.id
+                        else:
+                            file_id = media.file_id
+                            msg_id = None
+
                         await db.add_episode({
-                            "mal_id": anime["mal_id"], "season": parsed["season"], "episode": parsed["episode"],
-                            "quality": parsed["quality"], "audio": parsed["audio"], "codec": parsed["codec"],
-                            "file_id": message.document.file_id if message.document else message.video.file_id,
-                            "file_name": fname, "file_size": "N/A", "views": 0, "downloads": 0
+                            "mal_id": anime["mal_id"],
+                            "season": parsed["season"],
+                            "episode": parsed["episode"],
+                            "quality": parsed["quality"],
+                            "audio": parsed["audio"],
+                            "codec": parsed["codec"],
+                            "file_id": file_id,
+                            "msg_id": msg_id,
+                            "file_name": fname,
+                            "file_size": media.file_size,
+                            "views": 0,
+                            "downloads": 0
                         })
                         logger.info(f"Auto-Link Success: {fname} -> {anime['title']}")
             except Exception as e:
@@ -540,8 +620,8 @@ def register_handlers(bot: Client):
         try:
             if await db.ping():
                 await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
-                await callback_query.message.edit_text(text=f"💎 **LIVE:** `{data['title']}`\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
-                del user_state[uid]
+                user_state[uid] = {"action": "ask_files", "mal_id": entry["mal_id"], "slug": slug}
+                await callback_query.message.edit_text(text=f"💎 **LIVE:** `{data['title']}`\nPortal: {Config.BASE_URL}/anime/{slug}\n\n📥 **Now send Video files or Documents to add episodes.**", reply_markup=None)
             else:
                 await callback_query.answer("❌ Database Offline", show_alert=True)
         except Exception as e: await callback_query.answer(f"DB Error: {e}", show_alert=True)
@@ -553,12 +633,12 @@ def register_handlers(bot: Client):
         if not state or state["action"] != "ask_category": return
         cat, data = callback_query.data.split("_")[1], state["anime_data"]
         slug = slugify(data["title"])
-        entry = {"mal_id": f"auto_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {"1": {"480p": None, "720p": None, "1080p": None}}, "custom_buttons": []}
+        entry = {"mal_id": f"auto_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": data["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {}, "custom_buttons": []}
         try:
             if await db.ping():
                 await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
-                await callback_query.message.edit_caption(caption=f"⚡ **Deployment Success!**\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
-                del user_state[uid]
+                user_state[uid] = {"action": "ask_files", "mal_id": entry["mal_id"], "slug": slug}
+                await callback_query.message.edit_caption(caption=f"⚡ **Page Created!**\nPortal: {Config.BASE_URL}/anime/{slug}\n\n📥 **Now send Video files or Documents to add episodes.**", reply_markup=None)
             else:
                 await callback_query.answer("❌ Database Offline", show_alert=True)
         except Exception as e: await callback_query.answer(f"DB Error: {e}", show_alert=True)
@@ -763,32 +843,14 @@ def register_handlers(bot: Client):
                 user_state[uid]["action"] = "ask_seasons"
                 await message.reply("✅ **Asset Registered.**\n\n**Step 5: Groups** (e.g. `Season 1, OVA`):")
             elif action == "ask_seasons":
-                groups = [s.strip() for s in message.text.split(",")]
-                user_state[uid].update({"seasons_list": groups, "current_season_idx": 0, "seasons_data": {}, "action": f"ask_480p_{groups[0]}"})
-                await message.reply(f"📦 **Architecting: {groups[0]}**\n\n🛰 **480p Link** or `/skip`:")
-            elif "ask_480p_" in action:
-                g = action.split("ask_480p_")[-1]
-                user_state[uid]["seasons_data"][g] = {"480p": message.text if message.text != "/skip" else None}
-                user_state[uid]["action"] = f"ask_720p_{g}"
-                await message.reply(f"🛰 **720p Link** (or /skip):")
-            elif "ask_720p_" in action:
-                g = action.split("ask_720p_")[-1]
-                user_state[uid]["seasons_data"][g]["720p"] = message.text if message.text != "/skip" else None
-                user_state[uid]["action"] = f"ask_1080p_{g}"
-                await message.reply(f"🛰 **1080p Link** (or /skip):")
-            elif "ask_1080p_" in action:
-                g = action.split("ask_1080p_")[-1]
-                user_state[uid]["seasons_data"][g]["1080p"] = message.text if message.text != "/skip" else None
-                user_state[uid]["current_season_idx"] += 1
-                if user_state[uid]["current_season_idx"] < len(user_state[uid]["seasons_list"]):
-                    next_s = user_state[uid]["seasons_list"][user_state[uid]["current_season_idx"]]
-                    user_state[uid]["action"] = f"ask_480p_{next_s}"
-                    await message.reply(f"📦 **Architecting: {next_s}**\n\n🛰 **480p Link** or `/skip`:")
-                else:
-                    user_state[uid]["action"] = "ask_category_final"
-                    cats = await db.get_all_categories()
-                    buttons = [[InlineKeyboardButton(c['name'], callback_data=f"finalcat_{c['name']}")] for c in (cats if cats else [{"name": "Anime"}])]
-                    await message.reply("🛰 **Aggregation Complete.**\nTarget **Category**:", reply_markup=InlineKeyboardMarkup(buttons))
+                # Groups are now handled by automatic file extraction, but we can still keep the season metadata
+                # Actually, the original bot used these groups for buttons.
+                # We will skip asking for links and go straight to category selection.
+                user_state[uid]["seasons_data"] = {}
+                user_state[uid]["action"] = "ask_category_final"
+                cats = await db.get_all_categories()
+                buttons = [[InlineKeyboardButton(c['name'], callback_data=f"finalcat_{c['name']}")] for c in (cats if cats else [{"name": "Anime"}])]
+                await message.reply("🛰 **Metadata Calibration Complete.**\nTarget **Category**:", reply_markup=InlineKeyboardMarkup(buttons))
         except Exception as e:
             logger.error(f"Interaction Error: {e}\n{traceback.format_exc()}")
             await message.reply(f"❌ **System Error:** `{str(e)}`")

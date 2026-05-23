@@ -189,9 +189,20 @@ class Database:
         try:
             if self._episodes is None: return None
             query = {"mal_id": data["mal_id"], "season": data.get("season"), "episode": data.get("episode"), "quality": data.get("quality")}
-            return await self._episodes.update_one(query, {"$set": data}, upsert=True)
+            await self._episodes.update_one(query, {"$set": data}, upsert=True)
+            doc = await self._episodes.find_one(query)
+            return str(doc["_id"]) if doc else None
         except Exception as e:
             logger.error(f"Persistence Error (add_episode): {e}")
+            return None
+
+    async def get_episode_by_id(self, ep_id):
+        try:
+            if self._episodes is None: return None
+            doc = await self._episodes.find_one({"_id": ObjectId(ep_id)})
+            return clean_doc(doc)
+        except Exception as e:
+            logger.error(f"Read Error (get_episode_by_id): {e}")
             return None
 
     async def get_episodes(self, mal_id):

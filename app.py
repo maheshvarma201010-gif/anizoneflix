@@ -10,10 +10,12 @@ import logging
 import traceback
 import asyncio
 import sys
+import mimetypes
+import re
 from bot import bot, set_commands, register_handlers
 from utils.auth import get_current_admin, verify_token
 from utils.utils import slugify
-from fastapi.responses import RedirectResponse, JSONResponse, Response
+from fastapi.responses import RedirectResponse, JSONResponse, Response, StreamingResponse
 from contextlib import asynccontextmanager
 
 # Setup Logging
@@ -132,6 +134,70 @@ async def index(request: Request):
 @app.get("/ping")
 async def health_ping():
     return safe_api_response(True, {"status": "ok", "db": await db.ping(), "bot": bot.is_connected})
+
+@app.get("/watch/{ep_id}")
+async def watch_episode(request: Request, ep_id: str):
+    return await stream_media_handler(request, ep_id, "inline")
+
+@app.get("/dl/{ep_id}")
+async def download_episode(request: Request, ep_id: str):
+    return await stream_media_handler(request, ep_id, "attachment")
+
+async def stream_media_handler(request: Request, ep_id: str, disposition: str):
+    try:
+        episode = await db.get_episode_by_id(ep_id)
+        if not episode:
+            raise HTTPException(status_code=404, detail="Episode not found")
+
+        file_id = episode.get("file_id")
+        if not file_id:
+            raise HTTPException(status_code=404, detail="File ID not found")
+
+        # Get file properties from Telegram
+        file_info = await bot.get_messages(Config.BIN_CHANNEL, episode.get("msg_id")) if episode.get("msg_id") else None
+        if not file_info or not (file_info.document or file_info.video):
+             # Fallback if msg_id is missing or invalid, though it might be slower/fail if file_id is old
+             # In a real scenario, we'd want to ensure msg_id is stored
+             raise HTTPException(status_code=404, detail="Media not found in BIN_CHANNEL")
+
+        media = file_info.document or file_info.video
+        file_size = media.file_size
+        file_name = media.file_name or "video.mp4"
+        mime_type = media.mime_type or mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+
+        range_header = request.headers.get("Range")
+        start = 0
+        end = file_size - 1
+
+        if range_header:
+            range_match = re.match(r"bytes=(\d+)-(\d*)", range_header)
+            if range_match:
+                start = int(range_match.group(1))
+                if range_match.group(2):
+                    end = int(range_match.group(2))
+
+        content_length = end - start + 1
+
+        async def file_generator():
+            async for chunk in bot.stream_media(media, offset=start, limit=content_length):
+                yield chunk
+
+        headers = {
+            "Content-Range": f"bytes {start}-{end}/{file_size}",
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(content_length),
+            "Content-Type": mime_type,
+            "Content-Disposition": f"{disposition}; filename=\"{file_name}\"",
+        }
+
+        return StreamingResponse(
+            file_generator(),
+            status_code=206 if range_header else 200,
+            headers=headers
+        )
+    except Exception as e:
+        logger.error(f"Streaming Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/schedule")
 async def schedule_page(request: Request):

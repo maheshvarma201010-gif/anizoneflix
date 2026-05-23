@@ -51,43 +51,90 @@
         <div class="flex items-center justify-between">
             <h2 class="text-4xl font-black tracking-tight flex items-center">
                 <i class="fa-solid fa-download text-red-600 mr-4"></i>
-                Download
+                Episodes
             </h2>
         </div>
 
-        {% if anime.seasons_links %}
-        <div class="glass rounded-[2rem] p-6 md:p-10 border border-white/5 shadow-2xl">
-            <div class="flex items-center gap-2 mb-8">
-                <i class="fa-solid fa-film text-red-600 mr-2"></i>
-                <h3 class="text-2xl font-black">Content Available</h3>
-            </div>
+        {% if episodes %}
+            {% set grouped_episodes = {} %}
+            {% for ep in episodes %}
+                {% if ep.season not in grouped_episodes %}
+                    {% set _ = grouped_episodes.update({ep.season: []}) %}
+                {% endif %}
+                {% set _ = grouped_episodes[ep.season].append(ep) %}
+            {% endfor %}
 
-            <div class="flex flex-wrap gap-3 mb-10">
-                {% for season, links in anime.seasons_links.items() %}
-                <button onclick="showSeason('{{ season|slugify }}')" id="btn-{{ season|slugify }}"
-                        class="season-btn px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all border border-white/5 shadow-lg">
-                    <i class="fa-solid fa-layer-group"></i> {{ season }}
-                </button>
-                {% endfor %}
-            </div>
-
-            {% for season, links in anime.seasons_links.items() %}
-            <div id="season-{{ season|slugify }}" class="season-content hidden animate-fade-in">
-                <p class="text-gray-400 font-medium mb-8 uppercase tracking-widest text-xs">ABOVE HAVE LINKS TO GET FILES SELECT AND CLICK ON QUALITY GET FILES</p>
-
-                <div class="flex flex-wrap gap-4">
-                    {% for q, url in links.items() %}
-                        {% if url %}
-                        {% set q_color = 'blue' if '480' in q else ('purple' if '720' in q else 'red') %}
-                        <a href="{{ url }}" target="_blank" class="px-8 py-4 bg-{{ q_color }}-600/20 hover:bg-{{ q_color }}-600 text-{{ q_color }}-400 hover:text-white rounded-2xl font-black text-sm transition-all flex items-center gap-2 border border-{{ q_color }}-500/20 shadow-xl shadow-{{ q_color }}-900/10">
-                            <i class="fa-solid fa-download"></i> {{ q }}
-                        </a>
-                        {% endif %}
+            <div class="glass rounded-[2rem] p-6 md:p-10 border border-white/5 shadow-2xl">
+                <div class="flex flex-wrap gap-3 mb-10">
+                    {% for season in grouped_episodes.keys()|sort %}
+                    <button onclick="showSeason('{{ season }}')" id="btn-{{ season }}"
+                            class="season-btn px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all border border-white/5 shadow-lg">
+                        <i class="fa-solid fa-layer-group"></i> Season {{ season }}
+                    </button>
                     {% endfor %}
                 </div>
+
+                {% for season, s_episodes in grouped_episodes.items() %}
+                <div id="season-{{ season }}" class="season-content hidden animate-fade-in space-y-4">
+                    {% for ep in s_episodes|sort(attribute='episode') %}
+                    <div class="p-4 glass rounded-2xl border border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 hover:bg-white/5 transition-all">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 bg-red-600 text-white rounded-xl flex items-center justify-center font-black">
+                                {{ ep.episode }}
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-lg line-clamp-1">{{ ep.file_name or 'Episode ' ~ ep.episode }}</h4>
+                                <div class="flex gap-2 text-[10px] uppercase font-bold text-gray-500">
+                                    <span>{{ ep.quality }}</span>
+                                    <span>•</span>
+                                    <span>{{ ep.audio }}</span>
+                                    <span>•</span>
+                                    <span>{{ ep.codec }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <a href="/watch/{{ ep._id }}" target="_blank" class="px-6 py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl font-bold text-xs transition-all border border-blue-500/20">
+                                <i class="fa-solid fa-play mr-1"></i> STREAM
+                            </a>
+                            <a href="/dl/{{ ep._id }}" target="_blank" class="px-6 py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-xl font-bold text-xs transition-all border border-red-500/20">
+                                <i class="fa-solid fa-download mr-1"></i> DOWNLOAD
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
             </div>
-            {% endfor %}
-        </div>
+        {% else %}
+            <!-- Legacy fallback if no episodes but seasons_links exist -->
+            {% if anime.seasons_links %}
+            <div class="glass rounded-[2rem] p-6 md:p-10 border border-white/5 shadow-2xl">
+                <div class="flex flex-wrap gap-3 mb-10">
+                    {% for season, links in anime.seasons_links.items() %}
+                    <button onclick="showSeason('{{ season|slugify }}')" id="btn-{{ season|slugify }}"
+                            class="season-btn px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all border border-white/5 shadow-lg">
+                        <i class="fa-solid fa-layer-group"></i> {{ season }}
+                    </button>
+                    {% endfor %}
+                </div>
+
+                {% for season, links in anime.seasons_links.items() %}
+                <div id="season-{{ season|slugify }}" class="season-content hidden animate-fade-in">
+                    <div class="flex flex-wrap gap-4">
+                        {% for q, url in links.items() %}
+                            {% if url %}
+                            {% set q_color = 'blue' if '480' in q else ('purple' if '720' in q else 'red') %}
+                            <a href="{{ url }}" target="_blank" class="px-8 py-4 bg-{{ q_color }}-600/20 hover:bg-{{ q_color }}-600 text-{{ q_color }}-400 hover:text-white rounded-2xl font-black text-sm transition-all flex items-center gap-2 border border-{{ q_color }}-500/20 shadow-xl shadow-{{ q_color }}-900/10">
+                                <i class="fa-solid fa-download"></i> {{ q }}
+                            </a>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
         {% endif %}
 
         <!-- Custom Buttons -->
@@ -108,7 +155,7 @@
         </div>
         {% endif %}
 
-        {% if not anime.seasons_links and not anime.custom_buttons %}
+        {% if not episodes and not anime.seasons_links and not anime.custom_buttons %}
             <div class="py-24 text-center glass rounded-[3rem] border-dashed border-2 border-white/5">
                 <i class="fa-solid fa-cloud-moon text-6xl text-slate-800 mb-6"></i>
                 <p class="text-gray-500 font-bold text-xl uppercase tracking-widest">No links synchronized yet.</p>
