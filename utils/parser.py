@@ -3,6 +3,7 @@ import re
 def parse_caption(caption):
     """
     STRICTLY extracts metadata from Telegram media caption.
+    Only Season, Episode, and Quality are kept.
     Example: Agents of the Four Seasons Dance of Spring - S01E04 - Morning Calm - [Tam + Tel + Hin + Eng + Jap] - 720p HDRip x265 - Multi-Subs.mkv
     """
     data = {
@@ -37,8 +38,6 @@ def parse_caption(caption):
         data["title"] = parts[0]
 
     if len(parts) >= 3:
-        # The part after SxxExx is usually the episode title
-        # parts[0] = Title, parts[1] = SxxExx, parts[2] = Episode Title
         data["episode_title"] = parts[2]
     else:
         data["episode_title"] = f"Episode {data['episode']}"
@@ -47,5 +46,4 @@ def parse_caption(caption):
 
 def parse_filename(filename):
     """Legacy wrapper, but now redirects to parse_caption if it looks like a caption"""
-    # The user strictly wants caption parsing.
     return parse_caption(filename)

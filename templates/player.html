@@ -27,7 +27,9 @@
                     <div class="flex flex-wrap gap-3">
                         <span class="px-4 py-1.5 bg-red-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg">{{ episode.quality }}</span>
                         <span class="px-4 py-1.5 glass text-gray-300 text-[10px] font-black rounded-full uppercase tracking-widest border border-white/5">S{{ episode.season }}E{{ episode.episode }}</span>
+                        {% if episode.episode_title %}
                         <span class="px-4 py-1.5 glass text-gray-300 text-[10px] font-black rounded-full uppercase tracking-widest border border-white/5">{{ episode.episode_title }}</span>
+                        {% endif %}
                     </div>
                 </div>
 

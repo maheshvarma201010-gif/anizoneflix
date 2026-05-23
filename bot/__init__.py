@@ -101,21 +101,22 @@ def register_handlers(bot: Client):
                 parsed = parse_caption(message.caption or media.file_name or "")
 
                 # Forward to BIN_CHANNEL
+                file_id = media.file_id
+                msg_id = None
                 if Config.BIN_CHANNEL:
-                    fwd_msg = await message.forward(Config.BIN_CHANNEL)
-                    file_id = fwd_msg.document.file_id if fwd_msg.document else fwd_msg.video.file_id
-                    msg_id = fwd_msg.id
-                else:
-                    file_id = media.file_id
-                    msg_id = None
+                    try:
+                        fwd_msg = await message.forward(Config.BIN_CHANNEL)
+                        file_id = fwd_msg.document.file_id if fwd_msg.document else fwd_msg.video.file_id
+                        msg_id = fwd_msg.id
+                    except Exception as e:
+                        logger.error(f"Forward Error: {e}")
 
                 ep_id = await db.add_episode({
                     "mal_id": mal_id,
                     "season": parsed["season"],
                     "episode": parsed["episode"],
+                    "episode_title": parsed.get("episode_title"),
                     "quality": parsed["quality"],
-                    "audio": parsed["audio"],
-                    "codec": parsed["codec"],
                     "file_id": file_id,
                     "msg_id": msg_id,
                     "file_name": fname,
@@ -151,22 +152,22 @@ def register_handlers(bot: Client):
                     anime = await db.anime.find_one({"title": {"$regex": parsed["title"], "$options": "i"}})
                     if anime:
                         # Forward to BIN_CHANNEL for auto-link as well
+                        file_id = media.file_id
+                        msg_id = None
                         if Config.BIN_CHANNEL:
-                            fwd_msg = await message.forward(Config.BIN_CHANNEL)
-                            file_id = fwd_msg.document.file_id if fwd_msg.document else fwd_msg.video.file_id
-                            msg_id = fwd_msg.id
-                        else:
-                            file_id = media.file_id
-                            msg_id = None
+                            try:
+                                fwd_msg = await message.forward(Config.BIN_CHANNEL)
+                                file_id = fwd_msg.document.file_id if fwd_msg.document else fwd_msg.video.file_id
+                                msg_id = fwd_msg.id
+                            except Exception as e:
+                                logger.error(f"Forward Error: {e}")
 
                         await db.add_episode({
                             "mal_id": anime["mal_id"],
                             "season": parsed["season"],
                             "episode": parsed["episode"],
-                    "episode_title": parsed.get("episode_title"),
+                            "episode_title": parsed.get("episode_title"),
                             "quality": parsed["quality"],
-                    "audio": parsed.get("audio", "Japanese"),
-                    "codec": parsed.get("codec", "H.264"),
                             "file_id": file_id,
                             "msg_id": msg_id,
                             "file_name": fname,
