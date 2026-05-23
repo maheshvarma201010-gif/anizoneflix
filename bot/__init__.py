@@ -125,7 +125,11 @@ def register_handlers(bot: Client):
                     "views": 0
                 })
 
-                stream_link = f"{Config.BASE_URL}/watch/{ep_id}"
+                # Generate SEO-friendly stream link
+                anime = await db.get_anime_by_mal_id(mal_id)
+                series_title = anime["title"] if anime else "watch"
+                ep_slug = slugify(f"{series_title}-episode-{parsed['episode']}")
+                stream_link = f"{Config.BASE_URL.rstrip('/')}/watch/{mal_id}/{ep_slug}?hash={ep_id}"
 
                 await message.reply(
                     f"✅ **Episode Added Successfully!**\n\n"

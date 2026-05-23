@@ -262,11 +262,18 @@ async def stream_media_handler(request: Request, ep_id: str, disposition: str):
 
         content_length = end - start + 1
 
+        # Adaptive chunk sizing based on content length
+        if content_length < 100 * 1024 * 1024: # < 100MB
+            chunk_size = 512 * 1024
+        elif content_length < 500 * 1024 * 1024: # < 500MB
+            chunk_size = 1024 * 1024
+        else:
+            chunk_size = 2 * 1024 * 1024
+
         async def file_generator():
             try:
                 # Optimized chunk size for "Ultra Speed" streaming
-                # Pyrogram's default is often 1MB or less, we can try to yield as fast as possible
-                async for chunk in bot.stream_media(media, offset=start, limit=content_length):
+                async for chunk in bot.stream_media(media, offset=start, limit=content_length, chunk_size=chunk_size):
                     if chunk:
                         yield chunk
             except Exception as e:
@@ -278,6 +285,7 @@ async def stream_media_handler(request: Request, ep_id: str, disposition: str):
             "Content-Length": str(content_length),
             "Content-Type": mime_type,
             "Content-Disposition": f"{disposition}; filename=\"{file_name}\"",
+            "Cache-Control": "public, max-age=3600",
             "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
             "Access-Control-Allow-Origin": "*",
         }
