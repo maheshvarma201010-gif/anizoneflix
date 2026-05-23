@@ -45,5 +45,11 @@ def parse_caption(caption):
     return data
 
 def parse_filename(filename):
-    """Legacy wrapper, but now redirects to parse_caption if it looks like a caption"""
-    return parse_caption(filename)
+    """STRICT: No longer parses filename. Always returns defaults if no caption provided."""
+    return {
+        "season": 1,
+        "episode": 1,
+        "episode_title": "Episode",
+        "quality": "HD",
+        "title": "Unknown"
+    }

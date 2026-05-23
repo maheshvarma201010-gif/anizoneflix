@@ -231,23 +231,19 @@
         `;
 
         if (streamEnabled) {
+            const slug = (ep.file_name || ep.episode_title || 'episode').toLowerCase()
+                        .replace(/[^a-z0-9]/g, '-')
+                        .replace(/-+/g, '-')
+                        .replace(/^-|-$/g, '');
             html += `
-                <a href="/watch?path=${ep.hash}" class="flex-1 px-10 py-5 bg-blue-600 text-white rounded-2xl font-black text-center hover:bg-blue-700 transition-all shadow-xl">
-                    <i class="fa-solid fa-play mr-2"></i> STREAM NOW
+                <a href="/watch/${ep._id}/${slug}?hash=${ep.hash}" class="flex-1 px-10 py-5 bg-red-600 text-white rounded-2xl font-black text-center hover:bg-red-700 transition-all shadow-xl uppercase tracking-widest">
+                    <i class="fa-solid fa-play mr-2"></i> Play Episode
                 </a>
             `;
         }
 
-        if (downloadEnabled) {
-            html += `
-                <a href="/dl/${ep.hash}" target="_blank" class="flex-1 px-10 py-5 bg-red-600 text-white rounded-2xl font-black text-center hover:bg-red-700 transition-all shadow-xl">
-                    <i class="fa-solid fa-download mr-2"></i> DOWNLOAD NOW
-                </a>
-            `;
-        }
-
-        if (!streamEnabled && !downloadEnabled) {
-            html += `<p class="text-gray-500 font-bold">Actions temporarily disabled by administrator.</p>`;
+        if (!streamEnabled) {
+            html += `<p class="text-gray-500 font-bold">Streaming temporarily disabled by administrator.</p>`;
         }
 
         container.innerHTML = html;

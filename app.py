@@ -137,17 +137,22 @@ async def health_ping():
     return safe_api_response(True, {"status": "ok", "db": await db.ping(), "bot": bot.is_connected})
 
 @app.get("/watch")
-@app.get("/watch/{path}")
-async def watch_episode(request: Request, path: str = None):
-    if not path:
-        path = request.query_params.get("path")
+@app.get("/watch/{ep_id}")
+@app.get("/watch/{ep_id}/{slug}")
+async def watch_episode(request: Request, ep_id: str = None, slug: str = None):
+    # Support both old /watch?path=HASH and new /watch/{ep_id}/{slug}?hash=TOKEN
+    path = ep_id or request.query_params.get("path")
+    token = request.query_params.get("hash")
+
     if not path: raise HTTPException(status_code=400)
 
     settings = await db.get_settings()
     if not settings.get("stream_enabled", True):
         return templates.TemplateResponse(request=request, name="404.html", context={"error": "Streaming is currently disabled by administrator."}, status_code=403)
 
-    episode = await db.get_episode_by_hash(path)
+    # Check if 'path' is a hash/token or an ep_id
+    episode = await db.get_episode_by_id(path) or await db.get_episode_by_hash(token)
+
     if not episode: raise HTTPException(status_code=404)
 
     anime = await db.get_anime_by_mal_id(episode["mal_id"])
@@ -209,7 +214,7 @@ async def stream_media_handler(request: Request, ep_id: str, disposition: str):
              raise HTTPException(status_code=400, detail="File size unknown, cannot stream.")
 
         file_size = int(file_size)
-        mime_type = media.mime_type or mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+        mime_type = getattr(media, "mime_type", None) or mimetypes.guess_type(file_name)[0] or "application/octet-stream"
 
         # Explicit MKV support
         if file_name.lower().endswith(".mkv"):
