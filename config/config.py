@@ -22,6 +22,7 @@ class Config:
     ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "admin-api-key")
     ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x]
     BIN_CHANNEL = int(os.getenv("BIN_CHANNEL", 0))
+    USER_SESSIONS = os.getenv("USER_SESSIONS", "")
     TMDB_API_KEY = os.getenv("TMDB_API_KEY", "")
     SIMKL_ID = os.getenv("SIMKL_ID", "")
 

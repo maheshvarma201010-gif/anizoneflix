@@ -15,12 +15,17 @@ import re
 from bot import bot, set_commands, register_handlers
 from utils.auth import get_current_admin, verify_token
 from utils.utils import slugify
+from utils.streamer import ultra_high_speed_streamer, remux_streamer, probe_tracks
+from telethon import TelegramClient, sessions
 from fastapi.responses import RedirectResponse, JSONResponse, Response, StreamingResponse
 from contextlib import asynccontextmanager
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ANIZONEFLIX_APP")
+
+# Telethon Multi-Session Management
+tele_clients = []
 
 # --- GLOBAL ERROR HANDLING ---
 
@@ -77,6 +82,25 @@ async def lifespan(app: FastAPI):
         loop.set_exception_handler(loop_exception_handler)
 
         register_handlers(bot)
+
+        # Initialize Telethon Clients
+        if Config.API_ID and Config.API_HASH:
+            if Config.BOT_TOKEN:
+                main_tele = TelegramClient(sessions.MemorySession(), Config.API_ID, Config.API_HASH)
+                await main_tele.start(bot_token=Config.BOT_TOKEN)
+                tele_clients.append(main_tele)
+
+            if Config.USER_SESSIONS:
+                for idx, s_str in enumerate(Config.USER_SESSIONS.split(",")):
+                    if s_str.strip():
+                        try:
+                            c = TelegramClient(sessions.StringSession(s_str.strip()), Config.API_ID, Config.API_HASH)
+                            await c.start()
+                            tele_clients.append(c)
+                            logger.info(f"Telethon User Session {idx+1} LIVE.")
+                        except Exception as e:
+                            logger.error(f"Failed to start User Session {idx+1}: {e}")
+
         if Config.API_ID and Config.API_HASH and Config.BOT_TOKEN:
             await bot.start()
             await set_commands(bot)
@@ -200,58 +224,80 @@ async def watch_episode(request: Request, path: str = None, mal_id: str = None, 
 
 @app.get("/stream/{ep_hash}")
 @app.get("/stream/{ep_hash}/{filename}")
-async def stream_file(request: Request, ep_hash: str, filename: str = None):
+async def stream_file(request: Request, ep_hash: str, filename: str = None, audio: int = None):
     settings = await db.get_settings()
     if not settings.get("stream_enabled", True):
         raise HTTPException(status_code=403)
-    return await stream_media_handler(request, ep_hash, "inline")
+    return await stream_media_handler(request, ep_hash, "inline", audio_track=audio)
 
-async def stream_media_handler(request: Request, ep_id: str, disposition: str):
+@app.get("/dl/{ep_hash}")
+@app.get("/dl/{ep_hash}/{filename}")
+async def download_file(request: Request, ep_hash: str, filename: str = None):
+    # Forcing download with attachment disposition
+    return await stream_media_handler(request, ep_hash, "attachment")
+
+@app.get("/api/probe/{ep_hash}")
+async def probe_media(ep_hash: str):
+    if not tele_clients:
+        return safe_api_response(False, message="Streaming engine not initialized")
+
+    episode = await db.get_episode_by_hash(ep_hash)
+    if not episode or not episode.get("msg_id"):
+        return safe_api_response(False, message="Episode metadata not found")
+
     try:
-        # Explicitly lookup by hash as ep_id is always a token_hex(12)
+        # Get file object from main tele client
+        msg = await tele_clients[0].get_messages(Config.BIN_CHANNEL, ids=episode["msg_id"])
+        if not msg or not msg.media:
+             return safe_api_response(False, message="Telegram media not found")
+
+        info = await probe_tracks(tele_clients[0], msg.media, episode["file_size"])
+        return safe_api_response(True, data=info)
+    except Exception as e:
+        return safe_api_response(False, message=str(e))
+
+async def stream_media_handler(request: Request, ep_id: str, disposition: str, audio_track: int = None):
+    if not tele_clients:
+        raise HTTPException(status_code=503, detail="Streaming engine not initialized")
+
+    try:
         episode = await db.get_episode_by_hash(ep_id)
         if not episode:
             raise HTTPException(status_code=404, detail="Episode not found")
 
-        file_id = episode.get("file_id")
-        if not file_id:
-            raise HTTPException(status_code=404, detail="File ID not found")
+        file_size = int(episode.get("file_size", 0))
+        file_name = episode.get("file_name", "video.mp4")
 
-        # Get file properties from Telegram
-        media = None
-        if Config.BIN_CHANNEL and episode.get("msg_id"):
-            try:
-                file_info = await bot.get_messages(Config.BIN_CHANNEL, episode.get("msg_id"))
-                if file_info and (file_info.document or file_info.video):
-                    media = file_info.document or file_info.video
-            except Exception as e:
-                logger.error(f"Error fetching message from BIN_CHANNEL: {e}")
+        # Get Telethon media object
+        msg = await tele_clients[0].get_messages(Config.BIN_CHANNEL, ids=episode["msg_id"])
+        if not msg or not msg.media:
+            raise HTTPException(status_code=404, detail="Media not found")
 
-        # Fallback to file_id if msg_id failed or BIN_CHANNEL not set
-        if not media:
-            media = file_id
+        media = msg.media
 
-        # Robust metadata extraction
-        if hasattr(media, "file_size"):
-            file_size = media.file_size
-            file_name = media.file_name or episode.get("file_name") or "video.mp4"
-        else:
-            file_size = episode.get("file_size")
-            file_name = episode.get("file_name") or "video.mp4"
-
-        if not file_size or file_size == "N/A":
-             raise HTTPException(status_code=400, detail="File size unknown, cannot stream.")
-
-        file_size = int(file_size)
-        mime_type = media.mime_type or mimetypes.guess_type(file_name)[0] or "application/octet-stream"
-
-        # Explicit MKV support
+        mime_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
         if file_name.lower().endswith(".mkv"):
             mime_type = "video/x-matroska"
 
+        # If audio track is specified, use remuxer
+        if audio_track is not None:
+             base_name = file_name.rsplit('.', 1)[0] if '.' in file_name else file_name
+             remux_filename = f"{base_name}.mp4"
+             headers = {
+                 "Content-Type": "video/mp4",
+                 "Content-Disposition": f'inline; filename="{remux_filename}"',
+                 "Cache-Control": "no-cache",
+                 "Access-Control-Allow-Origin": "*",
+                 "Accept-Ranges": "none",
+             }
+             return StreamingResponse(
+                 remux_streamer(tele_clients[0], media, file_size, audio_track),
+                 status_code=200,
+                 headers=headers
+             )
+
         range_header = request.headers.get("Range")
-        start = 0
-        end = file_size - 1
+        start, end = 0, file_size - 1
 
         if range_header:
             range_match = re.match(r"bytes=(\d+)-(\d*)", range_header)
@@ -261,23 +307,6 @@ async def stream_media_handler(request: Request, ep_id: str, disposition: str):
                     end = int(range_match.group(2))
 
         content_length = end - start + 1
-
-        # Adaptive chunk sizing based on content length
-        if content_length < 100 * 1024 * 1024: # < 100MB
-            chunk_size = 512 * 1024
-        elif content_length < 500 * 1024 * 1024: # < 500MB
-            chunk_size = 1024 * 1024
-        else:
-            chunk_size = 2 * 1024 * 1024
-
-        async def file_generator():
-            try:
-                # Optimized chunk size for "Ultra Speed" streaming
-                async for chunk in bot.stream_media(media, offset=start, limit=content_length, chunk_size=chunk_size):
-                    if chunk:
-                        yield chunk
-            except Exception as e:
-                logger.error(f"Generator Error during stream: {e}")
 
         headers = {
             "Content-Range": f"bytes {start}-{end}/{file_size}",
@@ -291,7 +320,7 @@ async def stream_media_handler(request: Request, ep_id: str, disposition: str):
         }
 
         return StreamingResponse(
-            file_generator(),
+            ultra_high_speed_streamer(tele_clients, media, start, end),
             status_code=206 if range_header else 200,
             headers=headers
         )
