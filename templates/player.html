@@ -45,6 +45,7 @@
                 <h3 class="text-xl font-black mb-8 uppercase tracking-widest text-gray-400">Play in External Player</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {% set stream_url = Config.BASE_URL.replace("https://", "http://") ~ "/stream/" ~ episode.hash %}
+                    {% if "localhost" in stream_url %}{% set stream_url = stream_url.replace("http://", "https://") %}{% endif %}
                     <!-- VLC -->
                     <a href="vlc://{{ stream_url }}" class="flex items-center gap-4 p-6 glass rounded-2xl border border-white/5 hover:border-orange-500/50 transition-all group">
                         <div class="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center text-orange-500 group-hover:scale-110 transition-transform">

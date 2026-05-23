@@ -84,6 +84,7 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 templates.env.filters["slugify"] = slugify
+templates.env.globals["Config"] = Config
 
 # --- CUSTOM RESPONSES ---
 
@@ -193,23 +194,18 @@ async def stream_media_handler(request: Request, ep_id: str, disposition: str):
         if not media:
             media = file_id
 
-        # If we have a media object (from get_messages), we can get size and name
-        # If it's just a file_id string, we might need to handle it differently or expect it to work
-        # Pyrogram's stream_media handles file_id strings too, but we need file_size for Range headers.
+        # Robust metadata extraction
+        if hasattr(media, "file_size"):
+            file_size = media.file_size
+            file_name = media.file_name or episode.get("file_name") or "video.mp4"
+        else:
+            file_size = episode.get("file_size")
+            file_name = episode.get("file_name") or "video.mp4"
 
-        file_size = episode.get("file_size")
-        if file_size == "N/A" or not file_size:
-            # We really need file_size for Range support.
-            # If we don't have it, we might have to fetch file info once.
-            if isinstance(media, str):
-                # This is a bit of a hack/limitation if we don't store file_size
-                # We'll assume a large size or try to avoid range if unknown,
-                # but better to have stored it during upload.
-                # In my previous step, I updated the bot to store media.file_size.
-                raise HTTPException(status_code=400, detail="File size unknown, cannot stream.")
+        if not file_size or file_size == "N/A":
+             raise HTTPException(status_code=400, detail="File size unknown, cannot stream.")
 
         file_size = int(file_size)
-        file_name = episode.get("file_name") or "video.mp4"
         mime_type = media.mime_type or mimetypes.guess_type(file_name)[0] or "application/octet-stream"
 
         range_header = request.headers.get("Range")
