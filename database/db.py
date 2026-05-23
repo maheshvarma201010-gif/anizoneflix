@@ -204,6 +204,15 @@ class Database:
             logger.error(f"Read Error (get_episodes): {e}")
             return []
 
+    async def get_episode_by_id(self, ep_id):
+        try:
+            if self._episodes is None: return None
+            doc = await self._episodes.find_one({"_id": ObjectId(ep_id)})
+            return clean_doc(doc)
+        except Exception as e:
+            logger.error(f"Read Error (get_episode_by_id): {e}")
+            return None
+
     async def get_all_categories(self):
         try:
             if self._categories is None: return []

@@ -13,8 +13,10 @@ import sys
 from bot import bot, set_commands, register_handlers
 from utils.auth import get_current_admin, verify_token
 from utils.utils import slugify
-from fastapi.responses import RedirectResponse, JSONResponse, Response
+from utils.streamer import ByteStreamer
+from fastapi.responses import RedirectResponse, JSONResponse, Response, StreamingResponse
 from contextlib import asynccontextmanager
+import math
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -49,6 +51,8 @@ async def lifespan(app: FastAPI):
         register_handlers(bot)
         await bot.start()
         await set_commands(bot)
+
+        app.state.streamer = ByteStreamer(bot)
 
         me = await bot.get_me()
         logger.info(f"Production Suite LIVE -> @{me.username}")
@@ -290,6 +294,84 @@ async def save_post(request: Request, mal_id: str, admin=Depends(get_current_adm
             return safe_api_response(True)
         return safe_api_response(False, message="Database Offline")
     except Exception as e: return safe_api_response(False, message=str(e))
+
+@app.get("/dl/{ep_id}")
+async def download_episode(request: Request, ep_id: str):
+    episode = await db.get_episode_by_id(ep_id)
+    if not episode:
+        raise HTTPException(status_code=404, detail="Episode not found")
+
+    file_id_str = episode.get("file_id")
+    if not file_id_str:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    streamer: ByteStreamer = request.app.state.streamer
+    file_properties = await streamer.get_file_properties(file_id_str)
+    file_size = episode.get("file_size")
+
+    if not file_size:
+        raise HTTPException(status_code=404, detail="File size unknown")
+
+    range_header = request.headers.get("Range")
+    if range_header:
+        try:
+            ranges = range_header.replace("bytes=", "").split("-")
+            from_bytes = int(ranges[0])
+            until_bytes = int(ranges[1]) if ranges[1] else file_size - 1
+        except:
+            from_bytes = 0
+            until_bytes = file_size - 1
+    else:
+        from_bytes = 0
+        until_bytes = file_size - 1
+
+    if until_bytes >= file_size or from_bytes < 0 or until_bytes < from_bytes:
+        return Response(
+            status_code=416,
+            headers={"Content-Range": f"bytes */{file_size}"}
+        )
+
+    chunk_size = 1024 * 1024
+    until_bytes = min(until_bytes, file_size - 1)
+
+    offset = from_bytes - (from_bytes % chunk_size)
+    first_part_cut = from_bytes - offset
+    last_part_cut = until_bytes % chunk_size + 1
+
+    req_length = until_bytes - from_bytes + 1
+    # Standard chunk logic for yielding
+    part_count = math.ceil((until_bytes + 1 - offset) / chunk_size)
+
+    body = streamer.yield_file(
+        file_properties, offset, first_part_cut, last_part_cut, part_count, chunk_size
+    )
+
+    headers = {
+        "Content-Type": "application/octet-stream",
+        "Content-Range": f"bytes {from_bytes}-{until_bytes}/{file_size}",
+        "Content-Length": str(req_length),
+        "Content-Disposition": f'attachment; filename="{episode.get("file_name", "video.mp4")}"',
+        "Accept-Ranges": "bytes",
+    }
+
+    return StreamingResponse(
+        body,
+        status_code=206 if range_header else 200,
+        headers=headers
+    )
+
+@app.get("/watch/{ep_id}")
+async def watch_episode(request: Request, ep_id: str):
+    episode = await db.get_episode_by_id(ep_id)
+    if not episode:
+        return templates.TemplateResponse(request=request, name="404.html", context={"error": "Episode not found"}, status_code=404)
+
+    return templates.TemplateResponse(request=request, name="player.html", context={
+        "episode": episode,
+        "stream_url": f"{Config.BASE_URL}/dl/{ep_id}",
+        "logo_url": Config.LOGO_URL,
+        "site_name": "ANIZONEFLIX"
+    })
 
 if __name__ == "__main__":
     import uvicorn

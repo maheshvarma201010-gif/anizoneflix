@@ -11,6 +11,7 @@ class Config:
     # Database Configuration
     MONGO_URI = os.getenv("MONGO_URI", "")
     DB_NAME = os.getenv("DB_NAME", "anizoneflix")
+    FLOG_CHANNEL = int(os.getenv("FLOG_CHANNEL", 0))
 
     # Core Identity
     BASE_URL = os.getenv("BASE_URL", "https://anizoneflix-04c0.onrender.com")

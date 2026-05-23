@@ -15,12 +15,12 @@ def parse_filename(filename):
     }
 
     # Extract Episode
-    ep_match = re.search(r'(?:EP|Episode|E| -)\s*(\d+)', filename, re.IGNORECASE)
+    ep_match = re.search(r'(?:EP|Episode|E| -|S\d+E)\s*(\d+)', filename, re.IGNORECASE)
     if ep_match:
         data["episode"] = int(ep_match.group(1))
     else:
-        # Fallback to loose digit if it looks like an episode
-        ep_match_alt = re.search(r'\s+(\d{1,3})(?:\s+|\[|\()', filename)
+        # Fallback to loose digit if it looks like an episode (e.g. [01])
+        ep_match_alt = re.search(r'(?:\[|\s+)(\d{1,3})(?:\]|\s+|v\d+|\()', filename)
         if ep_match_alt:
             data["episode"] = int(ep_match_alt.group(1))
 
@@ -28,12 +28,18 @@ def parse_filename(filename):
     s_match = re.search(r'(?:S|Season)\s*(\d+)', filename, re.IGNORECASE)
     if s_match:
         data["season"] = int(s_match.group(1))
+    else:
+        s_match_alt = re.search(r'(\d+)(?:st|nd|rd|th)\s+Season', filename, re.IGNORECASE)
+        if s_match_alt:
+            data["season"] = int(s_match_alt.group(1))
 
     # Extract Quality
     if re.search(r'480p', filename): data["quality"] = "480p"
     elif re.search(r'720p', filename): data["quality"] = "720p"
     elif re.search(r'1080p', filename): data["quality"] = "1080p"
     elif re.search(r'2160p|4K', filename, re.IGNORECASE): data["quality"] = "4K"
+    elif re.search(r'HD', filename, re.IGNORECASE): data["quality"] = "720p"
+    elif re.search(r'FHD', filename, re.IGNORECASE): data["quality"] = "1080p"
 
     # Extract Audio
     if re.search(r'Dual|Multi', filename, re.IGNORECASE): data["audio"] = "Multi-Audio"
