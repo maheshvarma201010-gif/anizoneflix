@@ -1,81 +1,58 @@
-# 👑 AniZoneFlix Executive Suite v2.0
+# 👑 ANIZONEFLIX ULTRA: The Executive Anime Suite
 
-The world's most advanced Anime Management Portal & Telegram Bot Suite. Engineered for absolute stability, industrial-grade automation, and a premium streaming experience.
-
----
-
-## 🚀 Deployment Guide
-
-### ☁️ Render Deployment (Full Suite: Web + Bot)
-Render is the recommended platform for hosting the combined FastAPI server and Pyrogram long-polling bot.
-
-1.  **Create a New Web Service:**
-    *   **Runtime:** `Python 3`
-    *   **Build Command:** `pip install -r requirements.txt`
-    *   **Start Command:** `python main.py` or `uvicorn app:app --host 0.0.0.0 --port $PORT`
-
-2.  **Environment Variables:**
-    | Key | Description |
-    |-----|-------------|
-    | `API_ID` | Telegram API ID from my.telegram.org |
-    | `API_HASH` | Telegram API Hash from my.telegram.org |
-    | `BOT_TOKEN` | Bot Token from @BotFather |
-    | `MONGO_URI` | MongoDB Atlas Connection String |
-    | `TMDB_API_KEY` | TMDb API Key for advanced metadata |
-    | `PORT` | Set to `10000` (Render default) |
-    | `BASE_URL` | `https://your-app.onrender.com` |
-
-3.  **Health Check:** Set to `/` (HEAD) or `/ping`.
+ANIZONEFLIX ULTRA is an industrial-grade, automated anime management portal and Telegram bot suite. Engineered for extreme performance, it transforms Telegram media files into high-speed streaming and download links with a premium web interface.
 
 ---
 
-### 📐 Vercel Deployment (Frontend Only)
-Vercel is optimized for frontend delivery. **Note:** Pyrogram bots will NOT function on Vercel as they require persistent connections.
+## ⚡ Core Features
 
-1.  **Framework:** `FastAPI` (Vercel will detect `app.py`).
-2.  **Environment Variables:**
-    *   `VITE_BACKEND_URL`: `https://your-render-app.onrender.com` (If using a separate JS frontend).
-    *   For this Python-native suite, simply add all variables from the Render list above.
+### 🚀 Ultra-Speed File-to-Link
+- **Zero-Link Admin Flow:** Admins simply send files/videos to the bot. No manual links required.
+- **Smart Metadata Extraction:** Automated extraction of **Season**, **Episode**, **Quality** (480p to 4K), **Audio** (Multi/Hindi/Tamil/Telugu), and **Codec** (HEVC/AVC).
+- **Persistent Storage:** Integrated `BIN_CHANNEL` support ensuring files remain accessible and links never expire.
+
+### 🎬 Premium Streaming Experience
+- **High-Speed Delivery:** Optimized chunked streaming for ultra-fast buffering and zero-stock downloads.
+- **Advanced Seeking:** Full support for `Range` requests, enabling instant seeking in web players.
+- **Tiered Selection UI:** A modern, multi-step web interface: **Select Season** ➔ **Select Quality** ➔ **Select Episode** ➔ **Watch/Download**.
+
+### 🛰 Intelligence Aggregator
+- Instant metadata fetching from **MAL**, **AniList**, **Kitsu**, and **TMDb**.
+- Automated series grouping and synchronization.
 
 ---
 
-### 🐳 Docker Deployment (Parity Environment)
+## 🛠 Deployment Guide
+
+### 1. Environment Variables
+| Key | Description |
+|-----|-------------|
+| `API_ID` | Telegram API ID |
+| `API_HASH` | Telegram API Hash |
+| `BOT_TOKEN` | Bot Token from @BotFather |
+| `MONGO_URI` | MongoDB Connection String |
+| `BIN_CHANNEL` | ID of the Telegram channel for persistent storage |
+| `BASE_URL` | Your application URL (e.g., `https://your-app.onrender.com`) |
+
+### 2. Manual Installation
 ```bash
-# Build
-docker build -t anizoneflix .
+# Clone the repository
+git clone https://github.com/anizoneflix/suite.git && cd suite
 
-# Run
-docker run -p 8080:8080 --env-file .env anizoneflix
+# Install dependencies
+pip install -r requirements.txt
+
+# Start the application
+python main.py
 ```
 
 ---
 
-## 🛠 Features & Architecture
+## 💎 Bot Command Suite
+- `/search <name>`: Rapid series setup with automated metadata calibration.
+- `/add_post <name>`: One-shot publication with instant file request.
+- `/manual`: Custom creation with unlimited direct access buttons.
+- `/categories`: Full CRUD genre management.
+- `/schedule`: Centralized airtime synchronization.
 
-### 🛡 Production Hardening
-*   **Synchronized Lifespan:** Database, Bot, and API sessions share the same event loop, preventing "Session stopped" errors.
-*   **Safe-Fail DB:** Robust retries and `MockCollection` safety prevents 500 errors during cold starts or DB maintenance.
-*   **Response Integrity:** All API endpoints return a standardized `{ success, data, message }` JSON schema.
-*   **Error-Proof UI:** Jinja2 templates are hardened with existence checks to prevent crashes on missing metadata.
-
-### 🎯 Intelligence Aggregator
-High-speed metadata extraction from:
-✅ Jikan (MAL) ✅ AniList ✅ Kitsu ✅ TMDb ✅ Simkl
-
-### 💎 Executive Bot Suite
-*   `/search <title>`: Interactive intelligence setup with custom metadata calibration.
-*   `/manual`: Custom detailed creation with unlimited direct access buttons.
-*   `/edit_m <url>`: Manage and append custom buttons to existing posts.
-*   `/add_page`: Manual content creation for series metadata.
-*   `/edit <url>`: Real-time content group and archive management.
-*   `/schedule`: Centralized airtime synchronization across the network.
-*   `/categories`: Full CRUD genre management.
-
----
-
-## 🔍 Industrial-Grade Diagnostics
-Monitor system health via `/ping` or the HEAD request on `/`.
-*   **Status 200:** System fully operational.
-*   **Status 503:** Degraded status (Bot or Database disconnected).
-
-**AniZoneFlix** — *Engineered for Perfection.*
+**ANIZONEFLIX** — *Powering the next generation of anime streaming.*

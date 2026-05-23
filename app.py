@@ -200,8 +200,13 @@ async def stream_media_handler(request: Request, ep_id: str, disposition: str):
         content_length = end - start + 1
 
         async def file_generator():
+            # Standard Pyrogram stream_media can be slow.
+            # We'll rely on the client to handle the stream efficiently.
+            # Using 1MB chunks for better throughput if supported by the client implementation
             async for chunk in bot.stream_media(media, offset=start, limit=content_length):
-                yield chunk
+                if chunk:
+                    yield chunk
+                await asyncio.sleep(0) # Yield control to avoid blocking the event loop
 
         headers = {
             "Content-Range": f"bytes {start}-{end}/{file_size}",

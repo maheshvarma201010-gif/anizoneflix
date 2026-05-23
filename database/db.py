@@ -208,7 +208,8 @@ class Database:
     async def get_episodes(self, mal_id):
         try:
             if self._episodes is None: return []
-            cursor = self._episodes.find({"mal_id": mal_id}).sort([("season", 1), ("episode", 1)])
+            # Improved sorting: Season ASC, Episode ASC, and Quality if multiple exist
+            cursor = self._episodes.find({"mal_id": mal_id}).sort([("season", 1), ("episode", 1), ("quality", 1)])
             docs = await cursor.to_list(length=1000)
             return clean_doc(docs) or []
         except Exception as e:

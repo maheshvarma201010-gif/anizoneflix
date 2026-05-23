@@ -161,7 +161,10 @@
         document.getElementById('action-selection').classList.add('hidden');
 
         // Show Quality Selection
-        const qualities = [...new Set(episodesData.filter(ep => ep.season == currentSeason).map(ep => ep.quality))].sort();
+        const qualities = [...new Set(episodesData.filter(ep => ep.season == currentSeason).map(ep => ep.quality))].sort((a, b) => {
+            const getVal = (s) => parseInt(s.replace(/\D/g, '')) || 0;
+            return getVal(a) - getVal(b);
+        });
         const container = document.getElementById('quality-buttons');
         container.innerHTML = '';
         qualities.forEach(q => {
@@ -190,7 +193,9 @@
         document.getElementById('action-selection').classList.add('hidden');
 
         // Show Episode Selection
-        const eps = episodesData.filter(ep => ep.season == currentSeason && ep.quality == currentQuality).sort((a, b) => a.episode - b.episode);
+        // Sort episodes numerically by episode number
+        const eps = episodesData.filter(ep => ep.season == currentSeason && ep.quality == currentQuality)
+                                .sort((a, b) => parseInt(a.episode) - parseInt(b.episode));
         const container = document.getElementById('episode-buttons');
         container.innerHTML = '';
         eps.forEach(ep => {
