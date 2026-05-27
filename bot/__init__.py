@@ -2,6 +2,10 @@ import asyncio
 import logging
 import traceback
 import os
+import json
+import zipfile
+import tempfile
+from io import BytesIO
 from pyrogram import Client, filters, enums, ContinuePropagation
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, BotCommand
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
@@ -48,6 +52,7 @@ async def set_commands(client):
         BotCommand("categories", "Manage Genres/Tags"),
         BotCommand("schedule", "Manage Airing Schedule"),
         BotCommand("del", "Permanent Archive Erasure"),
+        BotCommand("save", "Backup & Restore Data"),
         BotCommand("cancel", "Abort Active Process"),
         BotCommand("ping", "System Latency Check")
     ]
@@ -369,12 +374,74 @@ def register_handlers(bot: Client):
         user_state[message.from_user.id] = {"action": "ask_edit_m_count", "slug": slug, "anime": anime}
         await message.reply("🖇 **How many buttons do you want to add?**\nSend a number (e.g., 4):")
 
+    @bot.on_message(filters.command("save"))
+    async def save_command_handler(client, message):
+        if not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Unauthorized.**")
+
+        buttons = [
+            [
+                InlineKeyboardButton("📥 BACKUP", callback_data="backup_data"),
+                InlineKeyboardButton("📤 RESTORE", callback_data="restore_data")
+            ]
+        ]
+        await message.reply(
+            "💾 **Data Management Intelligence**\n\n"
+            "Select an operation to perform on the database:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+
     @bot.on_message(filters.command("cancel"))
     async def cancel_handler(client, message):
         user_state.pop(message.from_user.id, None)
         await message.reply("✨ **Action Cancelled.** standby.")
 
     # --- CALLBACK HANDLERS ---
+
+    @bot.on_callback_query(filters.regex("^backup_data$"))
+    async def backup_data_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        await callback_query.message.edit_text("⏳ **Generating Backup...**")
+        try:
+            data = await db.export_data()
+            if not data:
+                return await callback_query.message.edit_text("❌ **Export Failed: No data found.**")
+
+            # Create a ZIP in memory
+            zip_buffer = BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                for coll_name, docs in data.items():
+                    json_data = json.dumps(docs, indent=4, default=str)
+                    zf.writestr(f"{coll_name}.json", json_data)
+
+            zip_buffer.seek(0)
+            zip_buffer.name = "anizoneflix_backup.zip"
+
+            await callback_query.message.delete()
+            await client.send_document(
+                chat_id=callback_query.message.chat.id,
+                document=zip_buffer,
+                file_name="anizoneflix_backup.zip",
+                caption="✅ **Backup Intelligence Generated Successfully.**\n\nKeep this file safe for restoration."
+            )
+        except Exception as e:
+            logger.error(f"Backup Error: {e}")
+            await callback_query.message.edit_text(f"❌ **Backup Failed:** `{str(e)}`")
+
+    @bot.on_callback_query(filters.regex("^restore_data$"))
+    async def restore_data_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        user_state[callback_query.from_user.id] = {"action": "awaiting_restore_zip"}
+        await callback_query.message.edit_text(
+            "📤 **Ready for Restoration**\n\n"
+            "Please send the backup ZIP file you generated previously.\n"
+            "⚠️ **Warning:** This will overwrite all current data!",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]])
+        )
 
     @bot.on_callback_query(filters.regex("^help_guide$"))
     async def help_cb(client, callback_query):
@@ -565,11 +632,14 @@ def register_handlers(bot: Client):
 
     # --- INTERACTION HANDLER (GROUP 1) ---
 
-    @bot.on_message(filters.private & filters.text & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save"]), group=1)
     async def interaction_handler(client, message):
         uid = message.from_user.id
         state = user_state.get(uid)
         if not state: return
+
+        if not message.text and state.get("action") != "awaiting_restore_zip":
+            return await message.reply("❌ **Invalid Input.** Please send text.")
 
         action = state.get("action", "")
         try:
@@ -705,6 +775,40 @@ def register_handlers(bot: Client):
                 if message.text != "/skip": await db.update_schedule(state["day"], message.text.strip())
                 await message.reply(f"✅ **Schedule Updated.**")
                 del user_state[uid]
+            elif action == "awaiting_restore_zip":
+                if not message.document or not message.document.file_name.endswith(".zip"):
+                    return await message.reply("❌ **Invalid File.** Please send a valid backup ZIP file.")
+
+                msg = await message.reply("⏳ **Processing Restoration Intelligence...**")
+                path = None
+                try:
+                    path = await message.download()
+                    with tempfile.TemporaryDirectory() as tmp_dir:
+                        with zipfile.ZipFile(path, 'r') as zip_ref:
+                            zip_ref.extractall(tmp_dir)
+
+                        restored_data = {}
+                        for filename in os.listdir(tmp_dir):
+                            if filename.endswith(".json"):
+                                coll_name = filename[:-5]
+                                with open(os.path.join(tmp_dir, filename), 'r') as f:
+                                    restored_data[coll_name] = json.load(f)
+
+                        if not restored_data:
+                            return await msg.edit("❌ **Restoration Failed:** No valid data found in ZIP.")
+
+                        success = await db.import_data(restored_data)
+                        if success:
+                            await msg.edit("✅ **Restoration Successful!** All systems synchronized.")
+                            del user_state[uid]
+                        else:
+                            await msg.edit("❌ **Restoration Failed:** Database synchronization error.")
+                except Exception as e:
+                    logger.error(f"Restore Error: {e}")
+                    await msg.edit(f"❌ **Restoration Failed:** `{str(e)}`")
+                finally:
+                    if path and os.path.exists(path):
+                        os.remove(path)
             elif action == "ask_new_poster":
                 slug = state["slug"]
                 if await db.ping():

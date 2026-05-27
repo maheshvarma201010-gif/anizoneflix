@@ -254,4 +254,59 @@ class Database:
             return user is not None
         except: return False
 
+    async def export_data(self):
+        try:
+            if self._db is None: return None
+            data = {}
+            collections = {
+                "anime": self.anime,
+                "episodes": self.episodes,
+                "users": self.users,
+                "categories": self.categories,
+                "schedules": self.schedules
+            }
+            for name, coll in collections.items():
+                if coll:
+                    docs = await coll.find().to_list(length=None)
+                    data[name] = clean_doc(docs)
+            return data
+        except Exception as e:
+            logger.error(f"Export Error: {e}")
+            return None
+
+    async def import_data(self, data):
+        try:
+            if self._db is None: return False
+            collections = {
+                "anime": self.anime,
+                "episodes": self.episodes,
+                "users": self.users,
+                "categories": self.categories,
+                "schedules": self.schedules
+            }
+
+            # Prepare data and validate before deleting
+            to_import = {}
+            for name, docs in data.items():
+                coll = collections.get(name)
+                if coll and docs:
+                    processed_docs = []
+                    for doc in docs:
+                        if "_id" in doc and isinstance(doc["_id"], str) and len(doc["_id"]) == 24:
+                            try: doc["_id"] = ObjectId(doc["_id"])
+                            except: pass
+                        processed_docs.append(doc)
+                    to_import[name] = processed_docs
+
+            # Now perform deletions and insertions
+            for name, processed_docs in to_import.items():
+                coll = collections.get(name)
+                await coll.delete_many({})
+                await coll.insert_many(processed_docs)
+
+            return True
+        except Exception as e:
+            logger.error(f"Import Error: {e}")
+            return False
+
 db = Database()
