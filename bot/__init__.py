@@ -84,7 +84,7 @@ def register_handlers(bot: Client):
     # --- AUTO-LINK HANDLER (GROUP -2) ---
     @bot.on_message(filters.all, group=-2)
     async def auto_file_grouping(client, message):
-        if (message.document or message.video) and not message.from_user.is_bot:
+        if (message.document or message.video) and message.from_user and not message.from_user.is_bot:
             try:
                 from utils.parser import parse_filename
                 fname = message.document.file_name if message.document else "video.mp4"
@@ -354,13 +354,13 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("manual"))
     async def manual_handler(client, message):
-        if not await is_authorized(message.from_user.id): return
+        if not message.from_user or not await is_authorized(message.from_user.id): return
         user_state[message.from_user.id] = {"action": "ask_manual_title"}
         await message.reply("📝 **Step 1: Title**\nSend Title for the custom page:")
 
     @bot.on_message(filters.command("edit_m"))
     async def edit_m_handler(client, message):
-        if not await is_authorized(message.from_user.id): return
+        if not message.from_user or not await is_authorized(message.from_user.id): return
         query = message.text.split(" ", 1)[1] if len(message.text.split()) > 1 else ""
         if not query and message.reply_to_message:
             query = message.reply_to_message.text or message.reply_to_message.caption or ""
@@ -376,7 +376,7 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("save"))
     async def save_command_handler(client, message):
-        if not await is_authorized(message.from_user.id):
+        if not message.from_user or not await is_authorized(message.from_user.id):
             return await message.reply("🚫 **Unauthorized.**")
 
         buttons = [
@@ -393,7 +393,8 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("cancel"))
     async def cancel_handler(client, message):
-        user_state.pop(message.from_user.id, None)
+        if message.from_user:
+            user_state.pop(message.from_user.id, None)
         await message.reply("✨ **Action Cancelled.** standby.")
 
     # --- CALLBACK HANDLERS ---
@@ -642,6 +643,7 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.private & (filters.text | filters.document) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save"]), group=1)
     async def interaction_handler(client, message):
+        if not message.from_user: return
         uid = message.from_user.id
         state = user_state.get(uid)
         if not state: return
