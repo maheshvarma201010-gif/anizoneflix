@@ -1,81 +1,74 @@
 # 👑 AniZoneFlix Executive Suite v2.0
 
-The world's most advanced Anime Management Portal & Telegram Bot Suite. Engineered for absolute stability, industrial-grade automation, and a premium streaming experience.
+AniZoneFlix is an advanced, industrial-grade Anime Management Portal and Telegram Bot Suite. Designed for high performance, absolute stability, and a premium user experience, it seamlessly integrates a FastAPI web server with a powerful Pyrogram-based bot.
 
 ---
 
 ## 🚀 Deployment Guide
 
-### ☁️ Render Deployment (Full Suite: Web + Bot)
-Render is the recommended platform for hosting the combined FastAPI server and Pyrogram long-polling bot.
+### 📦 Prerequisites
+- **Python 3.9+**
+- **MongoDB Atlas** account
+- **Telegram API Credentials** (API ID and Hash from [my.telegram.org](https://my.telegram.org))
+- **Bot Token** from [@BotFather](https://t.me/BotFather)
 
-1.  **Create a New Web Service:**
-    *   **Runtime:** `Python 3`
-    *   **Build Command:** `pip install -r requirements.txt`
-    *   **Start Command:** `python main.py` or `uvicorn app:app --host 0.0.0.0 --port $PORT`
+### ☁️ Recommended Deployment: Render
+Render is ideal for hosting the entire suite, as it supports the persistent connections required by the Telegram bot.
 
-2.  **Environment Variables:**
-    | Key | Description |
-    |-----|-------------|
-    | `API_ID` | Telegram API ID from my.telegram.org |
-    | `API_HASH` | Telegram API Hash from my.telegram.org |
-    | `BOT_TOKEN` | Bot Token from @BotFather |
+1.  **Create a New Web Service** on Render.
+2.  **Build Settings:**
+    - **Runtime:** `Python 3`
+    - **Build Command:** `pip install -r requirements.txt`
+    - **Start Command:** `python main.py`
+3.  **Required Environment Variables:**
+    | Variable | Description |
+    |----------|-------------|
+    | `API_ID` | Your Telegram API ID |
+    | `API_HASH` | Your Telegram API Hash |
+    | `BOT_TOKEN` | Your Telegram Bot Token |
     | `MONGO_URI` | MongoDB Atlas Connection String |
-    | `TMDB_API_KEY` | TMDb API Key for advanced metadata |
-    | `PORT` | Set to `10000` (Render default) |
-    | `BASE_URL` | `https://your-app.onrender.com` |
-
-3.  **Health Check:** Set to `/` (HEAD) or `/ping`.
-
----
-
-### 📐 Vercel Deployment (Frontend Only)
-Vercel is optimized for frontend delivery. **Note:** Pyrogram bots will NOT function on Vercel as they require persistent connections.
-
-1.  **Framework:** `FastAPI` (Vercel will detect `app.py`).
-2.  **Environment Variables:**
-    *   `VITE_BACKEND_URL`: `https://your-render-app.onrender.com` (If using a separate JS frontend).
-    *   For this Python-native suite, simply add all variables from the Render list above.
-
----
-
-### 🐳 Docker Deployment (Parity Environment)
-```bash
-# Build
-docker build -t anizoneflix .
-
-# Run
-docker run -p 8080:8080 --env-file .env anizoneflix
-```
+    | `BASE_URL` | The public URL of your deployment |
+    | `ADMIN_IDS` | Comma-separated list of Telegram User IDs for Admin access |
+    | `BIN_CHANNEL` | Telegram Channel ID for media storage/forwarding |
 
 ---
 
 ## 🛠 Features & Architecture
 
-### 🛡 Production Hardening
-*   **Synchronized Lifespan:** Database, Bot, and API sessions share the same event loop, preventing "Session stopped" errors.
-*   **Safe-Fail DB:** Robust retries and `MockCollection` safety prevents 500 errors during cold starts or DB maintenance.
-*   **Response Integrity:** All API endpoints return a standardized `{ success, data, message }` JSON schema.
-*   **Error-Proof UI:** Jinja2 templates are hardened with existence checks to prevent crashes on missing metadata.
+### 🛡 Core Stability & Hardening
+- **Unified Event Loop:** Database, Bot, and Web Server share a single async loop to prevent session conflicts.
+- **Resilient Database Layer:** Implements intelligent retries and emergency mock collections to ensure the web portal remains online even during database maintenance.
+- **Glassmorphism UI:** A modern, premium web interface built with Tailwind CSS, featuring loading skeletons, shimmering effects, and dynamic backdrop blurs.
 
-### 🎯 Intelligence Aggregator
-High-speed metadata extraction from:
-✅ Jikan (MAL) ✅ AniList ✅ Kitsu ✅ TMDb ✅ Simkl
+### 💎 Executive Admin Suite (Telegram Bot)
+The bot serves as the central command center for the entire platform:
+- **`/search <title>`**: Interactive intelligence-driven setup for new series.
+- **`/save`**: Data management interface for instant **Backup** (ZIP export) and **Restore** (ZIP import).
+- **`/manual`**: Create custom pages with unlimited direct-access buttons.
+- **`/edit <url>`**: Manage content groups, poster art, and series metadata in real-time.
+- **`/schedule`**: Centralized management of airing schedules across the network.
+- **`/categories`**: Full management of genres and tags.
 
-### 💎 Executive Bot Suite
-*   `/search <title>`: Interactive intelligence setup with custom metadata calibration.
-*   `/manual`: Custom detailed creation with unlimited direct access buttons.
-*   `/edit_m <url>`: Manage and append custom buttons to existing posts.
-*   `/add_page`: Manual content creation for series metadata.
-*   `/edit <url>`: Real-time content group and archive management.
-*   `/schedule`: Centralized airtime synchronization across the network.
-*   `/categories`: Full CRUD genre management.
+### 🔍 System Diagnostics
+Monitor the health of the system via standardized endpoints:
+- **`GET /ping`**: Returns the connectivity status of the bot and database.
+- **`HEAD /`**: Lightweight health check for deployment platforms.
 
 ---
 
-## 🔍 Industrial-Grade Diagnostics
-Monitor system health via `/ping` or the HEAD request on `/`.
-*   **Status 200:** System fully operational.
-*   **Status 503:** Degraded status (Bot or Database disconnected).
+## 🐳 Docker Deployment
+For local development or specialized hosting:
+```bash
+# Build the image
+docker build -t anizoneflix .
+
+# Run the container
+docker run -p 10000:10000 --env-file .env anizoneflix
+```
+
+---
+
+## ⚖️ License & Disclaimer
+This project is for educational and personal use only. The developers are not responsible for any misuse of this software.
 
 **AniZoneFlix** — *Engineered for Perfection.*

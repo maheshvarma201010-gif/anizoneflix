@@ -386,8 +386,8 @@ def register_handlers(bot: Client):
             ]
         ]
         await message.reply(
-            "💾 **Data Management Intelligence**\n\n"
-            "Select an operation to perform on the database:",
+            "💾 **Database Management System**\n\n"
+            "Choose an action to manage your data safely:",
             reply_markup=InlineKeyboardMarkup(buttons)
         )
 
@@ -403,11 +403,11 @@ def register_handlers(bot: Client):
         if not await is_authorized(callback_query.from_user.id):
             return await callback_query.answer("🚫 Unauthorized", show_alert=True)
 
-        await callback_query.message.edit_text("⏳ **Generating Backup...**")
+        await callback_query.message.edit_text("⏳ **Generating system backup...**")
         try:
             data = await db.export_data()
             if not data:
-                return await callback_query.message.edit_text("❌ **Export Failed: No data found.**")
+                return await callback_query.message.edit_text("❌ **Export Failed: No data available to backup.**")
 
             # Create a ZIP in memory
             zip_buffer = BytesIO()
@@ -417,14 +417,19 @@ def register_handlers(bot: Client):
                     zf.writestr(f"{coll_name}.json", json_data)
 
             zip_buffer.seek(0)
-            zip_buffer.name = "anizoneflix_backup.zip"
+            zip_buffer.name = "backup.zip"
 
             await callback_query.message.delete()
             await client.send_document(
                 chat_id=callback_query.message.chat.id,
                 document=zip_buffer,
-                file_name="anizoneflix_backup.zip",
-                caption="✅ **Backup Intelligence Generated Successfully.**\n\nKeep this file safe for restoration."
+                file_name="backup.zip",
+                caption=(
+                    f"✅ **Backup Generated Successfully**\n\n"
+                    f"🌐 **Website:** {Config.BASE_URL}\n"
+                    f"📦 **Data:** Total collections exported.\n\n"
+                    f"Keep this file secure. You can restore this data anytime using the /save command."
+                )
             )
         except Exception as e:
             logger.error(f"Backup Error: {e}")
@@ -437,9 +442,9 @@ def register_handlers(bot: Client):
 
         user_state[callback_query.from_user.id] = {"action": "awaiting_restore_zip"}
         await callback_query.message.edit_text(
-            "📤 **Ready for Restoration**\n\n"
-            "Please send the backup ZIP file you generated previously.\n"
-            "⚠️ **Warning:** This will overwrite all current data!",
+            "📤 **Ready to Restore Data**\n\n"
+            "Please upload the `backup.zip` file you created earlier.\n\n"
+            "⚠️ **Important:** This operation will overwrite all existing records with the data from the ZIP file.",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]])
         )
 
@@ -777,9 +782,9 @@ def register_handlers(bot: Client):
                 del user_state[uid]
             elif action == "awaiting_restore_zip":
                 if not message.document or not message.document.file_name.endswith(".zip"):
-                    return await message.reply("❌ **Invalid File.** Please send a valid backup ZIP file.")
+                    return await message.reply("❌ **Invalid File.** Please upload a valid .zip backup file.")
 
-                msg = await message.reply("⏳ **Processing Restoration Intelligence...**")
+                msg = await message.reply("⏳ **Restoring database records...**")
                 path = None
                 try:
                     path = await message.download()
@@ -795,14 +800,14 @@ def register_handlers(bot: Client):
                                     restored_data[coll_name] = json.load(f)
 
                         if not restored_data:
-                            return await msg.edit("❌ **Restoration Failed:** No valid data found in ZIP.")
+                            return await msg.edit("❌ **Restoration Failed:** No compatible JSON data found within the ZIP.")
 
                         success = await db.import_data(restored_data)
                         if success:
-                            await msg.edit("✅ **Restoration Successful!** All systems synchronized.")
+                            await msg.edit("✅ **Restoration Successful!** The database has been fully synchronized.")
                             del user_state[uid]
                         else:
-                            await msg.edit("❌ **Restoration Failed:** Database synchronization error.")
+                            await msg.edit("❌ **Restoration Failed:** An error occurred during database synchronization.")
                 except Exception as e:
                     logger.error(f"Restore Error: {e}")
                     await msg.edit(f"❌ **Restoration Failed:** `{str(e)}`")
