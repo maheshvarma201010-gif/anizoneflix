@@ -259,16 +259,21 @@ class Database:
             if self._db is None: return None
             data = {}
             collections = {
-                "anime": self.anime,
-                "episodes": self.episodes,
-                "users": self.users,
-                "categories": self.categories,
-                "schedules": self.schedules
+                "anime": self._anime,
+                "episodes": self._episodes,
+                "users": self._users,
+                "categories": self._categories,
+                "schedules": self._schedules
             }
+            total_found = 0
             for name, coll in collections.items():
-                if coll:
-                    docs = await coll.find().to_list(length=None)
+                if coll is not None:
+                    docs = await coll.find().to_list(length=100000)
                     data[name] = clean_doc(docs)
+                    total_found += len(docs)
+
+            if total_found == 0:
+                return {} # Return empty dict to indicate connected but empty
             return data
         except Exception as e:
             logger.error(f"Export Error: {e}")
@@ -278,11 +283,11 @@ class Database:
         try:
             if self._db is None: return False
             collections = {
-                "anime": self.anime,
-                "episodes": self.episodes,
-                "users": self.users,
-                "categories": self.categories,
-                "schedules": self.schedules
+                "anime": self._anime,
+                "episodes": self._episodes,
+                "users": self._users,
+                "categories": self._categories,
+                "schedules": self._schedules
             }
 
             # Prepare data and validate before deleting

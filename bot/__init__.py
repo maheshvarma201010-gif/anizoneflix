@@ -406,8 +406,11 @@ def register_handlers(bot: Client):
         await callback_query.message.edit_text("⏳ **Generating system backup...**")
         try:
             data = await db.export_data()
-            if not data:
-                return await callback_query.message.edit_text("❌ **Export Failed: No data available to backup.**")
+            if data is None:
+                return await callback_query.message.edit_text("❌ **Export Failed:** Database connection offline.")
+
+            if not any(data.values()):
+                return await callback_query.message.edit_text("❌ **Export Failed:** No records found in the database.")
 
             # Create a ZIP in memory
             zip_buffer = BytesIO()
