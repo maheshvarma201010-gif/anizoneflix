@@ -2,20 +2,21 @@
 
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 py-12">
-    <div class="text-center mb-16 animate-fade-in">
-        <h1 class="text-5xl md:text-7xl font-black mb-4 tracking-tighter uppercase">
-            Airing <span class="text-red-600 text-shadow-glow">Schedule</span>
+    <div class="text-center mb-24 animate-fade-in">
+        <span class="px-5 py-1.5 bg-red-600/10 text-red-500 text-[10px] font-black rounded-full border border-red-500/20 uppercase tracking-[0.3em] mb-6 inline-block">Real-time synchronization</span>
+        <h1 class="text-6xl md:text-8xl font-black mb-6 tracking-tighter uppercase leading-none">
+            Airing <span class="text-red-600">Schedule</span>
         </h1>
-        <p class="text-gray-500 font-medium text-lg italic max-w-2xl mx-auto">Stay synchronized with the latest releases across our industrial-grade content network.</p>
+        <p class="text-gray-500 font-medium text-lg max-w-2xl mx-auto leading-relaxed">Stay synchronized with the latest high-fidelity releases across our entire digital intelligence network.</p>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
         {% if schedules %}
             {% for day, content in schedules.items() %}
-            <div class="glass group rounded-[2rem] overflow-hidden border border-white/5 shadow-2xl hover:border-red-500/30 transition-all duration-500 animate-fade-in" style="animation-delay: {{ loop.index0 * 0.1 }}s">
-                <div class="bg-gradient-to-r from-red-600/20 to-transparent p-6 border-b border-white/5">
-                    <h3 class="text-2xl font-black tracking-tight flex items-center">
-                        <i class="fa-solid fa-calendar-day mr-3 text-red-500"></i>
+            <div class="glass group rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl hover:border-red-600 transition-all duration-700 animate-fade-in" style="animation-delay: {{ loop.index0 * 0.1 }}s">
+                <div class="bg-gradient-to-br from-red-600/30 via-transparent to-transparent p-8 border-b border-white/5">
+                    <h3 class="text-2xl font-black tracking-tighter flex items-center uppercase">
+                        <i class="fa-solid fa-calendar-day mr-4 text-red-600"></i>
                         {{ day }}
                     </h3>
                 </div>

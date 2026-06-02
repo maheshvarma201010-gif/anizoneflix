@@ -9,27 +9,39 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --tg-theme-bg: #0b0b0d;
-            --tg-theme-secondary: #161618;
-            --tg-accent: #ef4444;
-            --tg-glass: rgba(22, 22, 24, 0.7);
+            --accent: #E50914;
+            --bg-body: #050505;
+            --bg-card: #0A0A0A;
+            --glass: rgba(10, 10, 10, 0.75);
+            --border: rgba(255, 255, 255, 0.06);
         }
         body {
-            background-color: var(--tg-theme-bg);
-            color: #f8fafc;
+            background-color: var(--bg-body);
+            color: #FFFFFF;
             font-family: 'Inter', sans-serif;
             -webkit-tap-highlight-color: transparent;
+            scroll-behavior: smooth;
         }
-        .glass { background: var(--tg-glass); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
-        .glass-nav { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .glass { background: var(--glass); backdrop-filter: blur(30px); border: 1px solid var(--border); }
+        .glass-nav { background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); }
 
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: var(--tg-theme-bg); }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--tg-accent); }
+        .shimmer {
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite linear;
+        }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+        .animate-fade-in { animation: fadeIn 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: var(--bg-body); }
+        ::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+        .glow-red { box-shadow: 0 0 25px rgba(229, 9, 20, 0.2); }
+        .text-shadow-glow { text-shadow: 0 0 15px rgba(229, 9, 20, 0.5); }
     </style>
     {% block head %}{% endblock %}
 </head>
@@ -99,18 +111,32 @@
     </main>
 
     <!-- Footer -->
-    <footer class="glass mt-20 border-t-0 py-12 px-4">
-        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-            <div class="text-center md:text-left">
-                <h2 class="text-2xl font-black mb-2">{{ site_name }}</h2>
-                <p class="text-gray-400 text-sm max-w-xs">The world's most advanced anime portal. Powered by ANIZONEFLIX ULTRA Technology.</p>
+    <footer class="glass mt-40 border-t border-white/5 py-20 px-6">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-16 items-center mb-16">
+                <div class="text-center md:text-left">
+                    <h2 class="text-3xl font-black mb-4 tracking-tighter uppercase">{{ site_name }}</h2>
+                    <p class="text-gray-500 text-sm max-w-xs font-medium leading-relaxed">The pinnacle of anime archiving. Powered by pure digital intelligence and engineered for the ultimate experience.</p>
+                </div>
+                <div class="flex justify-center gap-10 text-2xl">
+                    <a href="#" class="text-gray-600 hover:text-red-600 transition-all transform hover:-translate-y-2"><i class="fa-brands fa-telegram"></i></a>
+                    <a href="#" class="text-gray-600 hover:text-red-600 transition-all transform hover:-translate-y-2"><i class="fa-brands fa-discord"></i></a>
+                    <a href="#" class="text-gray-600 hover:text-red-600 transition-all transform hover:-translate-y-2"><i class="fa-brands fa-instagram"></i></a>
+                    <a href="#" class="text-gray-600 hover:text-red-600 transition-all transform hover:-translate-y-2"><i class="fa-brands fa-github"></i></a>
+                </div>
+                <div class="text-center md:text-right">
+                    <p class="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em] mb-2">Global Digital Presence</p>
+                    <p class="text-red-600 text-[11px] font-black tracking-widest uppercase">Verified Authority</p>
+                </div>
             </div>
-            <div class="flex space-x-6 text-xl">
-                <a href="#" class="hover:text-red-400 transition"><i class="fa-brands fa-telegram"></i></a>
-                <a href="#" class="hover:text-blue-400 transition"><i class="fa-brands fa-discord"></i></a>
-                <a href="#" class="hover:text-blue-400 transition"><i class="fa-brands fa-twitter"></i></a>
+            <div class="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
+                <p class="text-gray-700 text-[9px] font-black uppercase tracking-[0.5em]">&copy; 2026 {{ site_name }}. ARCHIVE PROTOCOL ACTIVE.</p>
+                <div class="flex gap-8 text-[9px] font-black text-gray-700 uppercase tracking-widest">
+                    <a href="#" class="hover:text-gray-400 transition-colors">Privacy</a>
+                    <a href="#" class="hover:text-gray-400 transition-colors">Terms</a>
+                    <a href="#" class="hover:text-gray-400 transition-colors">DMCA</a>
+                </div>
             </div>
-            <p class="text-gray-500 text-xs font-mono">&copy; 2026 {{ site_name }}. All rights reserved.</p>
         </div>
     </footer>
 
