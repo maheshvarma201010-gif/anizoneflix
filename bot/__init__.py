@@ -117,17 +117,17 @@ def register_handlers(bot: Client):
             photo=Config.LOGO_URL,
             caption=(
                 "👑 **ANIZONEFLIX PREMIUM v2.0**\n\n"
-                "Welcome to the most advanced Anime Management Suite. Experience the power of industrial-grade automation and 11+ high-speed intelligence feeds.\n\n"
+                "Welcome to the premier Anime Management Suite. Experience seamless automation and high-speed metadata intelligence.\n\n"
                 "⚡ **Quick Start:**\n"
-                "• `/search <name>` — Interactive intelligence setup\n"
+                "• `/search <name>` — Automated series setup\n"
                 "• `/add_post <name>` — Rapid one-shot publication\n"
                 "• `/add_page` — Manual content creation\n"
-                "• `/edit <url>` — Content group management\n"
-                "• `/help` — Full executive suite documentation"
+                "• `/edit <url>` — Manage content groups\n"
+                "• `/help` — View full documentation"
             ),
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🌐 Access Portal", url=Config.BASE_URL)],
-                [InlineKeyboardButton("📚 Executive Guide", callback_data="help_guide")]
+                [InlineKeyboardButton("📚 Admin Guide", callback_data="help_guide")]
             ])
         )
 

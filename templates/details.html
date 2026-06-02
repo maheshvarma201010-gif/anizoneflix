@@ -4,14 +4,12 @@
 <div class="max-w-7xl mx-auto px-4 py-8">
     {% if anime %}
     <!-- Header Card -->
-    <div class="relative rounded-[2.5rem] overflow-hidden glass mb-12 shadow-[0_35px_60px_-15px_rgba(0,0,0,0.5)] animate-fade-in group">
-        <div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent z-10"></div>
-        <img src="{{ anime.image or logo_url }}" class="w-full h-[600px] object-cover opacity-30 blur-2xl scale-125 transition-transform duration-1000 group-hover:scale-110" alt="">
+    <div class="relative rounded-[2rem] overflow-hidden glass mb-12 animate-fade-in group border border-white/10">
+        <div class="absolute inset-0 bg-gradient-to-t from-[#050505] to-transparent z-10 opacity-90"></div>
 
-        <div class="absolute inset-0 z-20 flex flex-col md:flex-row items-center md:items-end p-8 md:p-16 gap-12">
-            <div class="relative group/poster w-full md:w-[450px] aspect-video">
-                <div class="absolute -inset-4 bg-red-600/30 rounded-[2rem] blur-2xl opacity-0 group-hover/poster:opacity-100 transition-all duration-500"></div>
-                <img src="{{ anime.image or logo_url }}" class="w-full h-full object-cover rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative border border-white/10" alt="{{ anime.title }}">
+        <div class="absolute inset-0 z-20 flex flex-col md:flex-row items-center md:items-end p-8 md:p-12 gap-10">
+            <div class="relative group/poster w-full md:w-[400px] aspect-video">
+                <img src="{{ anime.image or logo_url }}" class="w-full h-full object-cover rounded-2xl shadow-2xl relative border border-white/10" alt="{{ anime.title }}">
             </div>
 
             <div class="flex-1 text-center md:text-left pb-4">
@@ -56,17 +54,13 @@
         </div>
 
         {% if anime.seasons_links %}
-        <div class="glass rounded-[3rem] p-8 md:p-12 border border-white/5 shadow-2xl relative overflow-hidden">
-            <div class="absolute top-0 right-0 p-8 opacity-5">
-                <i class="fa-solid fa-film text-[10rem]"></i>
-            </div>
-
+        <div class="glass rounded-[2rem] p-8 md:p-10 border border-white/5 shadow-xl relative overflow-hidden">
             <div class="relative z-10">
-                <div class="flex items-center gap-3 mb-10">
-                    <span class="text-red-600 text-[10px] font-black uppercase tracking-[0.3em]">Quality calibration ready</span>
+                <div class="flex items-center gap-3 mb-8">
+                    <span class="text-red-600 text-[11px] font-black uppercase tracking-[0.2em]">Select a Season</span>
                 </div>
 
-                <div class="flex flex-wrap gap-4 mb-12">
+                <div class="flex flex-wrap gap-3 mb-10">
                     {% for season, links in anime.seasons_links.items() %}
                     <button onclick="showSeason('{{ season|slugify }}')" id="btn-{{ season|slugify }}"
                             class="season-btn px-8 py-4 rounded-full font-black text-[11px] uppercase tracking-widest flex items-center gap-3 transition-all border border-white/5 shadow-2xl active:scale-95">
@@ -82,15 +76,11 @@
                             {% if url %}
                             {% set q_color = 'blue' if '480' in q else ('purple' if '720' in q else 'red') %}
                             <a href="/dl?url={{ url|urlencode }}" target="_blank"
-                               class="group/tile relative p-8 glass rounded-[2rem] border border-white/5 hover:border-{{ q_color }}-600/50 transition-all duration-500 overflow-hidden shadow-2xl">
-                                <div class="absolute inset-0 bg-gradient-to-br from-{{ q_color }}-600/10 to-transparent opacity-0 group-hover/tile:opacity-100 transition-opacity"></div>
-                                <div class="relative z-10">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <span class="text-{{ q_color }}-500 text-[10px] font-black uppercase tracking-[0.2em]">{{ q }} High Fidelity</span>
-                                        <i class="fa-solid fa-arrow-right text-[10px] transform group-hover/tile:translate-x-2 transition-transform"></i>
-                                    </div>
-                                    <h4 class="text-2xl font-black mb-2 uppercase tracking-tighter">{{ q }} STREAM</h4>
-                                    <p class="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Optimized for high-speed delivery</p>
+                               class="group/tile relative p-6 bg-white/5 rounded-2xl border border-white/5 hover:border-{{ q_color }}-600 transition-all duration-300 overflow-hidden">
+                                <div class="relative z-10 text-center">
+                                    <span class="text-{{ q_color }}-500 text-[10px] font-black uppercase tracking-[0.2em] mb-2 block">{{ q }} Quality</span>
+                                    <h4 class="text-xl font-black mb-1 uppercase tracking-tight">{{ q }} STREAM</h4>
+                                    <p class="text-gray-500 text-[9px] font-bold uppercase tracking-widest">High Speed Link</p>
                                 </div>
                             </a>
                             {% endif %}

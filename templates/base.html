@@ -10,11 +10,10 @@
     <style>
         :root {
             --accent: #ff0000;
-            --accent-glow: rgba(255, 0, 0, 0.5);
             --bg-body: #050505;
             --bg-card: #0c0c0c;
-            --glass: rgba(10, 10, 10, 0.8);
-            --border: rgba(255, 255, 255, 0.08);
+            --glass: rgba(15, 15, 15, 0.9);
+            --border: rgba(255, 255, 255, 0.1);
         }
         body {
             background-color: var(--bg-body);
@@ -23,54 +22,23 @@
             -webkit-tap-highlight-color: transparent;
             scroll-behavior: smooth;
         }
-        .glass { background: var(--glass); backdrop-filter: blur(30px); border: 1px solid var(--border); }
-        .glass-nav { background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); }
+        /* Simplified styles for better performance */
+        .glass { background: var(--bg-card); border: 1px solid var(--border); }
+        .glass-nav { background: #000000; border-bottom: 1px solid var(--border); }
 
-        .shimmer {
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
-            background-size: 200% 100%;
-            animation: shimmer 2s infinite linear;
-        }
-        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-
-        .animate-fade-in { animation: fadeIn 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: var(--bg-body); }
-        ::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
-        .glow-red { box-shadow: 0 0 25px var(--accent-glow); }
-        .text-shadow-glow { text-shadow: 0 0 15px var(--accent-glow); }
-
-        .floating-emoji {
-            position: fixed;
-            pointer-events: none;
-            z-index: 1;
-            opacity: 0.1;
-            font-size: 2rem;
-            animation: float 10s infinite linear;
-        }
-        @keyframes float {
-            0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
-            10% { opacity: 0.1; }
-            90% { opacity: 0.1; }
-            100% { transform: translateY(-100px) rotate(360deg); opacity: 0; }
-        }
+        .glow-red { border-color: var(--accent); }
     </style>
     {% block head %}{% endblock %}
 </head>
 <body class="selection:bg-red-600/40">
-    <div class="floating-emoji" style="left: 5%; animation-delay: 0s;">🌸</div>
-    <div class="floating-emoji" style="left: 15%; animation-delay: 4s;">🍥</div>
-    <div class="floating-emoji" style="left: 30%; animation-delay: 2s;">🔥</div>
-    <div class="floating-emoji" style="left: 45%; animation-delay: 8s;">🏮</div>
-    <div class="floating-emoji" style="left: 55%; animation-delay: 5s;">⭐</div>
-    <div class="floating-emoji" style="left: 70%; animation-delay: 1s;">👺</div>
-    <div class="floating-emoji" style="left: 80%; animation-delay: 7s;">✨</div>
-    <div class="floating-emoji" style="left: 95%; animation-delay: 3s;">🌸</div>
-
     <!-- Navbar -->
     <nav class="glass-nav sticky top-0 z-50 px-4 md:px-8 py-3">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
@@ -141,7 +109,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-16 items-center mb-16">
                 <div class="text-center md:text-left">
                     <h2 class="text-3xl font-black mb-4 tracking-tighter uppercase">{{ site_name }}</h2>
-                    <p class="text-gray-500 text-sm max-w-xs font-medium leading-relaxed">The pinnacle of anime archiving. Powered by pure digital intelligence and engineered for the ultimate experience.</p>
+                <p class="text-gray-500 text-sm max-w-xs font-medium leading-relaxed">The premier anime archive. Engineered for a fast, simple, and high-quality streaming experience.</p>
                 </div>
                 <div class="flex justify-center gap-10 text-2xl">
                     <a href="#" class="text-gray-600 hover:text-red-600 transition-all transform hover:-translate-y-2"><i class="fa-brands fa-telegram"></i></a>

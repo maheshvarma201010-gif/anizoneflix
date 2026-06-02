@@ -2,35 +2,32 @@
 
 {% block content %}
 <!-- Hero Section -->
-<header class="relative h-[65vh] md:h-[80vh] flex items-center justify-center overflow-hidden">
+<header class="relative h-[60vh] md:h-[70vh] flex items-center justify-center overflow-hidden">
     <div class="absolute inset-0 z-0">
-        <div class="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-[#050505]/30"></div>
-        <div class="absolute inset-0 bg-black/40"></div>
-        <img src="{{ trending[0].image if trending else logo_url }}" class="w-full h-full object-cover blur-sm scale-110 opacity-40 animate-pulse" style="animation-duration: 4s" alt="">
+        <div class="absolute inset-0 bg-gradient-to-t from-[#050505] to-transparent opacity-80"></div>
+        <img src="{{ trending[0].image if trending else logo_url }}" class="w-full h-full object-cover opacity-30" alt="">
     </div>
 
     <div class="relative z-10 text-center px-6 max-w-5xl animate-fade-in">
-        <div class="flex items-center justify-center gap-2 mb-8">
-            <span class="w-12 h-px bg-red-600"></span>
-            <span class="text-red-600 text-[10px] font-black uppercase tracking-[0.4em]">Cinematic Intelligence</span>
-            <span class="w-12 h-px bg-red-600"></span>
+        <div class="flex items-center justify-center gap-2 mb-6">
+            <span class="text-red-600 text-[11px] font-black uppercase tracking-[0.3em]">Premium Anime Portal</span>
         </div>
 
-        <h1 class="text-6xl md:text-9xl font-black mb-8 tracking-tighter leading-[0.85] uppercase">
-            Pure <span class="text-red-600 text-shadow-glow">Vision.</span><br>
+        <h1 class="text-5xl md:text-8xl font-black mb-6 tracking-tighter leading-none uppercase">
+            Pure <span class="text-red-600">Vision.</span><br>
             <span class="text-white/90">Unlimited.</span>
         </h1>
 
-        <p class="text-gray-400 text-lg md:text-2xl mb-12 max-w-3xl mx-auto font-medium leading-relaxed">
-            Experience the next generation of digital archival. High-fidelity streaming, multi-API intelligence, and absolute performance.
+        <p class="text-gray-400 text-base md:text-xl mb-10 max-w-2xl mx-auto font-medium leading-relaxed">
+            Stream your favorite anime in high quality. Fast, simple, and free.
         </p>
 
-        <div class="flex flex-col sm:flex-row items-center justify-center gap-6">
-            <a href="/search" class="w-full sm:w-auto px-12 py-5 bg-red-600 hover:bg-red-700 text-white font-black rounded-full transition-all hover:scale-110 glow-red flex items-center justify-center group">
-                <i class="fa-solid fa-bolt mr-3 group-hover:animate-bounce"></i> START EXPLORING
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a href="/search" class="w-full sm:w-auto px-10 py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl transition-all flex items-center justify-center">
+                <i class="fa-solid fa-play mr-2"></i> START WATCHING
             </a>
-            <a href="#recent" class="w-full sm:w-auto px-12 py-5 glass hover:bg-white text-white hover:text-black font-black rounded-full transition-all flex items-center justify-center">
-                ARCHIVE FEED
+            <a href="#recent" class="w-full sm:w-auto px-10 py-4 bg-white/5 hover:bg-white/10 text-white font-black rounded-xl transition-all flex items-center justify-center">
+                RECENT UPDATES
             </a>
         </div>
     </div>
@@ -69,18 +66,20 @@
 
     <style>
         @keyframes marquee {
-            0% { transform: translateX(0%); }
-            100% { transform: translateX(-100%); }
+            0% { transform: translate3d(0, 0, 0); }
+            100% { transform: translate3d(-100%, 0, 0); }
         }
         @keyframes marquee2 {
-            0% { transform: translateX(100%); }
-            100% { transform: translateX(0%); }
+            0% { transform: translate3d(100%, 0, 0); }
+            100% { transform: translate3d(0, 0, 0); }
         }
         .animate-marquee {
-            animation: marquee 30s linear infinite;
+            animation: marquee 40s linear infinite;
+            will-change: transform;
         }
         .animate-marquee2 {
-            animation: marquee2 30s linear infinite;
+            animation: marquee2 40s linear infinite;
+            will-change: transform;
         }
     </style>
 
