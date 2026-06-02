@@ -9,11 +9,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --accent: #E50914;
+            --accent: #ff0000;
+            --accent-glow: rgba(255, 0, 0, 0.5);
             --bg-body: #050505;
-            --bg-card: #0A0A0A;
-            --glass: rgba(10, 10, 10, 0.75);
-            --border: rgba(255, 255, 255, 0.06);
+            --bg-card: #0c0c0c;
+            --glass: rgba(10, 10, 10, 0.8);
+            --border: rgba(255, 255, 255, 0.08);
         }
         body {
             background-color: var(--bg-body);
@@ -40,12 +41,36 @@
         ::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
-        .glow-red { box-shadow: 0 0 25px rgba(229, 9, 20, 0.2); }
-        .text-shadow-glow { text-shadow: 0 0 15px rgba(229, 9, 20, 0.5); }
+        .glow-red { box-shadow: 0 0 25px var(--accent-glow); }
+        .text-shadow-glow { text-shadow: 0 0 15px var(--accent-glow); }
+
+        .floating-emoji {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.1;
+            font-size: 2rem;
+            animation: float 10s infinite linear;
+        }
+        @keyframes float {
+            0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 0.1; }
+            90% { opacity: 0.1; }
+            100% { transform: translateY(-100px) rotate(360deg); opacity: 0; }
+        }
     </style>
     {% block head %}{% endblock %}
 </head>
-<body class="selection:bg-red-500/30">
+<body class="selection:bg-red-600/40">
+    <div class="floating-emoji" style="left: 5%; animation-delay: 0s;">🌸</div>
+    <div class="floating-emoji" style="left: 15%; animation-delay: 4s;">🍥</div>
+    <div class="floating-emoji" style="left: 30%; animation-delay: 2s;">🔥</div>
+    <div class="floating-emoji" style="left: 45%; animation-delay: 8s;">🏮</div>
+    <div class="floating-emoji" style="left: 55%; animation-delay: 5s;">⭐</div>
+    <div class="floating-emoji" style="left: 70%; animation-delay: 1s;">👺</div>
+    <div class="floating-emoji" style="left: 80%; animation-delay: 7s;">✨</div>
+    <div class="floating-emoji" style="left: 95%; animation-delay: 3s;">🌸</div>
+
     <!-- Navbar -->
     <nav class="glass-nav sticky top-0 z-50 px-4 md:px-8 py-3">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
