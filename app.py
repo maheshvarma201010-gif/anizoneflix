@@ -212,6 +212,11 @@ async def search_web(request: Request, q: str = ""):
         logger.error(f"Search error: {e}")
         return templates.TemplateResponse(request=request, name="search.html", context={"results": [], "query": q, "categories": []})
 
+@app.get("/dl")
+async def download_redirect(url: str):
+    if not url: return RedirectResponse(url="/")
+    return RedirectResponse(url=url)
+
 @app.get("/az-index")
 async def az_index(request: Request):
     try:
