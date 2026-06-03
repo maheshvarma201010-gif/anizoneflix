@@ -4,21 +4,23 @@
 <div class="max-w-7xl mx-auto px-4 py-8">
     {% if anime %}
     <!-- Header Card -->
-    <div class="relative rounded-[2rem] overflow-hidden glass mb-12 animate-fade-in group border border-white/10 min-h-[500px] flex items-end">
+    <div class="relative rounded-2xl overflow-hidden glass mb-12 animate-fade-in group border border-white/10 flex items-end">
         <!-- Optimized Background -->
-        <div class="absolute inset-0 z-0">
-            <div class="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/80 to-transparent z-10"></div>
-            <img src="{{ anime.image or logo_url }}" class="w-full h-full object-cover opacity-20 blur-xl scale-110" alt="">
+        <div class="absolute inset-0 z-0 bg-[#050505]">
+            <div class="absolute inset-0 bg-gradient-to-t from-[#050505] to-transparent z-10 opacity-60"></div>
+            <img src="{{ anime.image or logo_url }}" class="w-full h-full object-contain opacity-20 blur-md" alt="">
         </div>
 
-        <div class="relative z-20 w-full flex flex-col md:flex-row items-center md:items-end p-8 md:p-12 gap-10">
-            <div class="relative group/poster w-full md:w-[400px] aspect-video flex-shrink-0">
-                <img src="{{ anime.image or logo_url }}" class="w-full h-full object-cover rounded-2xl shadow-2xl relative border border-white/10" alt="{{ anime.title }}">
+        <div class="relative z-20 w-full flex flex-col md:flex-row items-center md:items-end p-6 md:p-10 gap-10">
+            <div class="relative group/poster w-full md:w-[400px] aspect-video flex-shrink-0 bg-black/40 rounded-xl overflow-hidden">
+                <img src="{{ anime.image or logo_url }}" class="w-full h-full object-contain relative" alt="{{ anime.title }}">
             </div>
 
             <div class="flex-1 text-center md:text-left pb-4">
                 <div class="flex flex-wrap justify-center md:justify-start gap-2 mb-6">
-                    <span class="px-4 py-1.5 bg-red-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg shadow-red-900/40">{{ anime.category or 'Archive' }}</span>
+                    {% if anime.category %}
+                    <span class="px-4 py-1.5 bg-red-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg shadow-red-900/40">{{ anime.category }}</span>
+                    {% endif %}
                     {% if anime.genres %}
                         {% for genre in anime.genres %}
                         <span class="px-3 py-1.5 glass text-gray-300 text-[10px] font-bold rounded-full border border-white/5 uppercase tracking-wider">{{ genre }}</span>
@@ -29,13 +31,20 @@
                 <h1 class="text-4xl md:text-7xl font-black mb-6 leading-[1.1] tracking-tighter">{{ anime.title }}</h1>
 
                 <div class="flex flex-wrap justify-center md:justify-start items-center gap-8 text-sm font-bold text-gray-400 mb-8">
-                    <span class="flex items-center text-yellow-500 bg-yellow-500/10 px-3 py-1 rounded-xl"><i class="fa-solid fa-star mr-2"></i> {{ anime.score or 'N/A' }}</span>
-                    <span class="flex items-center"><i class="fa-solid fa-calendar-day mr-2 text-red-500"></i> {{ anime.year or 'Archive' }}</span>
-                    <span class="flex items-center"><i class="fa-solid fa-film mr-2 text-red-500"></i> TV Series</span>
-                    <span class="flex items-center"><i class="fa-solid fa-clock mr-2 text-red-500"></i> 24m / ep</span>
+                    {% if anime.score and anime.score != 'N/A' %}
+                    <span class="flex items-center text-yellow-500 bg-yellow-500/10 px-3 py-1 rounded-xl"><i class="fa-solid fa-star mr-2"></i> {{ anime.score }}</span>
+                    {% endif %}
+                    {% if anime.year and anime.year != 'Archive' and anime.year != 'N/A' %}
+                    <span class="flex items-center"><i class="fa-solid fa-calendar-day mr-2 text-red-500"></i> {{ anime.year }}</span>
+                    {% endif %}
+                    {% if anime.status and anime.status != 'N/A' %}
+                    <span class="flex items-center"><i class="fa-solid fa-info-circle mr-2 text-red-500"></i> {{ anime.status }}</span>
+                    {% endif %}
                 </div>
 
-                <p class="text-gray-400 text-base md:text-lg max-w-3xl line-clamp-3 mb-10 leading-relaxed font-medium">{{ anime.synopsis or 'Description classified.' }}</p>
+                {% if anime.synopsis and anime.synopsis != 'Description classified.' and anime.synopsis != 'N/A' %}
+                <p class="text-gray-400 text-base md:text-lg max-w-3xl line-clamp-3 mb-10 leading-relaxed font-medium">{{ anime.synopsis }}</p>
+                {% endif %}
 
                 <div class="flex flex-wrap justify-center md:justify-start gap-4 mb-8">
                     {% if anime.trailer %}
@@ -52,7 +61,7 @@
                     {% set has_custom = anime.seasons_links|length > 0 %}
                     {% set season_groups = episodes | groupby('season') | list %}
 
-                    {% if (has_episodes and season_groups|length > 1) or (has_custom and anime.seasons_links|length > 1) or (has_episodes and has_custom) %}
+                    {% if (has_episodes and season_groups|length > 1) or (has_custom and (anime.seasons_links.keys()|list)|length > 1) or (has_episodes and has_custom) %}
                     <div class="flex flex-wrap justify-center md:justify-start gap-2 mb-6">
                         {% if episodes %}
                             {% for season_group in season_groups %}
@@ -185,6 +194,10 @@
         if (firstBtn) {
             const seasonId = firstBtn.id.replace('btn-', '');
             showSeason(seasonId);
+        } else {
+            // Fallback for single group where button might be hidden
+            const firstContent = document.querySelector('.season-content');
+            if (firstContent) firstContent.classList.remove('hidden');
         }
     });
 </script>
