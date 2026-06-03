@@ -41,34 +41,76 @@
                     {% endif %}
                 </div>
 
-                {% if anime.seasons_links %}
+                {% if anime.seasons_links or episodes %}
                 <div class="space-y-6">
+                    <!-- Season Selector -->
                     <div class="flex flex-wrap justify-center md:justify-start gap-2">
-                        {% for season, links in anime.seasons_links.items() %}
-                        <button onclick="showSeason('{{ season|slugify }}')" id="btn-{{ season|slugify }}"
-                                class="season-btn px-5 py-2.5 rounded-lg font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all border border-white/5 active:scale-95">
-                            {{ season }}
-                        </button>
-                        {% endfor %}
+                        {% if episodes %}
+                            {% set seasons = episodes | groupby('season') %}
+                            {% for season_group in seasons %}
+                            <button onclick="showSeason('season-{{ season_group.grouper }}')" id="btn-season-{{ season_group.grouper }}"
+                                    class="season-btn px-5 py-2.5 rounded-lg font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all border border-white/5 active:scale-95">
+                                Season {{ season_group.grouper }}
+                            </button>
+                            {% endfor %}
+                        {% endif %}
+
+                        {% if anime.seasons_links %}
+                            {% for season, links in anime.seasons_links.items() %}
+                            <button onclick="showSeason('custom-{{ season|slugify }}')" id="btn-custom-{{ season|slugify }}"
+                                    class="season-btn px-5 py-2.5 rounded-lg font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all border border-white/5 active:scale-95">
+                                {{ season }}
+                            </button>
+                            {% endfor %}
+                        {% endif %}
                     </div>
 
-                    {% for season, links in anime.seasons_links.items() %}
-                    <div id="season-{{ season|slugify }}" class="season-content hidden animate-fade-in">
-                        <div class="flex flex-wrap justify-center md:justify-start gap-3">
-                            {% for q, url in links.items() %}
-                                {% if url %}
-                                {% set q_color = 'blue' if '480' in q else ('purple' if '720' in q else 'red') %}
-                                <a href="/dl?url={{ url|urlencode }}" target="_blank"
-                                   class="px-6 py-3 bg-{{ q_color }}-600/20 hover:bg-{{ q_color }}-600 text-{{ q_color }}-400 hover:text-white rounded-xl border border-{{ q_color }}-600/30 transition-all duration-300">
-                                    <div class="text-center">
-                                        <h4 class="text-xs font-black uppercase tracking-widest">GET {{ q }} FILES</h4>
+                    <!-- Episode Display (Grouped by Season) -->
+                    {% if episodes %}
+                        {% for season_group in seasons %}
+                        <div id="season-{{ season_group.grouper }}" class="season-content hidden animate-fade-in space-y-4">
+                            <div class="grid grid-cols-1 gap-4">
+                                {% for ep in season_group.list %}
+                                <div class="flex flex-col md:flex-row items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-red-600/30 transition-all group">
+                                    <div class="flex items-center gap-4 mb-4 md:mb-0">
+                                        <div class="w-12 h-12 flex items-center justify-center bg-red-600 rounded-xl font-black shadow-lg">
+                                            {{ ep.episode }}
+                                        </div>
+                                        <div>
+                                            <div class="font-bold text-sm text-gray-200">{{ ep.title or 'Episode ' ~ ep.episode }}</div>
+                                            <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest">{{ ep.quality }} • {{ ep.audio or 'Multi' }}</div>
+                                        </div>
                                     </div>
-                                </a>
-                                {% endif %}
-                            {% endfor %}
+                                    <a href="/dl?url={{ ep.file_id|urlencode }}" target="_blank" class="px-6 py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg font-black text-[10px] uppercase tracking-widest transition-all">
+                                        GET FILES
+                                    </a>
+                                </div>
+                                {% endfor %}
+                            </div>
                         </div>
-                    </div>
-                    {% endfor %}
+                        {% endfor %}
+                    {% endif %}
+
+                    <!-- Custom Seasons/Links -->
+                    {% if anime.seasons_links %}
+                        {% for season, links in anime.seasons_links.items() %}
+                        <div id="custom-{{ season|slugify }}" class="season-content hidden animate-fade-in">
+                            <div class="flex flex-wrap justify-center md:justify-start gap-3">
+                                {% for q, url in links.items() %}
+                                    {% if url %}
+                                    {% set q_color = 'blue' if '480' in q else ('purple' if '720' in q else 'red') %}
+                                    <a href="/dl?url={{ url|urlencode }}" target="_blank"
+                                       class="px-6 py-3 bg-{{ q_color }}-600/20 hover:bg-{{ q_color }}-600 text-{{ q_color }}-400 hover:text-white rounded-xl border border-{{ q_color }}-600/30 transition-all duration-300">
+                                        <div class="text-center">
+                                            <h4 class="text-xs font-black uppercase tracking-widest">GET {{ q }} FILES</h4>
+                                        </div>
+                                    </a>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
                 </div>
                 {% endif %}
             </div>
@@ -95,7 +137,7 @@
         </div>
         {% endif %}
 
-        {% if not anime.seasons_links and not anime.custom_buttons %}
+        {% if not anime.seasons_links and not anime.custom_buttons and not episodes %}
             <div class="py-24 text-center glass rounded-[3rem] border-dashed border-2 border-white/5">
                 <i class="fa-solid fa-cloud-moon text-6xl text-slate-800 mb-6"></i>
                 <p class="text-gray-500 font-bold text-xl uppercase tracking-widest">No links synchronized yet.</p>
@@ -121,7 +163,7 @@
             btn.classList.remove('bg-red-600', 'text-white', 'border-red-500');
             btn.classList.add('glass', 'text-gray-300', 'border-white/5');
         });
-        const activeContent = document.getElementById('season-' + seasonId);
+        const activeContent = document.getElementById(seasonId);
         if (activeContent) activeContent.classList.remove('hidden');
         const activeBtn = document.getElementById('btn-' + seasonId);
         if (activeBtn) {
@@ -131,7 +173,10 @@
     }
     document.addEventListener('DOMContentLoaded', () => {
         const firstBtn = document.querySelector('.season-btn');
-        if (firstBtn) showSeason(firstBtn.id.replace('btn-', ''));
+        if (firstBtn) {
+            const seasonId = firstBtn.id.replace('btn-', '');
+            showSeason(seasonId);
+        }
     });
 </script>
 {% endblock %}
