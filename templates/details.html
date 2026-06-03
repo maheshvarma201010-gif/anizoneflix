@@ -33,64 +33,50 @@
 
                 <p class="text-gray-400 text-base md:text-lg max-w-3xl line-clamp-3 mb-10 leading-relaxed font-medium">{{ anime.synopsis or 'Description classified.' }}</p>
 
-                <div class="flex flex-wrap justify-center md:justify-start gap-4">
+                <div class="flex flex-wrap justify-center md:justify-start gap-4 mb-8">
                     {% if anime.trailer %}
-                    <a href="{{ anime.trailer }}" target="_blank" class="px-10 py-4 bg-white text-black font-black rounded-2xl hover:bg-red-600 hover:text-white transition-all flex items-center shadow-xl">
-                        <i class="fa-solid fa-play mr-3 text-xl"></i> WATCH TRAILER
+                    <a href="{{ anime.trailer }}" target="_blank" class="px-8 py-3.5 bg-white text-black font-black rounded-xl hover:bg-red-600 hover:text-white transition-all flex items-center shadow-xl text-xs uppercase tracking-widest">
+                        <i class="fa-solid fa-play mr-2 text-base"></i> WATCH TRAILER
                     </a>
                     {% endif %}
                 </div>
+
+                {% if anime.seasons_links %}
+                <div class="space-y-6">
+                    <div class="flex flex-wrap justify-center md:justify-start gap-2">
+                        {% for season, links in anime.seasons_links.items() %}
+                        <button onclick="showSeason('{{ season|slugify }}')" id="btn-{{ season|slugify }}"
+                                class="season-btn px-5 py-2.5 rounded-lg font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all border border-white/5 active:scale-95">
+                            {{ season }}
+                        </button>
+                        {% endfor %}
+                    </div>
+
+                    {% for season, links in anime.seasons_links.items() %}
+                    <div id="season-{{ season|slugify }}" class="season-content hidden animate-fade-in">
+                        <div class="flex flex-wrap justify-center md:justify-start gap-3">
+                            {% for q, url in links.items() %}
+                                {% if url %}
+                                {% set q_color = 'blue' if '480' in q else ('purple' if '720' in q else 'red') %}
+                                <a href="/dl?url={{ url|urlencode }}" target="_blank"
+                                   class="px-6 py-3 bg-{{ q_color }}-600/20 hover:bg-{{ q_color }}-600 text-{{ q_color }}-400 hover:text-white rounded-xl border border-{{ q_color }}-600/30 transition-all duration-300">
+                                    <div class="text-center">
+                                        <h4 class="text-xs font-black uppercase tracking-widest">GET {{ q }} FILES</h4>
+                                    </div>
+                                </a>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
 
     <!-- Content Groups -->
     <div class="space-y-16">
-        <div class="flex items-center gap-4">
-            <div class="w-12 h-12 rounded-2xl bg-red-600 flex items-center justify-center shadow-2xl glow-red">
-                <i class="fa-solid fa-cloud-arrow-down text-xl"></i>
-            </div>
-            <h2 class="text-4xl font-black tracking-tighter uppercase">Media <span class="text-red-600">Assets</span></h2>
-        </div>
-
-        {% if anime.seasons_links %}
-        <div class="glass rounded-[2rem] p-8 md:p-10 border border-white/5 shadow-xl relative overflow-hidden">
-            <div class="relative z-10">
-                <div class="flex items-center gap-3 mb-8">
-                    <span class="text-red-600 text-[11px] font-black uppercase tracking-[0.2em]">Select a Season</span>
-                </div>
-
-                <div class="flex flex-wrap gap-3 mb-10">
-                    {% for season, links in anime.seasons_links.items() %}
-                    <button onclick="showSeason('{{ season|slugify }}')" id="btn-{{ season|slugify }}"
-                            class="season-btn px-8 py-4 rounded-full font-black text-[11px] uppercase tracking-widest flex items-center gap-3 transition-all border border-white/5 shadow-2xl active:scale-95">
-                        <i class="fa-solid fa-play-circle text-sm"></i> {{ season }}
-                    </button>
-                    {% endfor %}
-                </div>
-
-                {% for season, links in anime.seasons_links.items() %}
-                <div id="season-{{ season|slugify }}" class="season-content hidden animate-fade-in">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {% for q, url in links.items() %}
-                            {% if url %}
-                            {% set q_color = 'blue' if '480' in q else ('purple' if '720' in q else 'red') %}
-                            <a href="/dl?url={{ url|urlencode }}" target="_blank"
-                               class="group/tile relative p-6 bg-white/5 rounded-2xl border border-white/5 hover:border-{{ q_color }}-600 transition-all duration-300 overflow-hidden">
-                                <div class="relative z-10 text-center">
-                                    <span class="text-{{ q_color }}-500 text-[10px] font-black uppercase tracking-[0.2em] mb-2 block">{{ q }} QUALITY</span>
-                                    <h4 class="text-xl font-black uppercase tracking-tight">GET FILES</h4>
-                                </div>
-                            </a>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
         <!-- Custom Buttons -->
         {% if anime.custom_buttons %}
         <div class="glass rounded-[2rem] p-6 md:p-10 border border-white/5 shadow-2xl">
