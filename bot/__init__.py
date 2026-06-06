@@ -267,6 +267,7 @@ def register_handlers(bot: Client):
             buttons = [
                 [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{slug}")],
                 [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{slug}")],
+                [InlineKeyboardButton("📂 Change Category", callback_data=f"manage_category_{slug}")],
                 [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{slug}")],
                 [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{slug}")],
                 [InlineKeyboardButton("🗑 Purge Archive", callback_data=f"confirm_purge_{slug}")],
@@ -596,6 +597,47 @@ def register_handlers(bot: Client):
         user_state[callback_query.from_user.id] = {"action": "ask_new_btn_name", "slug": slug}
         await callback_query.message.edit_text("🖇 **New Button Name:**\n*(e.g. Watch Online, Join Channel)*", reply_markup=None)
 
+    @bot.on_callback_query(filters.regex("^manage_category_"))
+    async def manage_category_cb(client, callback_query):
+        slug = callback_query.data.split("manage_category_")[-1]
+        anime = await db.get_anime_by_slug(slug)
+        if not anime: return await callback_query.answer("❌ Not Found", show_alert=True)
+
+        cats = await db.get_all_categories()
+        current_cat = anime.get("category", "N/A")
+
+        buttons = []
+        for c in cats:
+            name = c['name']
+            label = f"✅ {name}" if name == current_cat else name
+            buttons.append([InlineKeyboardButton(label, callback_data=f"setncat_{slug}:::{name}")])
+
+        buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{slug}")])
+        await callback_query.message.edit_text(
+            f"📂 **Migrate Category: {anime['title']}**\n\n"
+            f"Current: `{current_cat}`\n\n"
+            "Select new destination category:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+
+    @bot.on_callback_query(filters.regex("^setncat_"))
+    async def set_new_category_cb(client, callback_query):
+        data = callback_query.data.split("setncat_")[-1]
+        slug, new_cat = data.split(":::")
+
+        try:
+            if await db.ping():
+                res = await db.anime.update_one({"slug": slug}, {"$set": {"category": new_cat}})
+                if res.modified_count:
+                    await callback_query.answer(f"🚀 Migrated to {new_cat}", show_alert=True)
+                    callback_query.data = f"back_to_edit_{slug}"
+                    return await back_to_edit_cb(client, callback_query)
+                await callback_query.answer("⚠️ Category remains unchanged.")
+            else:
+                await callback_query.answer("❌ Database Offline", show_alert=True)
+        except Exception as e:
+            await callback_query.answer(f"❌ Error: {e}", show_alert=True)
+
     @bot.on_callback_query(filters.regex("^back_to_edit_"))
     async def back_to_edit_cb(client, callback_query):
         slug = callback_query.data.split("back_to_edit_")[-1]
@@ -603,6 +645,7 @@ def register_handlers(bot: Client):
         buttons = [
             [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{slug}")],
             [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{slug}")],
+            [InlineKeyboardButton("📂 Change Category", callback_data=f"manage_category_{slug}")],
             [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{slug}")],
             [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{slug}")],
             [InlineKeyboardButton("🗑 Purge Archive", callback_data=f"confirm_purge_{slug}")],
