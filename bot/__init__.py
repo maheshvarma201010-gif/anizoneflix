@@ -243,10 +243,9 @@ def register_handlers(bot: Client):
             logger.error(f"Add Post Error: {e}")
             await msg.edit("❌ **Rapid Deployment Failure.**")
 
-    @bot.on_message(filters.command("edit"))
-    async def edit_handler(client, message):
-        if not message.from_user: return
-        if not await is_authorized(message.from_user.id):
+    @bot.on_message(filters.command(["edit", "edit_m"]))
+    async def unified_edit_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id):
             return await message.reply("🚫 **Unauthorized.**")
 
         query = " ".join(message.command[1:]).strip()
@@ -266,17 +265,22 @@ def register_handlers(bot: Client):
             if not anime: return await message.reply(f"❌ **Not Found:** `{slug}`")
 
             buttons = [
-                [InlineKeyboardButton("💎 Add Group", callback_data=f"add_group_yes_{slug}")],
-                [InlineKeyboardButton("📝 Edit Groups", callback_data=f"manage_groups_{slug}")],
+                [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{slug}")],
+                [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{slug}")],
                 [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{slug}")],
                 [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{slug}")],
-                [InlineKeyboardButton("🗑 Purge", callback_data=f"confirm_purge_{slug}")],
+                [InlineKeyboardButton("🗑 Purge Archive", callback_data=f"confirm_purge_{slug}")],
                 [InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
             ]
-            await message.reply(f"🏛 **Management: {anime['title']}**\nSlug: `{slug}`", reply_markup=InlineKeyboardMarkup(buttons))
+            await message.reply(
+                f"🏛 **Executive Suite: {anime['title']}**\n"
+                f"Slug: `{slug}`\n\n"
+                "Select a sector to manage:",
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
         except Exception as e:
             logger.error(f"Edit Cmd Error: {e}")
-            await message.reply("❌ **Database Failure.**")
+            await message.reply("❌ **Intelligence Feed Offline.**")
 
     @bot.on_message(filters.command("change_poster"))
     async def change_poster_handler(client, message):
@@ -358,27 +362,6 @@ def register_handlers(bot: Client):
         user_state[message.from_user.id] = {"action": "ask_manual_title"}
         await message.reply("📝 **Step 1: Title**\nSend Title for the custom page:")
 
-    @bot.on_message(filters.command("edit_m"))
-    async def edit_m_handler(client, message):
-        if not message.from_user or not await is_authorized(message.from_user.id): return
-        query = message.text.split(" ", 1)[1] if len(message.text.split()) > 1 else ""
-        if not query and message.reply_to_message:
-            query = message.reply_to_message.text or message.reply_to_message.caption or ""
-
-        slug = extract_slug(query)
-        if not slug: return await message.reply("💡 **Usage:** `/edit_m <page_url>`")
-
-        anime = await db.get_anime_by_slug(slug)
-        if not anime: return await message.reply("❌ **Page not found in database.**")
-
-        buttons = [
-            [InlineKeyboardButton("📦 Add Custom Group", callback_data=f"add_cgrp_start_{slug}")],
-            [InlineKeyboardButton("➕ Add Custom Button", callback_data=f"add_btn_start_{slug}")],
-            [InlineKeyboardButton("📝 Manage Buttons", callback_data=f"manage_btns_{slug}")],
-            [InlineKeyboardButton("🛡 Back to Archive", callback_data=f"back_to_edit_{slug}")],
-            [InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
-        ]
-        await message.reply(f"🖇 **Custom Button Management: {anime['title']}**\nSelect an action:", reply_markup=InlineKeyboardMarkup(buttons))
 
     @bot.on_message(filters.command("save"))
     async def save_command_handler(client, message):
@@ -517,26 +500,53 @@ def register_handlers(bot: Client):
         if not anime: return await callback_query.answer("❌ Not Found", show_alert=True)
 
         groups = anime.get("seasons_links", {})
-        if not groups: return await callback_query.edit_message_text("❌ **No groups available to edit.**", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{slug}")]]))
-
-        # Store current groups in state for index-based access (prevents 64-byte callback limit issues)
         group_list = list(groups.keys())
         user_state[callback_query.from_user.id] = {"slug": slug, "group_names": group_list}
 
-        buttons = []
+        buttons = [[InlineKeyboardButton("➕ Add New Group", callback_data=f"add_cgrp_start_{slug}")]]
         for idx, gname in enumerate(group_list):
             display_name = (gname[:12] + '..') if len(gname) > 14 else gname
             row = [
-                InlineKeyboardButton(f"✏️ {display_name}", callback_data=f"rengidx_{idx}"),
+                InlineKeyboardButton(f"⚙️ {display_name}", callback_data=f"selgidx_{idx}"),
                 InlineKeyboardButton(f"🗑", callback_data=f"remgidx_{idx}")
             ]
             if idx > 0: row.append(InlineKeyboardButton("⬆️", callback_data=f"mvupg_{idx}"))
             if idx < len(group_list) - 1: row.append(InlineKeyboardButton("⬇️", callback_data=f"mvdng_{idx}"))
             buttons.append(row)
-            buttons.append([InlineKeyboardButton(f"🔗 Update Links: {display_name}", callback_data=f"editlidx_{idx}")])
 
         buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{slug}")])
-        await callback_query.message.edit_text(f"📝 **Manage Groups: {anime['title']}**\nUse arrows to reorder:", reply_markup=InlineKeyboardMarkup(buttons))
+        await callback_query.message.edit_text(f"📝 **Groups: {anime['title']}**\nSelect a group to manage buttons or reorder:", reply_markup=InlineKeyboardMarkup(buttons))
+
+    @bot.on_callback_query(filters.regex("^selgidx_"))
+    async def select_group_cb(client, callback_query):
+        idx = int(callback_query.data.split("_")[-1])
+        state = user_state.get(callback_query.from_user.id)
+        if not state: return await callback_query.answer("❌ Session Expired")
+
+        gname = state["group_names"][idx]
+        slug = state["slug"]
+        anime = await db.get_anime_by_slug(slug)
+        group_data = anime.get("seasons_links", {}).get(gname, {})
+
+        user_state[callback_query.from_user.id].update({"group_name": gname, "btn_labels": list(group_data.keys())})
+
+        buttons = [
+            [InlineKeyboardButton("➕ Add Button", callback_data=f"add_gbtn_start_{idx}")],
+            [InlineKeyboardButton("🏷 Rename Group", callback_data=f"rengidx_{idx}")],
+            [InlineKeyboardButton("🗑 Delete Group", callback_data=f"remgidx_{idx}")]
+        ]
+
+        for b_idx, label in enumerate(group_data.keys()):
+            row = [
+                InlineKeyboardButton(f"✏️ {label}", callback_data=f"egbtn_{idx}_{b_idx}"),
+                InlineKeyboardButton(f"🗑", callback_data=f"rgbtn_{idx}_{b_idx}")
+            ]
+            if b_idx > 0: row.append(InlineKeyboardButton("⬆️", callback_data=f"mvupgb_{idx}_{b_idx}"))
+            if b_idx < len(group_data) - 1: row.append(InlineKeyboardButton("⬇️", callback_data=f"mvdngb_{idx}_{b_idx}"))
+            buttons.append(row)
+
+        buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"manage_groups_{slug}")])
+        await callback_query.message.edit_text(f"📦 **Group: {gname}**\nManage internal buttons:", reply_markup=InlineKeyboardMarkup(buttons))
 
     @bot.on_callback_query(filters.regex("^manage_btns_"))
     async def manage_btns_cb(client, callback_query):
@@ -545,10 +555,9 @@ def register_handlers(bot: Client):
         if not anime: return await callback_query.answer("❌ Not Found", show_alert=True)
 
         btns = anime.get("custom_buttons", [])
-        if not btns: return await callback_query.edit_message_text("❌ **No custom buttons found.**", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛡 Back", callback_data=f"edit_m_back_{slug}")]]))
-
         user_state[callback_query.from_user.id] = {"slug": slug, "btns": btns}
-        buttons = []
+
+        buttons = [[InlineKeyboardButton("➕ Add New Button", callback_data=f"add_btn_start_{slug}")]]
         for idx, btn in enumerate(btns):
             display_name = (btn['name'][:12] + '..') if len(btn['name']) > 14 else btn['name']
             row = [
@@ -559,8 +568,8 @@ def register_handlers(bot: Client):
             if idx < len(btns) - 1: row.append(InlineKeyboardButton("⬇️", callback_data=f"mvdnb_{idx}"))
             buttons.append(row)
 
-        buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"edit_m_back_{slug}")])
-        await callback_query.message.edit_text(f"🖇 **Manage Buttons: {anime['title']}**\nUse arrows to reorder:", reply_markup=InlineKeyboardMarkup(buttons))
+        buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{slug}")])
+        await callback_query.message.edit_text(f"🖇 **External Redirects: {anime['title']}**\nManage top-level buttons:", reply_markup=InlineKeyboardMarkup(buttons))
 
     @bot.on_callback_query(filters.regex("^edit_m_back_"))
     async def edit_m_back_cb(client, callback_query):
@@ -592,14 +601,19 @@ def register_handlers(bot: Client):
         slug = callback_query.data.split("back_to_edit_")[-1]
         anime = await db.get_anime_by_slug(slug)
         buttons = [
-            [InlineKeyboardButton("💎 Add Group", callback_data=f"add_group_yes_{slug}")],
-            [InlineKeyboardButton("📝 Edit Groups", callback_data=f"manage_groups_{slug}")],
+            [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{slug}")],
+            [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{slug}")],
             [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{slug}")],
             [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{slug}")],
-            [InlineKeyboardButton("🗑 Purge", callback_data=f"confirm_purge_{slug}")],
+            [InlineKeyboardButton("🗑 Purge Archive", callback_data=f"confirm_purge_{slug}")],
             [InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
         ]
-        await callback_query.message.edit_text(f"🏛 **Management: {anime['title']}**\nSlug: `{slug}`", reply_markup=InlineKeyboardMarkup(buttons))
+        await callback_query.message.edit_text(
+            f"🏛 **Executive Suite: {anime['title']}**\n"
+            f"Slug: `{slug}`\n\n"
+            "Select a sector to manage:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
 
     @bot.on_callback_query(filters.regex("^setposb_"))
     async def set_pos_btn_cb(client, callback_query):
@@ -655,6 +669,36 @@ def register_handlers(bot: Client):
         await callback_query.message.edit_text(f"✅ **Group '{state['cgrp_name']}' synchronized at position {pos if pos != -1 else len(groups)}.**")
         del user_state[uid]
 
+    @bot.on_callback_query(filters.regex("^setposgb_"))
+    async def set_pos_group_btn_cb(client, callback_query):
+        uid = callback_query.from_user.id
+        state = user_state.get(uid)
+        if not state: return await callback_query.answer("❌ Session Expired")
+
+        data = callback_query.data.split("_")[-1]
+        g_idx = state["g_idx"]
+        anime = await db.get_anime_by_slug(state["slug"])
+        groups = list(anime.get("seasons_links", {}).items())
+        gname, gdata = groups[g_idx]
+        items = list(gdata.items())
+
+        if data == "select":
+            buttons = []
+            for i in range(len(items) + 1):
+                buttons.append(InlineKeyboardButton(str(i+1), callback_data=f"setposgb_{i}"))
+            rows = [buttons[i:i + 5] for i in range(0, len(buttons), 5)]
+            return await callback_query.message.edit_text("🎯 **Select insertion point:**", reply_markup=InlineKeyboardMarkup(rows))
+
+        pos = int(data)
+        new_btn = (state["new_label"], state["new_link"])
+        if pos == -1: items.append(new_btn)
+        else: items.insert(pos, new_btn)
+
+        groups[g_idx] = (gname, dict(items))
+        await db.anime.update_one({"slug": state["slug"]}, {"$set": {"seasons_links": dict(groups)}})
+        await callback_query.message.edit_text(f"✅ **Button '{state['new_label']}' synchronized in group '{gname}'.**")
+        del user_state[uid]
+
     @bot.on_callback_query(filters.regex("^setposg_"))
     async def set_pos_group_cb(client, callback_query):
         uid = callback_query.from_user.id
@@ -674,6 +718,83 @@ def register_handlers(bot: Client):
 
         user_state[uid].update({"action": "ask_edit_480p", "insert_pos": int(data)})
         await callback_query.message.edit_text(f"📦 **Configuring: {state['group_name']}**\n\n🛰 **480p Link** (or /skip):")
+
+    @bot.on_callback_query(filters.regex("^rgbtn_"))
+    async def remove_group_btn_cb(client, callback_query):
+        parts = callback_query.data.split("_")
+        g_idx, b_idx = int(parts[1]), int(parts[2])
+        state = user_state.get(callback_query.from_user.id)
+        if not state: return await callback_query.answer("❌ Session Expired")
+
+        slug = state["slug"]
+        anime = await db.get_anime_by_slug(slug)
+        groups = list(anime.get("seasons_links", {}).items())
+
+        gname, gdata = groups[g_idx]
+        btn_labels = list(gdata.keys())
+        label = btn_labels[b_idx]
+
+        del gdata[label]
+        groups[g_idx] = (gname, gdata)
+
+        await db.anime.update_one({"slug": slug}, {"$set": {"seasons_links": dict(groups)}})
+        await callback_query.answer(f"🗑 Removed {label}")
+        await select_group_cb(client, callback_query)
+
+    @bot.on_callback_query(filters.regex("^egbtn_"))
+    async def edit_group_btn_cb(client, callback_query):
+        parts = callback_query.data.split("_")
+        user_state[callback_query.from_user.id].update({
+            "action": "ask_edit_gbtn_label",
+            "g_idx": int(parts[1]),
+            "b_idx": int(parts[2])
+        })
+        await callback_query.message.edit_text("✏️ **New Label for this button:**\n*(or `/skip` to keep current)*", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^mvupgb_"))
+    async def move_gbtn_up_cb(client, callback_query):
+        parts = callback_query.data.split("_")
+        g_idx, b_idx = int(parts[1]), int(parts[2])
+        if b_idx == 0: return await callback_query.answer("🔝 Already at top")
+
+        state = user_state.get(callback_query.from_user.id)
+        slug = state["slug"]
+        anime = await db.get_anime_by_slug(slug)
+        groups = list(anime.get("seasons_links", {}).items())
+        gname, gdata = groups[g_idx]
+
+        items = list(gdata.items())
+        items[b_idx], items[b_idx-1] = items[b_idx-1], items[b_idx]
+        groups[g_idx] = (gname, dict(items))
+
+        await db.anime.update_one({"slug": slug}, {"$set": {"seasons_links": dict(groups)}})
+        await select_group_cb(client, callback_query)
+
+    @bot.on_callback_query(filters.regex("^mvdngb_"))
+    async def move_gbtn_dn_cb(client, callback_query):
+        parts = callback_query.data.split("_")
+        g_idx, b_idx = int(parts[1]), int(parts[2])
+
+        state = user_state.get(callback_query.from_user.id)
+        slug = state["slug"]
+        anime = await db.get_anime_by_slug(slug)
+        groups = list(anime.get("seasons_links", {}).items())
+        gname, gdata = groups[g_idx]
+
+        items = list(gdata.items())
+        if b_idx >= len(items) - 1: return await callback_query.answer("🔚 Already at bottom")
+
+        items[b_idx], items[b_idx+1] = items[b_idx+1], items[b_idx]
+        groups[g_idx] = (gname, dict(items))
+
+        await db.anime.update_one({"slug": slug}, {"$set": {"seasons_links": dict(groups)}})
+        await select_group_cb(client, callback_query)
+
+    @bot.on_callback_query(filters.regex("^add_gbtn_start_"))
+    async def add_gbtn_start_cb(client, callback_query):
+        g_idx = int(callback_query.data.split("_")[-1])
+        user_state[callback_query.from_user.id].update({"action": "ask_new_gbtn_label", "g_idx": g_idx})
+        await callback_query.message.edit_text("➕ **New Button Label:**\n*(e.g. 1080p, Mirror 1)*", reply_markup=None)
 
     @bot.on_callback_query(filters.regex("^rengidx_"))
     async def rename_group_cb(client, callback_query):
@@ -1039,6 +1160,34 @@ def register_handlers(bot: Client):
                         [InlineKeyboardButton("🎯 Select Position", callback_data="setposcg_select")]
                     ]
                     await message.reply(f"📍 **Position for group '{state['cgrp_name']}':**", reply_markup=InlineKeyboardMarkup(buttons))
+            elif action == "ask_new_gbtn_label":
+                user_state[uid].update({"action": "ask_new_gbtn_link", "new_label": message.text.strip()})
+                await message.reply(f"🔗 **URL for '{message.text.strip()}':**")
+            elif action == "ask_new_gbtn_link":
+                if not message.text.startswith("http"): return await message.reply("❌ Invalid URL.")
+                user_state[uid].update({"action": "ask_gbtn_pos", "new_link": message.text.strip()})
+                buttons = [
+                    [InlineKeyboardButton("🔝 Beginning", callback_data="setposgb_0"), InlineKeyboardButton("🔚 End", callback_data="setposgb_-1")],
+                    [InlineKeyboardButton("🎯 Select Position", callback_data="setposgb_select")]
+                ]
+                await message.reply("📍 **Position for the new button:**", reply_markup=InlineKeyboardMarkup(buttons))
+            elif action == "ask_edit_gbtn_label":
+                user_state[uid].update({"action": "ask_edit_gbtn_link", "new_label": message.text.strip()})
+                await message.reply("🔗 **New URL:**\n*(or `/skip` to keep current)*")
+            elif action == "ask_edit_gbtn_link":
+                g_idx, b_idx = state["g_idx"], state["b_idx"]
+                anime = await db.get_anime_by_slug(state["slug"])
+                groups = list(anime.get("seasons_links", {}).items())
+                gname, gdata = groups[g_idx]
+                items = list(gdata.items())
+                old_label, old_link = items[b_idx]
+                new_label = state["new_label"] if state["new_label"] != "/skip" else old_label
+                new_link = message.text.strip() if message.text != "/skip" else old_link
+                items[b_idx] = (new_label, new_link)
+                groups[g_idx] = (gname, dict(items))
+                await db.anime.update_one({"slug": state["slug"]}, {"$set": {"seasons_links": dict(groups)}})
+                await message.reply("✅ Button updated.")
+                del user_state[uid]
             elif action == "ask_sched_content":
                 if message.text != "/skip": await db.update_schedule(state["day"], message.text.strip())
                 await message.reply(f"✅ **Schedule Updated.**")
