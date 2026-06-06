@@ -372,6 +372,7 @@ def register_handlers(bot: Client):
         if not anime: return await message.reply("❌ **Page not found in database.**")
 
         buttons = [
+            [InlineKeyboardButton("📦 Add Custom Group", callback_data=f"add_cgrp_start_{slug}")],
             [InlineKeyboardButton("➕ Add Custom Button", callback_data=f"add_btn_start_{slug}")],
             [InlineKeyboardButton("📝 Manage Buttons", callback_data=f"manage_btns_{slug}")],
             [InlineKeyboardButton("🛡 Back to Archive", callback_data=f"back_to_edit_{slug}")],
@@ -566,12 +567,19 @@ def register_handlers(bot: Client):
         slug = callback_query.data.split("edit_m_back_")[-1]
         anime = await db.get_anime_by_slug(slug)
         buttons = [
+            [InlineKeyboardButton("📦 Add Custom Group", callback_data=f"add_cgrp_start_{slug}")],
             [InlineKeyboardButton("➕ Add Custom Button", callback_data=f"add_btn_start_{slug}")],
             [InlineKeyboardButton("📝 Manage Buttons", callback_data=f"manage_btns_{slug}")],
             [InlineKeyboardButton("🛡 Back to Archive", callback_data=f"back_to_edit_{slug}")],
             [InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
         ]
         await callback_query.message.edit_text(f"🖇 **Custom Button Management: {anime['title']}**", reply_markup=InlineKeyboardMarkup(buttons))
+
+    @bot.on_callback_query(filters.regex("^add_cgrp_start_"))
+    async def add_cgrp_start_cb(client, callback_query):
+        slug = callback_query.data.split("add_cgrp_start_")[-1]
+        user_state[callback_query.from_user.id] = {"action": "ask_cgrp_name", "slug": slug}
+        await callback_query.message.edit_text("📦 **Custom Group Name:**\n*(e.g. English Dub, Batch Links)*", reply_markup=None)
 
     @bot.on_callback_query(filters.regex("^add_btn_start_"))
     async def add_btn_start_cb(client, callback_query):
@@ -619,6 +627,32 @@ def register_handlers(bot: Client):
 
         await db.anime.update_one({"slug": state["slug"]}, {"$set": {"custom_buttons": btns}})
         await callback_query.message.edit_text(f"✅ **Button '{state['btn_name']}' synchronized at position {pos if pos != -1 else len(btns)}.**")
+        del user_state[uid]
+
+    @bot.on_callback_query(filters.regex("^setposcg_"))
+    async def set_pos_custom_group_cb(client, callback_query):
+        uid = callback_query.from_user.id
+        state = user_state.get(uid)
+        if not state: return await callback_query.answer("❌ Session Expired")
+
+        data = callback_query.data.split("_")[-1]
+        anime = await db.get_anime_by_slug(state["slug"])
+        groups = list(anime.get("seasons_links", {}).items())
+
+        if data == "select":
+            buttons = []
+            for i in range(len(groups) + 1):
+                buttons.append(InlineKeyboardButton(str(i+1), callback_data=f"setposcg_{i}"))
+            rows = [buttons[i:i + 5] for i in range(0, len(buttons), 5)]
+            return await callback_query.message.edit_text("🎯 **Select insertion point:**", reply_markup=InlineKeyboardMarkup(rows))
+
+        pos = int(data)
+        new_group = (state["cgrp_name"], state["cgrp_data"])
+        if pos == -1: groups.append(new_group)
+        else: groups.insert(pos, new_group)
+
+        await db.anime.update_one({"slug": state["slug"]}, {"$set": {"seasons_links": dict(groups)}})
+        await callback_query.message.edit_text(f"✅ **Group '{state['cgrp_name']}' synchronized at position {pos if pos != -1 else len(groups)}.**")
         del user_state[uid]
 
     @bot.on_callback_query(filters.regex("^setposg_"))
@@ -978,6 +1012,33 @@ def register_handlers(bot: Client):
                     [InlineKeyboardButton("🎯 Select Position", callback_data="setposb_select")]
                 ]
                 await message.reply("📍 **Position for the new button:**", reply_markup=InlineKeyboardMarkup(buttons))
+            elif action == "ask_cgrp_name":
+                user_state[uid].update({"action": "ask_cgrp_btn_count", "cgrp_name": message.text.strip()})
+                await message.reply(f"🖇 **How many buttons in '{message.text.strip()}'?**\nSend a number (e.g. 3):")
+            elif action == "ask_cgrp_btn_count":
+                try:
+                    count = int(message.text.strip())
+                    if count <= 0: return await message.reply("❌ Must be greater than 0.")
+                    user_state[uid].update({"action": "ask_cgrp_b_name", "btn_count": count, "current_idx": 1, "cgrp_data": {}})
+                    await message.reply(f"🏷 **Button 1 Label:**")
+                except: await message.reply("❌ Invalid number.")
+            elif action == "ask_cgrp_b_name":
+                user_state[uid].update({"action": "ask_cgrp_b_link", "temp_label": message.text.strip()})
+                await message.reply(f"🔗 **URL for '{message.text.strip()}':**")
+            elif action == "ask_cgrp_b_link":
+                if not message.text.startswith("http"): return await message.reply("❌ Invalid URL.")
+                state["cgrp_data"][state["temp_label"]] = message.text.strip()
+                if state["current_idx"] < state["btn_count"]:
+                    user_state[uid]["current_idx"] += 1
+                    user_state[uid]["action"] = "ask_cgrp_b_name"
+                    await message.reply(f"🏷 **Button {user_state[uid]['current_idx']} Label:**")
+                else:
+                    user_state[uid]["action"] = "ask_cgrp_pos"
+                    buttons = [
+                        [InlineKeyboardButton("🔝 Beginning", callback_data="setposcg_0"), InlineKeyboardButton("🔚 End", callback_data="setposcg_-1")],
+                        [InlineKeyboardButton("🎯 Select Position", callback_data="setposcg_select")]
+                    ]
+                    await message.reply(f"📍 **Position for group '{state['cgrp_name']}':**", reply_markup=InlineKeyboardMarkup(buttons))
             elif action == "ask_sched_content":
                 if message.text != "/skip": await db.update_schedule(state["day"], message.text.strip())
                 await message.reply(f"✅ **Schedule Updated.**")
