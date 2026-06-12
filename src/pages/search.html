@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="px-6 md:px-20 pt-32 pb-20 max-w-7xl mx-auto">
+    <div class="space-y-12">
+        <!-- Search Header -->
+        <div class="text-center space-y-4">
+            <h1 class="text-4xl md:text-6xl font-black uppercase tracking-tighter">Explore <span class="text-red-600">Library</span></h1>
+            <p class="text-gray-500 font-medium">Search across thousands of movies and web series.</p>
+        </div>
+
+        <!-- Filters -->
+        <form action="/search" method="GET" class="space-y-6">
+            <div class="relative max-w-3xl mx-auto">
+                <i class="fa-solid fa-search absolute left-6 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                <input type="text" name="q" value="{{ query }}" placeholder="Search title, genre, or OTT platform..."
+                       class="w-full bg-zinc-900 border border-white/10 rounded-2xl py-5 pl-16 pr-6 text-lg font-bold focus:border-red-600 focus:outline-none transition">
+            </div>
+
+            <div class="flex flex-wrap justify-center gap-4">
+                <select name="type" class="bg-zinc-900 border border-white/10 rounded-xl px-6 py-3 font-bold text-sm focus:border-red-600 outline-none transition">
+                    <option value="">All Types</option>
+                    <option value="movie">Movies</option>
+                    <option value="tv">Web Series</option>
+                </select>
+                <select name="year" class="bg-zinc-900 border border-white/10 rounded-xl px-6 py-3 font-bold text-sm focus:border-red-600 outline-none transition">
+                    <option value="">All Years</option>
+                    {% for y in range(2025, 1990, -1) %}
+                    <option value="{{ y }}">{{ y }}</option>
+                    {% endfor %}
+                </select>
+                <select name="genre" class="bg-zinc-900 border border-white/10 rounded-xl px-6 py-3 font-bold text-sm focus:border-red-600 outline-none transition">
+                    <option value="">All Genres</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.name }}">{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-black px-8 py-3 rounded-xl transition">APPLY FILTERS</button>
+            </div>
+        </form>
+
+        <!-- Results -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 md:gap-8">
+            {% for item in results %}
+            <a href="/watch/{{ item.slug }}" class="group block animate-fade-in" style="animation-delay: {{ loop.index0 * 0.05 }}s">
+                <div class="relative aspect-[2/3] rounded-xl overflow-hidden mb-3 shadow-xl border border-white/5 group-hover:border-red-600 transition duration-500">
+                    <img src="{{ item.image }}" class="w-full h-full object-cover group-hover:scale-110 transition duration-700" alt="{{ item.title }}" loading="lazy">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-4">
+                        <span class="bg-red-600 text-[8px] font-black w-fit px-2 py-1 rounded uppercase tracking-widest mb-2">Details</span>
+                    </div>
+                    <div class="absolute top-2 right-2 glass backdrop-blur px-2 py-1 rounded text-[10px] font-bold border border-white/10">
+                        {{ item.score or item.rating }}
+                    </div>
+                </div>
+                <h3 class="font-bold text-sm line-clamp-1 group-hover:text-red-500 transition">{{ item.title }}</h3>
+                <p class="text-[10px] text-gray-500 font-bold uppercase mt-1">{{ item.year }} • {{ item.type|upper }}</p>
+            </a>
+            {% else %}
+            <div class="col-span-full py-20 text-center space-y-4">
+                <i class="fa-solid fa-ghost text-6xl text-zinc-800"></i>
+                <p class="text-gray-500 font-bold">No results found for your search.</p>
+                <a href="/search" class="text-red-500 hover:underline font-bold">Clear Filters</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
