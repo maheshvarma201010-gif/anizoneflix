@@ -5,7 +5,7 @@ import logging
 import asyncio
 from bson import ObjectId
 
-logger = logging.getLogger("ANIZONEFLIX_DB")
+logger = logging.getLogger("OTT_DB")
 
 def clean_doc(doc):
     """Recursively convert ObjectId to string for JSON serialization"""
@@ -29,11 +29,11 @@ class Database:
     def __init__(self):
         self.client = None
         self._db = None
-        self._anime = None
+        self._media = None
         self._episodes = None
         self._users = None
         self._categories = None
-        self._schedules = None
+        self._settings = None
 
     async def connect(self):
         """Initialize connection with absolute persistence focus and retries"""
@@ -54,16 +54,16 @@ class Database:
                     connectTimeoutMS=30000,
                     retryWrites=True,
                     retryReads=True,
-                    appname="AniZoneFlix-Executive"
+                    appname="MovieOTT-Executive"
                 )
                 await self.client.admin.command('ping')
 
                 self._db = self.client[Config.DB_NAME]
-                self._anime = self._db.anime
+                self._media = self._db.media
                 self._episodes = self._db.episodes
                 self._users = self._db.users
                 self._categories = self._db.categories
-                self._schedules = self._db.schedules
+                self._settings = self._db.settings
 
                 logger.info(f"Database Persistence Verified: {Config.DB_NAME} is active.")
                 return
@@ -75,8 +75,8 @@ class Database:
                 await asyncio.sleep(attempt * 2)
 
     @property
-    def anime(self):
-        return self._anime if self._anime is not None else self.MockCollection("anime")
+    def media(self):
+        return self._media if self._media is not None else self.MockCollection("media")
 
     @property
     def episodes(self):
@@ -91,8 +91,8 @@ class Database:
         return self._categories if self._categories is not None else self.MockCollection("categories")
 
     @property
-    def schedules(self):
-        return self._schedules if self._schedules is not None else self.MockCollection("schedules")
+    def settings(self):
+        return self._settings if self._settings is not None else self.MockCollection("settings")
 
     class MockCollection:
         """Emergency layer to prevent system crashes if Atlas is unreachable"""
@@ -127,77 +127,80 @@ class Database:
 
     # --- Robust CRUD Methods (Persistence Focused) ---
 
-    async def add_anime(self, data):
+    async def add_media(self, data):
         try:
-            if self._anime is None: return None
-            return await self._anime.update_one({"mal_id": data["mal_id"]}, {"$set": data}, upsert=True)
+            if self._media is None: return None
+            # Using tmdb_id or similar unique identifier
+            uid = data.get("tmdb_id") or data.get("mal_id") or data.get("id")
+            return await self._media.update_one({"id": uid}, {"$set": data}, upsert=True)
         except Exception as e:
-            logger.error(f"Persistence Error (add_anime): {e}")
+            logger.error(f"Persistence Error (add_media): {e}")
             return None
 
-    async def get_anime_by_slug(self, slug):
+    async def get_media_by_slug(self, slug):
         try:
-            if self._anime is None: return None
-            doc = await self._anime.find_one({"slug": slug})
+            if self._media is None: return None
+            doc = await self._media.find_one({"slug": slug})
             return clean_doc(doc)
         except Exception as e:
-            logger.error(f"Read Error (get_anime_by_slug): {e}")
+            logger.error(f"Read Error (get_media_by_slug): {e}")
             return None
 
-    async def get_anime_by_mal_id(self, mal_id):
+    async def get_media_by_id(self, media_id):
         try:
-            if self._anime is None: return None
-            doc = await self._anime.find_one({"mal_id": mal_id})
+            if self._media is None: return None
+            doc = await self._media.find_one({"id": media_id})
             return clean_doc(doc)
         except Exception as e:
-            logger.error(f"Read Error (get_anime_by_mal_id): {e}")
+            logger.error(f"Read Error (get_media_by_id): {e}")
             return None
 
-    async def get_all_anime(self, limit=20, skip=0):
+    async def get_all_media(self, limit=20, skip=0, filters=None):
         try:
-            if self._anime is None: return []
-            cursor = self._anime.find().sort("_id", -1).skip(skip).limit(limit)
+            if self._media is None: return []
+            query = filters or {}
+            cursor = self._media.find(query).sort("_id", -1).skip(skip).limit(limit)
             docs = await cursor.to_list(length=limit)
             return clean_doc(docs) or []
         except Exception as e:
-            logger.error(f"Read Error (get_all_anime): {e}")
+            logger.error(f"Read Error (get_all_media): {e}")
             return []
 
-    async def search_anime_db(self, query):
+    async def search_media_db(self, query):
         try:
-            if self._anime is None: return []
-            cursor = self._anime.find({"title": {"$regex": query, "$options": "i"}})
+            if self._media is None: return []
+            cursor = self._media.find({"title": {"$regex": query, "$options": "i"}})
             docs = await cursor.to_list(length=20)
             return clean_doc(docs) or []
         except Exception as e:
-            logger.error(f"Read Error (search_anime_db): {e}")
+            logger.error(f"Read Error (search_media_db): {e}")
             return []
 
-    async def delete_anime_by_slug(self, slug):
+    async def delete_media_by_slug(self, slug):
         try:
-            if self._anime is None: return None
-            anime = await self.get_anime_by_slug(slug)
-            if anime:
+            if self._media is None: return None
+            media = await self.get_media_by_slug(slug)
+            if media:
                 if self._episodes is not None:
-                    await self._episodes.delete_many({"mal_id": anime["mal_id"]})
-            return await self._anime.delete_one({"slug": slug})
+                    await self._episodes.delete_many({"media_id": media["id"]})
+            return await self._media.delete_one({"slug": slug})
         except Exception as e:
-            logger.error(f"Sanitization Error (delete_anime_by_slug): {e}")
+            logger.error(f"Sanitization Error (delete_media_by_slug): {e}")
             return None
 
     async def add_episode(self, data):
         try:
             if self._episodes is None: return None
-            query = {"mal_id": data["mal_id"], "season": data.get("season"), "episode": data.get("episode"), "quality": data.get("quality")}
+            query = {"media_id": data["media_id"], "season": data.get("season"), "episode": data.get("episode"), "quality": data.get("quality")}
             return await self._episodes.update_one(query, {"$set": data}, upsert=True)
         except Exception as e:
             logger.error(f"Persistence Error (add_episode): {e}")
             return None
 
-    async def get_episodes(self, mal_id):
+    async def get_episodes(self, media_id):
         try:
             if self._episodes is None: return []
-            cursor = self._episodes.find({"mal_id": mal_id}).sort([("season", 1), ("episode", 1)])
+            cursor = self._episodes.find({"media_id": media_id}).sort([("season", 1), ("episode", 1)])
             docs = await cursor.to_list(length=1000)
             return clean_doc(docs) or []
         except Exception as e:
@@ -230,23 +233,6 @@ class Database:
             logger.error(f"Persistence Error (delete_category): {e}")
             return None
 
-    async def update_schedule(self, day, content):
-        try:
-            if self._schedules is None: return None
-            return await self._schedules.update_one({"day": day}, {"$set": {"content": content}}, upsert=True)
-        except Exception as e:
-            logger.error(f"Persistence Error (update_schedule): {e}")
-            return None
-
-    async def get_schedule(self, day):
-        try:
-            if self._schedules is None: return "No data synchronized."
-            res = await self._schedules.find_one({"day": day})
-            return res.get("content", "No data synchronized.") if res else "No data synchronized."
-        except Exception as e:
-            logger.error(f"Read Error (get_schedule): {e}")
-            return "Intelligence network offline."
-
     async def is_admin(self, user_id):
         try:
             if self._users is None: return False
@@ -259,11 +245,11 @@ class Database:
             if self._db is None: return None
             data = {}
             collections = {
-                "anime": self._anime,
+                "media": self._media,
                 "episodes": self._episodes,
                 "users": self._users,
                 "categories": self._categories,
-                "schedules": self._schedules
+                "settings": self._settings
             }
             total_found = 0
             for name, coll in collections.items():
@@ -273,7 +259,7 @@ class Database:
                     total_found += len(docs)
 
             if total_found == 0:
-                return {} # Return empty dict to indicate connected but empty
+                return {}
             return data
         except Exception as e:
             logger.error(f"Export Error: {e}")
@@ -283,14 +269,13 @@ class Database:
         try:
             if self._db is None: return False
             collections = {
-                "anime": self._anime,
+                "media": self._media,
                 "episodes": self._episodes,
                 "users": self._users,
                 "categories": self._categories,
-                "schedules": self._schedules
+                "settings": self._settings
             }
 
-            # Prepare data and validate before deleting
             to_import = {}
             for name, docs in data.items():
                 coll = collections.get(name)
@@ -303,7 +288,6 @@ class Database:
                         processed_docs.append(doc)
                     to_import[name] = processed_docs
 
-            # Now perform deletions and insertions
             for name, processed_docs in to_import.items():
                 coll = collections.get(name)
                 await coll.delete_many({})

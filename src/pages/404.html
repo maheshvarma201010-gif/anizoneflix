@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="min-h-[80vh] flex flex-col items-center justify-center text-center px-6">
+    <h1 class="text-[150px] md:text-[250px] font-black tracking-tighter text-white/5 leading-none absolute z-0 select-none">404</h1>
+    <div class="relative z-10 space-y-6">
+        <h2 class="text-4xl md:text-6xl font-black uppercase tracking-tighter">Lost in <span class="text-red-600">Space?</span></h2>
+        <p class="text-gray-500 font-medium text-lg max-w-md mx-auto">The page you're looking for has moved to another galaxy or never existed.</p>
+        <a href="/" class="inline-block bg-red-600 hover:bg-red-700 text-white font-black px-10 py-4 rounded-xl transition-all hover:scale-105 active:scale-95">BACK TO HOMEBASE</a>
+    </div>
+</div>
+{% endblock %}
