@@ -100,11 +100,18 @@ def register_handlers(bot: Client):
         media = await db.get_media_by_slug(slug)
         if not media: return await message.reply("❌ Not found.")
         buttons = [
-            [InlineKeyboardButton("🖼 Change Poster", callback_data=f"et_poster_{slug}"),
-             InlineKeyboardButton("🏷 Change Title", callback_data=f"et_title_{slug}")],
-            [InlineKeyboardButton("📅 Change Year", callback_data=f"et_year_{slug}"),
-             InlineKeyboardButton("📂 Change Genres", callback_data=f"et_genres_{slug}")],
-            [InlineKeyboardButton("📝 Change Synopsis", callback_data=f"et_syno_{slug}")],
+            [InlineKeyboardButton("🖼 Poster", callback_data=f"et_poster_{slug}"),
+             InlineKeyboardButton("🏷 Title", callback_data=f"et_title_{slug}")],
+            [InlineKeyboardButton("📅 Year", callback_data=f"et_year_{slug}"),
+             InlineKeyboardButton("📂 Genres", callback_data=f"et_genres_{slug}")],
+            [InlineKeyboardButton("🎬 Director", callback_data=f"et_director_{slug}"),
+             InlineKeyboardButton("🎭 Cast", callback_data=f"et_cast_{slug}")],
+            [InlineKeyboardButton("⭐ Score", callback_data=f"et_score_{slug}"),
+             InlineKeyboardButton("⏱ Runtime", callback_data=f"et_runtime_{slug}")],
+            [InlineKeyboardButton("📺 Trailer", callback_data=f"et_trailer_{slug}"),
+             InlineKeyboardButton("📊 Status", callback_data=f"et_status_{slug}")],
+            [InlineKeyboardButton("📝 Synopsis", callback_data=f"et_syno_{slug}"),
+             InlineKeyboardButton("🎥 Type", callback_data=f"et_type_{slug}")],
             [InlineKeyboardButton("🗑 DELETE MEDIA", callback_data=f"confirm_del_{slug}")]
         ]
         await message.reply_text(f"🛠 **Editing:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
@@ -233,6 +240,27 @@ def register_handlers(bot: Client):
             elif cmd == "genres":
                 user_state[uid] = {"action": "ask_genres_edit", "slug": slug}
                 await cb.message.edit_text("📂 Send **New Genres** (comma separated):")
+            elif cmd == "director":
+                user_state[uid] = {"action": "ask_director", "slug": slug}
+                await cb.message.edit_text("🎬 Send **Director Name**:")
+            elif cmd == "cast":
+                user_state[uid] = {"action": "ask_cast", "slug": slug}
+                await cb.message.edit_text("🎭 Send **Cast** (comma separated):")
+            elif cmd == "score":
+                user_state[uid] = {"action": "ask_score", "slug": slug}
+                await cb.message.edit_text("⭐ Send **Score** (e.g. 8.5):")
+            elif cmd == "runtime":
+                user_state[uid] = {"action": "ask_runtime", "slug": slug}
+                await cb.message.edit_text("⏱ Send **Runtime** (e.g. 120 min):")
+            elif cmd == "trailer":
+                user_state[uid] = {"action": "ask_trailer", "slug": slug}
+                await cb.message.edit_text("📺 Send **Trailer URL**:")
+            elif cmd == "status":
+                user_state[uid] = {"action": "ask_status", "slug": slug}
+                await cb.message.edit_text("📊 Send **Status** (e.g. Ongoing, Completed):")
+            elif cmd == "type":
+                user_state[uid] = {"action": "ask_type", "slug": slug}
+                await cb.message.edit_text("🎥 Send **Type** (movie/tv):")
 
         elif data.startswith("m_addg_"):
             slug = data.replace("m_addg_", "")
@@ -365,6 +393,43 @@ def register_handlers(bot: Client):
             genres = [g.strip() for g in message.text.split(",") if g.strip()]
             await db.media.update_one({"slug": slug}, {"$set": {"genres": genres}})
             await message.reply(f"✅ Genres updated: {', '.join(genres)}")
+            user_state.pop(uid, None)
+        elif action == "ask_director":
+            await db.media.update_one({"slug": slug}, {"$set": {"director": message.text.strip()}})
+            await message.reply("✅ Director updated.")
+            user_state.pop(uid, None)
+        elif action == "ask_cast":
+            cast = [c.strip() for c in message.text.split(",") if c.strip()]
+            await db.media.update_one({"slug": slug}, {"$set": {"cast": cast}})
+            await message.reply("✅ Cast updated.")
+            user_state.pop(uid, None)
+        elif action == "ask_score":
+            try:
+                score = float(message.text.strip())
+                await db.media.update_one({"slug": slug}, {"$set": {"score": score}})
+                await message.reply("✅ Score updated.")
+            except:
+                await message.reply("❌ Invalid score.")
+            user_state.pop(uid, None)
+        elif action == "ask_runtime":
+            await db.media.update_one({"slug": slug}, {"$set": {"runtime": message.text.strip()}})
+            await message.reply("✅ Runtime updated.")
+            user_state.pop(uid, None)
+        elif action == "ask_trailer":
+            await db.media.update_one({"slug": slug}, {"$set": {"trailer": message.text.strip()}})
+            await message.reply("✅ Trailer updated.")
+            user_state.pop(uid, None)
+        elif action == "ask_status":
+            await db.media.update_one({"slug": slug}, {"$set": {"status": message.text.strip()}})
+            await message.reply("✅ Status updated.")
+            user_state.pop(uid, None)
+        elif action == "ask_type":
+            mtype = message.text.strip().lower()
+            if mtype in ["movie", "tv"]:
+                await db.media.update_one({"slug": slug}, {"$set": {"type": mtype}})
+                await message.reply(f"✅ Type updated to {mtype}.")
+            else:
+                await message.reply("❌ Type must be 'movie' or 'tv'.")
             user_state.pop(uid, None)
         elif action == "ask_gname":
             user_state[uid].update({"gname": message.text.strip(), "action": "ask_btn_count"})
