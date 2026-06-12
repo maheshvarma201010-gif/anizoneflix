@@ -28,6 +28,9 @@ async def lifespan(app: FastAPI):
         await db.connect()
         loop = asyncio.get_running_loop()
         bot.loop = loop
+        if hasattr(bot, "dispatcher"):
+            bot.dispatcher.loop = loop
+
         register_handlers(bot)
         await bot.start()
         await set_commands(bot)
@@ -80,8 +83,10 @@ def safe_api_response(success=True, data=None, message=""):
 
 # --- WEB ROUTES ---
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def index(request: Request):
+    if request.method == "HEAD":
+        return Response(status_code=200)
     try:
         trending = await db.get_all_media(limit=10)
         popular_movies = await db.get_all_media(limit=10, filters={"type": "movie"})
