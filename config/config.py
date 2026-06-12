@@ -10,10 +10,10 @@ class Config:
 
     # Database Configuration
     MONGO_URI = os.getenv("MONGO_URI", "")
-    DB_NAME = os.getenv("DB_NAME", "movieott")
+    DB_NAME = os.getenv("DB_NAME", "movieszoneflix")
 
     # Core Identity
-    BASE_URL = os.getenv("BASE_URL", "https://movieott.onrender.com")
+    BASE_URL = os.getenv("BASE_URL", "https://movieszoneflix.onrender.com")
     PORT = int(os.getenv("PORT", 10000))
     LOGO_URL = os.getenv("LOGO_URL", "https://telegra.ph/file/0c1737e466395b3531b78.jpg")
 

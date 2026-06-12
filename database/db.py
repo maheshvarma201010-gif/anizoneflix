@@ -54,7 +54,7 @@ class Database:
                     connectTimeoutMS=30000,
                     retryWrites=True,
                     retryReads=True,
-                    appname="MovieOTT-Executive"
+                    appname="MoviesZoneFlix-Executive"
                 )
                 await self.client.admin.command('ping')
 

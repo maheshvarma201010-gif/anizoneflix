@@ -1,6 +1,6 @@
-# MovieOTT Deployment Guide
+# MoviesZoneFlix Deployment Guide
 
-This guide provides instructions for deploying MovieOTT.
+This guide provides instructions for deploying MoviesZoneFlix.
 
 ## Environment Variables
 | Variable | Description |
@@ -15,6 +15,6 @@ This guide provides instructions for deploying MovieOTT.
 
 ## Docker
 ```bash
-docker build -t movieott .
-docker run -p 10000:10000 --env-file .env movieott
+docker build -t movieszoneflix .
+docker run -p 10000:10000 --env-file .env movieszoneflix
 ```

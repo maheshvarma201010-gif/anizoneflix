@@ -1,4 +1,4 @@
-const CACHE_NAME = 'movieott-v1';
+const CACHE_NAME = 'movieszoneflix-v1';
 const ASSETS = [
   '/',
   '/static/manifest.json'

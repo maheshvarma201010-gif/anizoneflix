@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
 
 # --- APP INITIALIZATION ---
 
-app = FastAPI(title="MovieOTT", lifespan=lifespan)
+app = FastAPI(title="MoviesZoneFlix", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -99,7 +99,7 @@ async def index(request: Request):
             "popular_series": popular_series or [],
             "categories": categories or [],
             "logo_url": Config.LOGO_URL,
-            "site_name": "MovieOTT",
+            "site_name": "MoviesZoneFlix",
             "tmdb_key": Config.TMDB_API_KEY,
             "omdb_key": Config.OMDB_API_KEY
         })
@@ -107,7 +107,7 @@ async def index(request: Request):
         logger.error(f"Index error: {e}")
         return templates.TemplateResponse(request=request, name="index.html", context={
             "trending": [], "popular_movies": [], "popular_series": [], "categories": [],
-            "logo_url": Config.LOGO_URL, "site_name": "MovieOTT"
+            "logo_url": Config.LOGO_URL, "site_name": "MoviesZoneFlix"
         })
 
 @app.get("/watch/{slug}")
@@ -125,7 +125,7 @@ async def media_detail(request: Request, slug: str):
             "episodes": episodes or [],
             "categories": categories or [],
             "logo_url": Config.LOGO_URL,
-            "site_name": "MovieOTT"
+            "site_name": "MoviesZoneFlix"
         })
     except Exception as e:
         logger.error(f"Detail error for {slug}: {e}")
@@ -158,7 +158,7 @@ async def search_web(request: Request, q: str = "", type: str = "", year: str = 
             "query": q,
             "categories": categories or [],
             "logo_url": Config.LOGO_URL,
-            "site_name": "MovieOTT"
+            "site_name": "MoviesZoneFlix"
         })
     except Exception as e:
         logger.error(f"Search error: {e}")
@@ -188,7 +188,7 @@ async def admin_login(request: Request, token: str = None):
 async def admin_dashboard(request: Request, admin=Depends(get_current_admin)):
     posts = await db.get_all_media(limit=100)
     return templates.TemplateResponse("admin_dashboard.html", {
-        "request": request, "posts": posts or [], "logo_url": Config.LOGO_URL, "site_name": "MovieOTT"
+        "request": request, "posts": posts or [], "logo_url": Config.LOGO_URL, "site_name": "MoviesZoneFlix"
     })
 
 if __name__ == "__main__":
