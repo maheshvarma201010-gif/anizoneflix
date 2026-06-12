@@ -18,12 +18,12 @@ from contextlib import asynccontextmanager
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("OTT_APP")
+logger = logging.getLogger("MZ_APP")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # STARTUP
-    logger.info("OTT Platform Engine starting...")
+    logger.info("MZ Platform Engine starting...")
     try:
         await db.connect()
         loop = asyncio.get_running_loop()

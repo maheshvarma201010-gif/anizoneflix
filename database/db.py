@@ -5,7 +5,7 @@ import logging
 import asyncio
 from bson import ObjectId
 
-logger = logging.getLogger("OTT_DB")
+logger = logging.getLogger("MZ_DB")
 
 def clean_doc(doc):
     """Recursively convert ObjectId to string for JSON serialization"""

@@ -6,6 +6,7 @@ import zipfile
 import tempfile
 import traceback
 import re
+from urllib.parse import urljoin
 from io import BytesIO
 from pyrogram import Client, filters, enums, ContinuePropagation
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand, CallbackQuery
@@ -18,12 +19,12 @@ import aiohttp
 from bs4 import BeautifulSoup
 
 # Setup Logging
-logger = logging.getLogger("OTT_BOT")
+logger = logging.getLogger("MZ_BOT")
 logger.setLevel(logging.INFO)
 
 # Initialize the bot client
 bot = Client(
-    "movie_ott_bot",
+    "movieszoneflix_bot",
     api_id=Config.API_ID,
     api_hash=Config.API_HASH,
     bot_token=Config.BOT_TOKEN,
@@ -175,19 +176,24 @@ def register_handlers(bot: Client):
         user_state[message.from_user.id] = {"action": "ask_title", "type": m_type}
         await message.reply(f"📝 Send **Title** for the {m_type}:")
 
-    @bot.on_message(filters.command("posttochannel") & filters.private)
+    @bot.on_message(filters.command("posttochannel", ["/", "$"]) & filters.private)
     async def post_to_channel_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
         if len(message.command) < 3:
             return await message.reply("💡 Usage: `/posttochannel <channel_id> <link>`")
 
-        channel_id = message.command[1]
+        channel_id_str = message.command[1]
         link = message.command[2]
+
+        try:
+            channel_id = int(channel_id_str)
+        except ValueError:
+            channel_id = channel_id_str
         msg = await message.reply("⏳ Fetching metadata...")
 
         try:
             async with aiohttp.ClientSession(headers={"User-Agent": "MoviesZoneFlix/1.0"}) as session:
-                async with session.get(link, timeout=10) as resp:
+                async with session.get(link, timeout=15, ssl=False) as resp:
                     if resp.status != 200:
                         return await msg.edit(f"❌ Error: Status code {resp.status}")
                     html = await resp.text()
@@ -199,7 +205,8 @@ def register_handlers(bot: Client):
                 return tag.get("content") if tag else None
 
             title = get_meta("og:title") or soup.title.string if soup.title else "N/A"
-            image = get_meta("og:image")
+            image_raw = get_meta("og:image")
+            image = urljoin(link, image_raw) if image_raw else None
             description = get_meta("og:description") or "No description available."
 
             # Try to extract year and language from metadata or content
@@ -228,15 +235,22 @@ def register_handlers(bot: Client):
                 f"⚡ **Posted via Auto Bot (Image + Caption)**"
             )
 
-            if image:
-                await client.send_photo(channel_id, image, caption=caption)
-            else:
-                await client.send_message(channel_id, caption)
+            try:
+                if image:
+                    try:
+                        await client.send_photo(channel_id, image, caption=caption)
+                    except Exception as pe:
+                        logger.warning(f"send_photo failed: {pe}")
+                        await client.send_message(channel_id, caption)
+                else:
+                    await client.send_message(channel_id, caption)
 
-            await msg.edit(f"🚀 **Successfully posted to channel:** `{channel_id}`")
+                await msg.edit(f"🚀 **Successfully posted to channel:** `{channel_id}`")
+            except Exception as e:
+                await msg.edit(f"❌ **Telegram Error:** {str(e)}\n\n💡 *Make sure the bot is an admin in the channel and the ID is correct.*")
 
         except Exception as e:
-            await msg.edit(f"❌ Error: {str(e)}")
+            await msg.edit(f"❌ **Scraping Error:** {str(e)}")
             logger.error(traceback.format_exc())
 
     @bot.on_message(filters.command("cancel") & filters.private)

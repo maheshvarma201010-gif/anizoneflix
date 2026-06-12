@@ -3,7 +3,7 @@
 MoviesZoneFlix is an advanced streaming information portal and Telegram bot suite for Movies and Web Series.
 
 ## Features
-- Modern OTT-style UI with TailwindCSS and SwiperJS.
+- Modern professional UI with TailwindCSS and SwiperJS.
 - Multi-API integration (TMDB, TVMaze).
 - High-performance FastAPI backend.
 - Powerful Telegram Bot for content management.
