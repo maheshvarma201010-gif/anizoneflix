@@ -225,47 +225,68 @@ def register_handlers(bot: Client):
         elif data.startswith("et_"):
             parts = data.split("_", 2)
             cmd, slug = parts[1], parts[2]
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data=f"et_main_{slug}")]]
             if cmd == "poster":
                 user_state[uid] = {"action": "ask_poster", "slug": slug}
-                await cb.message.edit_text("🖼 Send **New Poster URL**:")
+                await cb.message.edit_text("🖼 Send **New Poster URL**:", reply_markup=InlineKeyboardMarkup(back_btn))
             elif cmd == "title":
                 user_state[uid] = {"action": "ask_title_edit", "slug": slug}
-                await cb.message.edit_text("🏷 Send **New Title**:")
+                await cb.message.edit_text("🏷 Send **New Title**:", reply_markup=InlineKeyboardMarkup(back_btn))
             elif cmd == "syno":
                 user_state[uid] = {"action": "ask_syno", "slug": slug}
-                await cb.message.edit_text("📝 Send **New Synopsis**:")
+                await cb.message.edit_text("📝 Send **New Synopsis**:", reply_markup=InlineKeyboardMarkup(back_btn))
             elif cmd == "year":
                 user_state[uid] = {"action": "ask_year_edit", "slug": slug}
-                await cb.message.edit_text("📅 Send **New Year**:")
+                await cb.message.edit_text("📅 Send **New Year**:", reply_markup=InlineKeyboardMarkup(back_btn))
             elif cmd == "genres":
                 user_state[uid] = {"action": "ask_genres_edit", "slug": slug}
-                await cb.message.edit_text("📂 Send **New Genres** (comma separated):")
+                await cb.message.edit_text("📂 Send **New Genres** (comma separated):", reply_markup=InlineKeyboardMarkup(back_btn))
             elif cmd == "director":
                 user_state[uid] = {"action": "ask_director", "slug": slug}
-                await cb.message.edit_text("🎬 Send **Director Name**:")
+                await cb.message.edit_text("🎬 Send **Director Name**:", reply_markup=InlineKeyboardMarkup(back_btn))
             elif cmd == "cast":
                 user_state[uid] = {"action": "ask_cast", "slug": slug}
-                await cb.message.edit_text("🎭 Send **Cast** (comma separated):")
+                await cb.message.edit_text("🎭 Send **Cast** (comma separated):", reply_markup=InlineKeyboardMarkup(back_btn))
             elif cmd == "score":
                 user_state[uid] = {"action": "ask_score", "slug": slug}
-                await cb.message.edit_text("⭐ Send **Score** (e.g. 8.5):")
+                await cb.message.edit_text("⭐ Send **Score** (e.g. 8.5):", reply_markup=InlineKeyboardMarkup(back_btn))
             elif cmd == "runtime":
                 user_state[uid] = {"action": "ask_runtime", "slug": slug}
-                await cb.message.edit_text("⏱ Send **Runtime** (e.g. 120 min):")
+                await cb.message.edit_text("⏱ Send **Runtime** (e.g. 120 min):", reply_markup=InlineKeyboardMarkup(back_btn))
             elif cmd == "trailer":
                 user_state[uid] = {"action": "ask_trailer", "slug": slug}
-                await cb.message.edit_text("📺 Send **Trailer URL**:")
+                await cb.message.edit_text("📺 Send **Trailer URL**:", reply_markup=InlineKeyboardMarkup(back_btn))
             elif cmd == "status":
                 user_state[uid] = {"action": "ask_status", "slug": slug}
-                await cb.message.edit_text("📊 Send **Status** (e.g. Ongoing, Completed):")
+                await cb.message.edit_text("📊 Send **Status** (e.g. Ongoing, Completed):", reply_markup=InlineKeyboardMarkup(back_btn))
             elif cmd == "type":
                 user_state[uid] = {"action": "ask_type", "slug": slug}
-                await cb.message.edit_text("🎥 Send **Type** (movie/tv):")
+                await cb.message.edit_text("🎥 Send **Type** (movie/tv):", reply_markup=InlineKeyboardMarkup(back_btn))
+            elif cmd == "main":
+                user_state.pop(uid, None)
+                media = await db.get_media_by_slug(slug)
+                buttons = [
+                    [InlineKeyboardButton("🖼 Poster", callback_data=f"et_poster_{slug}"),
+                     InlineKeyboardButton("🏷 Title", callback_data=f"et_title_{slug}")],
+                    [InlineKeyboardButton("📅 Year", callback_data=f"et_year_{slug}"),
+                     InlineKeyboardButton("📂 Genres", callback_data=f"et_genres_{slug}")],
+                    [InlineKeyboardButton("🎬 Director", callback_data=f"et_director_{slug}"),
+                     InlineKeyboardButton("🎭 Cast", callback_data=f"et_cast_{slug}")],
+                    [InlineKeyboardButton("⭐ Score", callback_data=f"et_score_{slug}"),
+                     InlineKeyboardButton("⏱ Runtime", callback_data=f"et_runtime_{slug}")],
+                    [InlineKeyboardButton("📺 Trailer", callback_data=f"et_trailer_{slug}"),
+                     InlineKeyboardButton("📊 Status", callback_data=f"et_status_{slug}")],
+                    [InlineKeyboardButton("📝 Synopsis", callback_data=f"et_syno_{slug}"),
+                     InlineKeyboardButton("🎥 Type", callback_data=f"et_type_{slug}")],
+                    [InlineKeyboardButton("🗑 DELETE MEDIA", callback_data=f"confirm_del_{slug}")]
+                ]
+                await cb.message.edit_text(f"🛠 **Editing:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
 
         elif data.startswith("m_addg_"):
             slug = data.replace("m_addg_", "")
             user_state[uid] = {"action": "ask_gname", "slug": slug}
-            await cb.message.edit_text("📦 Send **Group Name** (e.g. 1080p, Season 1):")
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data=f"m_back_{slug}")]]
+            await cb.message.edit_text("📦 Send **Group Name** (e.g. 1080p, Season 1):", reply_markup=InlineKeyboardMarkup(back_btn))
 
         elif data.startswith("m_mgrg_"):
             parts = data.split("_")
@@ -281,13 +302,15 @@ def register_handlers(bot: Client):
             parts = data.split("_")
             slug, gname = parts[2], "_".join(parts[3:])
             user_state[uid] = {"action": "ask_regname", "slug": slug, "old_gname": gname}
-            await cb.message.edit_text(f"📝 Send **New Name** for group `{gname}`:")
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data=f"m_mgrg_{slug}_{gname}")]]
+            await cb.message.edit_text(f"📝 Send **New Name** for group `{gname}`:", reply_markup=InlineKeyboardMarkup(back_btn))
 
         elif data.startswith("m_addl_"):
             parts = data.split("_")
             slug, gname = parts[2], "_".join(parts[3:])
             user_state[uid] = {"action": "ask_btn_count", "slug": slug, "gname": gname}
-            await cb.message.edit_text(f"🔢 How many buttons in group `{gname}`?")
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data=f"m_mgrg_{slug}_{gname}")]]
+            await cb.message.edit_text(f"🔢 How many buttons in group `{gname}`?", reply_markup=InlineKeyboardMarkup(back_btn))
 
         elif data.startswith("m_delg_"):
             parts = data.split("_")
