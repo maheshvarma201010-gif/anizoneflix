@@ -182,8 +182,15 @@ def register_handlers(bot: Client):
         if len(message.command) < 3:
             return await message.reply("💡 Usage: `/posttochannel <channel_id> <link>`")
 
-        channel_id_str = message.command[1]
-        link = message.command[2]
+        arg1 = message.command[1]
+        arg2 = message.command[2]
+
+        if arg1.startswith("http"):
+            link = arg1
+            channel_id_str = arg2
+        else:
+            channel_id_str = arg1
+            link = arg2
 
         try:
             channel_id = int(channel_id_str)
