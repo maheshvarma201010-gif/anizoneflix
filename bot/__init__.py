@@ -5,6 +5,7 @@ import json
 import zipfile
 import tempfile
 import traceback
+import re
 from io import BytesIO
 from pyrogram import Client, filters, enums, ContinuePropagation
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand, CallbackQuery
@@ -13,6 +14,8 @@ from config.config import Config
 from api.media_api import media_api
 from database.db import db
 from utils.utils import slugify
+import aiohttp
+from bs4 import BeautifulSoup
 
 # Setup Logging
 logger = logging.getLogger("OTT_BOT")
@@ -66,6 +69,7 @@ def register_handlers(bot: Client):
             "• `/add_series` — Manual Series\n"
             "• `/del <url/slug>` — Delete content\n"
             "• `/save` — Backup/Restore Database\n"
+            "• `/posttochannel <id> <link>` — Post to channel\n"
             "• `/categories` — Manage Genres\n"
             "• `/ping` — Status Check"
         )
@@ -170,6 +174,70 @@ def register_handlers(bot: Client):
         m_type = "movie" if "movie" in message.text else "tv"
         user_state[message.from_user.id] = {"action": "ask_title", "type": m_type}
         await message.reply(f"📝 Send **Title** for the {m_type}:")
+
+    @bot.on_message(filters.command("posttochannel") & filters.private)
+    async def post_to_channel_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        if len(message.command) < 3:
+            return await message.reply("💡 Usage: `/posttochannel <channel_id> <link>`")
+
+        channel_id = message.command[1]
+        link = message.command[2]
+        msg = await message.reply("⏳ Fetching metadata...")
+
+        try:
+            async with aiohttp.ClientSession(headers={"User-Agent": "MoviesZoneFlix/1.0"}) as session:
+                async with session.get(link, timeout=10) as resp:
+                    if resp.status != 200:
+                        return await msg.edit(f"❌ Error: Status code {resp.status}")
+                    html = await resp.text()
+
+            soup = BeautifulSoup(html, "html.parser")
+
+            def get_meta(property_name):
+                tag = soup.find("meta", property=property_name) or soup.find("meta", attrs={"name": property_name})
+                return tag.get("content") if tag else None
+
+            title = get_meta("og:title") or soup.title.string if soup.title else "N/A"
+            image = get_meta("og:image")
+            description = get_meta("og:description") or "No description available."
+
+            # Try to extract year and language from metadata or content
+            # These are usually in custom meta tags or within the title
+            year = "N/A"
+            language = "N/A"
+
+            # Simple heuristic for year (4 digits in title)
+            year_match = re.search(r"\((\d{4})\)", title) or re.search(r"\b(19|20)\d{2}\b", title)
+            if year_match:
+                year = year_match.group(0).strip("()")
+
+            # Check for language in title or specific meta
+            for lang in ["Hindi", "English", "Tamil", "Telugu", "Malayalam", "Kannada", "Bengali"]:
+                if lang.lower() in title.lower():
+                    language = lang
+                    break
+
+            caption = (
+                f"🎬 **Title:** {title}\n"
+                f"📅 **Year:** {year}\n"
+                f"🌐 **Language:** {language}\n\n"
+                f"📝 **Description:**\n{description}\n\n"
+                f"🔗 **Watch Now:**\n{link}\n\n"
+                f"━━━━━━━━━━━━━━\n"
+                f"⚡ **Posted via Auto Bot (Image + Caption)**"
+            )
+
+            if image:
+                await client.send_photo(channel_id, image, caption=caption)
+            else:
+                await client.send_message(channel_id, caption)
+
+            await msg.edit(f"🚀 **Successfully posted to channel:** `{channel_id}`")
+
+        except Exception as e:
+            await msg.edit(f"❌ Error: {str(e)}")
+            logger.error(traceback.format_exc())
 
     @bot.on_message(filters.command("cancel") & filters.private)
     async def cancel_cmd(client, message):
@@ -508,6 +576,7 @@ async def set_commands(client: Client):
             BotCommand("edit_m", "Manage Servers"),
             BotCommand("del", "Delete Content"),
             BotCommand("save", "Backup/Restore"),
+            BotCommand("posttochannel", "Post link to channel"),
             BotCommand("categories", "Manage Genres"),
             BotCommand("cancel", "Cancel Process")
         ])
