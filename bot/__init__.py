@@ -57,7 +57,7 @@ def register_handlers(bot: Client):
     @bot.on_message(filters.command("start") & filters.private)
     async def start_cmd(client, message):
         await message.reply_text(
-            "🎬 **MovieOTT Management Bot**\n\n"
+            "🎬 **MoviesZoneFlix Management Bot**\n\n"
             "Admin Commands:\n"
             "• `/search <query>` — Import from TMDB\n"
             "• `/edit <url/slug>` — Edit metadata/poster\n"
@@ -100,8 +100,10 @@ def register_handlers(bot: Client):
         media = await db.get_media_by_slug(slug)
         if not media: return await message.reply("❌ Not found.")
         buttons = [
-            [InlineKeyboardButton("🖼 Change Poster", callback_data=f"et_poster_{slug}")],
-            [InlineKeyboardButton("🏷 Change Title", callback_data=f"et_title_{slug}")],
+            [InlineKeyboardButton("🖼 Change Poster", callback_data=f"et_poster_{slug}"),
+             InlineKeyboardButton("🏷 Change Title", callback_data=f"et_title_{slug}")],
+            [InlineKeyboardButton("📅 Change Year", callback_data=f"et_year_{slug}"),
+             InlineKeyboardButton("📂 Change Genres", callback_data=f"et_genres_{slug}")],
             [InlineKeyboardButton("📝 Change Synopsis", callback_data=f"et_syno_{slug}")],
             [InlineKeyboardButton("🗑 DELETE MEDIA", callback_data=f"confirm_del_{slug}")]
         ]
@@ -116,11 +118,13 @@ def register_handlers(bot: Client):
         media = await db.get_media_by_slug(slug)
         if not media: return await message.reply("❌ Not found.")
         buttons = [[InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}")]]
-        for gname in media.get("seasons_links", {}).keys():
-            buttons.append([
-                InlineKeyboardButton(f"⚙️ {gname}", callback_data=f"m_mgrg_{slug}_{gname}"),
-                InlineKeyboardButton("🗑", callback_data=f"m_delg_{slug}_{gname}")
-            ])
+        links = media.get("seasons_links", {})
+        if isinstance(links, dict):
+            for gname in links.keys():
+                buttons.append([
+                    InlineKeyboardButton(f"⚙️ {gname}", callback_data=f"m_mgrg_{slug}_{gname}"),
+                    InlineKeyboardButton("🗑", callback_data=f"m_delg_{slug}_{gname}")
+                ])
         await message.reply_text(f"🔗 **Servers:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
 
     @bot.on_message(filters.command("del") & filters.private)
@@ -223,11 +227,69 @@ def register_handlers(bot: Client):
             elif cmd == "syno":
                 user_state[uid] = {"action": "ask_syno", "slug": slug}
                 await cb.message.edit_text("📝 Send **New Synopsis**:")
+            elif cmd == "year":
+                user_state[uid] = {"action": "ask_year_edit", "slug": slug}
+                await cb.message.edit_text("📅 Send **New Year**:")
+            elif cmd == "genres":
+                user_state[uid] = {"action": "ask_genres_edit", "slug": slug}
+                await cb.message.edit_text("📂 Send **New Genres** (comma separated):")
 
         elif data.startswith("m_addg_"):
             slug = data.replace("m_addg_", "")
             user_state[uid] = {"action": "ask_gname", "slug": slug}
             await cb.message.edit_text("📦 Send **Group Name** (e.g. 1080p, Season 1):")
+
+        elif data.startswith("m_mgrg_"):
+            parts = data.split("_")
+            slug, gname = parts[2], "_".join(parts[3:])
+            buttons = [
+                [InlineKeyboardButton("🏷 Rename Group", callback_data=f"m_reng_{slug}_{gname}")],
+                [InlineKeyboardButton("➕ Add/Update Links", callback_data=f"m_addl_{slug}_{gname}")],
+                [InlineKeyboardButton("⬅️ Back", callback_data=f"m_back_{slug}")]
+            ]
+            await cb.message.edit_text(f"⚙️ **Managing Group:** `{gname}`", reply_markup=InlineKeyboardMarkup(buttons))
+
+        elif data.startswith("m_reng_"):
+            parts = data.split("_")
+            slug, gname = parts[2], "_".join(parts[3:])
+            user_state[uid] = {"action": "ask_regname", "slug": slug, "old_gname": gname}
+            await cb.message.edit_text(f"📝 Send **New Name** for group `{gname}`:")
+
+        elif data.startswith("m_addl_"):
+            parts = data.split("_")
+            slug, gname = parts[2], "_".join(parts[3:])
+            user_state[uid] = {"action": "ask_btn_count", "slug": slug, "gname": gname}
+            await cb.message.edit_text(f"🔢 How many buttons in group `{gname}`?")
+
+        elif data.startswith("m_delg_"):
+            parts = data.split("_")
+            slug, gname = parts[2], "_".join(parts[3:])
+            media = await db.get_media_by_slug(slug)
+            links = media.get("seasons_links", {})
+            if gname in links:
+                del links[gname]
+                await db.media.update_one({"slug": slug}, {"$set": {"seasons_links": links}})
+                await cb.answer(f"🗑 Group {gname} deleted.")
+                # Refresh UI
+                buttons = [[InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}")]]
+                for gn in links.keys():
+                    buttons.append([
+                        InlineKeyboardButton(f"⚙️ {gn}", callback_data=f"m_mgrg_{slug}_{gn}"),
+                        InlineKeyboardButton("🗑", callback_data=f"m_delg_{slug}_{gn}")
+                    ])
+                await cb.message.edit_text(f"🔗 **Servers:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
+
+        elif data.startswith("m_back_"):
+            slug = data.replace("m_back_", "")
+            media = await db.get_media_by_slug(slug)
+            buttons = [[InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}")]]
+            links = media.get("seasons_links", {})
+            for gn in links.keys():
+                buttons.append([
+                    InlineKeyboardButton(f"⚙️ {gn}", callback_data=f"m_mgrg_{slug}_{gn}"),
+                    InlineKeyboardButton("🗑", callback_data=f"m_delg_{slug}_{gn}")
+                ])
+            await cb.message.edit_text(f"🔗 **Servers:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
 
         elif data.startswith("execute_del_"):
             slug = data.replace("execute_del_", "")
@@ -295,16 +357,55 @@ def register_handlers(bot: Client):
             await db.media.update_one({"slug": slug}, {"$set": {"synopsis": message.text.strip()}})
             await message.reply("✅ Synopsis updated.")
             user_state.pop(uid, None)
+        elif action == "ask_year_edit":
+            await db.media.update_one({"slug": slug}, {"$set": {"year": message.text.strip()}})
+            await message.reply("✅ Year updated.")
+            user_state.pop(uid, None)
+        elif action == "ask_genres_edit":
+            genres = [g.strip() for g in message.text.split(",") if g.strip()]
+            await db.media.update_one({"slug": slug}, {"$set": {"genres": genres}})
+            await message.reply(f"✅ Genres updated: {', '.join(genres)}")
+            user_state.pop(uid, None)
         elif action == "ask_gname":
-            user_state[uid].update({"gname": message.text.strip(), "action": "ask_glink"})
-            await message.reply(f"🔗 Send Direct Link for `{message.text}`:")
-        elif action == "ask_glink":
+            user_state[uid].update({"gname": message.text.strip(), "action": "ask_btn_count"})
+            await message.reply(f"🔢 How many buttons in group `{message.text}`?")
+        elif action == "ask_regname":
+            new_gname = message.text.strip()
+            old_gname = state["old_gname"]
             media = await db.get_media_by_slug(slug)
             links = media.get("seasons_links", {})
-            links[state["gname"]] = {"Server 1": message.text.strip()}
-            await db.media.update_one({"slug": slug}, {"$set": {"seasons_links": links}})
-            await message.reply("✅ Group added.")
+            if old_gname in links:
+                links[new_gname] = links.pop(old_gname)
+                await db.media.update_one({"slug": slug}, {"$set": {"seasons_links": links}})
+                await message.reply(f"✅ Group renamed to `{new_gname}`")
             user_state.pop(uid, None)
+        elif action == "ask_btn_count":
+            try:
+                count = int(message.text.strip())
+                user_state[uid].update({"btn_count": count, "current_btn": 1, "new_links": {}, "action": "ask_btn_name"})
+                await message.reply(f"🏷 Send Name for Button 1:")
+            except:
+                await message.reply("❌ Send a valid number.")
+        elif action == "ask_btn_name":
+            user_state[uid]["temp_btn_name"] = message.text.strip()
+            user_state[uid]["action"] = "ask_btn_link"
+            await message.reply(f"🔗 Send Link for `{message.text}`:")
+        elif action == "ask_btn_link":
+            name = state["temp_btn_name"]
+            link = message.text.strip()
+            user_state[uid]["new_links"][name] = link
+
+            if state["current_btn"] < state["btn_count"]:
+                user_state[uid]["current_btn"] += 1
+                user_state[uid]["action"] = "ask_btn_name"
+                await message.reply(f"🏷 Send Name for Button {user_state[uid]['current_btn']}:")
+            else:
+                media = await db.get_media_by_slug(slug)
+                links = media.get("seasons_links", {})
+                links[state["gname"]] = user_state[uid]["new_links"]
+                await db.media.update_one({"slug": slug}, {"$set": {"seasons_links": links}})
+                await message.reply(f"✅ Group `{state['gname']}` updated with {state['btn_count']} buttons.")
+                user_state.pop(uid, None)
         elif action == "ask_new_cat":
             await db.add_category(message.text.strip())
             await message.reply(f"✅ Category `{message.text}` added.")

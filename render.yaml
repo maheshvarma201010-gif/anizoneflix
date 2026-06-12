@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: movieott
+    name: movieszoneflix
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
@@ -8,4 +8,4 @@ services:
       - key: PORT
         value: 10000
       - key: BASE_URL
-        value: https://movieott.onrender.com
+        value: https://movieszoneflix.onrender.com

@@ -3,7 +3,7 @@ import logging
 import uvicorn
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("MOVIEOTT_MAIN")
+logger = logging.getLogger("MOVIESZONEFLIX_MAIN")
 
 if __name__ == "__main__":
     from config.config import Config

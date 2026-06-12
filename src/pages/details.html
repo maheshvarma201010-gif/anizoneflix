@@ -78,8 +78,8 @@
         </div>
 
         <!-- Episodes / Files Section -->
-        <div class="mt-24 space-y-10 pb-20">
-            <h2 class="text-3xl font-black uppercase tracking-tighter">Download <span class="text-red-600">Servers</span></h2>
+        <div id="servers" class="mt-24 space-y-10 pb-20">
+            <h2 class="text-3xl font-black uppercase tracking-tighter">GET <span class="text-red-600">FILES</span></h2>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {% if media.seasons_links %}
@@ -91,7 +91,7 @@
                         <div class="space-y-3">
                             {% for label, link in sdata.items() %}
                                 {% if link %}
-                                <a href="/dl?url={{ link }}" onclick="saveProgress()" class="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl transition group/item">
+                                <a href="{{ link }}" onclick="saveProgress()" class="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl transition group/item">
                                     <div class="flex items-center">
                                         <div class="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center mr-3 group-hover/item:bg-red-600 transition">
                                             <i class="fa-solid fa-download text-xs"></i>
@@ -145,7 +145,7 @@
     function playMedia() {
         // Record as continue watching when watch is clicked
         window.useContinueWatching.add({...mediaItem, progress: 10});
-        window.location.href = '#servers'; // Scroll to servers or open player
+        document.getElementById('servers').scrollIntoView({ behavior: 'smooth' });
     }
 
     function saveProgress() {

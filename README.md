@@ -1,6 +1,6 @@
-# MovieOTT - Modern Movies & Web Series Platform
+# MoviesZoneFlix - Modern Movies & Web Series Platform
 
-MovieOTT is an advanced streaming information portal and Telegram bot suite for Movies and Web Series.
+MoviesZoneFlix is an advanced streaming information portal and Telegram bot suite for Movies and Web Series.
 
 ## Features
 - Modern OTT-style UI with TailwindCSS and SwiperJS.

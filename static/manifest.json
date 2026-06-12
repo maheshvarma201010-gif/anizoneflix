@@ -1,6 +1,6 @@
 {
-  "name": "MovieOTT",
-  "short_name": "MovieOTT",
+  "name": "MoviesZoneFlix",
+  "short_name": "MoviesZoneFlix",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#050505",
