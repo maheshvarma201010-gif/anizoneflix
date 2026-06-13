@@ -111,7 +111,7 @@
                     <div class="bg-zinc-900/40 border border-white/5 p-6 rounded-2xl backdrop-blur-md hover:bg-zinc-900/60 transition group">
                         <h3 class="text-xl font-black mb-4 flex items-center">
                             <span class="w-1.5 h-5 bg-red-600 mr-3 rounded-full transition-all group-hover:h-8"></span>
-                            <span class="neon-glow">{{ sname }}</span>
+                            <span class="neon-glow" style="animation-delay: -{{ loop.index0 * 1.5 }}s;">{{ sname }}</span>
                         </h3>
                         <div class="space-y-3">
                             {% for label, link in sdata.items() %}
