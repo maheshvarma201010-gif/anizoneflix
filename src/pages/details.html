@@ -1,5 +1,29 @@
 {% extends "base.html" %}
 
+{% block head %}
+<style>
+    .neon-glow {
+        color: #fff;
+        text-shadow:
+            0 0 5px #fff,
+            0 0 10px #fff,
+            0 0 20px #ff0000,
+            0 0 30px #ff0000,
+            0 0 40px #ff0000;
+        animation: rainbow-glow 5s linear infinite;
+    }
+
+    @keyframes rainbow-glow {
+        0% { text-shadow: 0 0 10px #ff0000; color: #ff0000; }
+        20% { text-shadow: 0 0 10px #ffb400; color: #ffb400; }
+        40% { text-shadow: 0 0 10px #00ff00; color: #00ff00; }
+        60% { text-shadow: 0 0 10px #00ffff; color: #00ff00; }
+        80% { text-shadow: 0 0 10px #0000ff; color: #0000ff; }
+        100% { text-shadow: 0 0 10px #ff00ff; color: #ff00ff; }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="relative min-h-screen">
     <!-- Hero Backdrop -->
@@ -86,7 +110,8 @@
                     {% for sname, sdata in media.seasons_links.items() %}
                     <div class="bg-zinc-900/40 border border-white/5 p-6 rounded-2xl backdrop-blur-md hover:bg-zinc-900/60 transition group">
                         <h3 class="text-xl font-black mb-4 flex items-center">
-                            <span class="w-1.5 h-5 bg-red-600 mr-3 rounded-full transition-all group-hover:h-8"></span> {{ sname }}
+                            <span class="w-1.5 h-5 bg-red-600 mr-3 rounded-full transition-all group-hover:h-8"></span>
+                            <span class="neon-glow">{{ sname }}</span>
                         </h3>
                         <div class="space-y-3">
                             {% for label, link in sdata.items() %}
