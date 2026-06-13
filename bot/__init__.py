@@ -15,8 +15,6 @@ from config.config import Config
 from api.media_api import media_api
 from database.db import db
 from utils.utils import slugify
-import aiohttp
-from bs4 import BeautifulSoup
 
 # Setup Logging
 logger = logging.getLogger("MZ_BOT")
@@ -192,72 +190,54 @@ def register_handlers(bot: Client):
             channel_id_str = arg1
             link = arg2
 
+        slug = extract_slug(link)
+        if not slug: return await message.reply("❌ Invalid Link. Must be from this website.")
+
         try:
             channel_id = int(channel_id_str)
         except ValueError:
             channel_id = channel_id_str
-        msg = await message.reply("⏳ Fetching metadata...")
+
+        msg = await message.reply("⏳ Fetching database metadata...")
 
         try:
-            async with aiohttp.ClientSession(headers={"User-Agent": "MoviesZoneFlix/1.0"}) as session:
-                async with session.get(link, timeout=15, ssl=False) as resp:
-                    if resp.status != 200:
-                        return await msg.edit(f"❌ Error: Status code {resp.status}")
-                    html = await resp.text()
+            media = await db.get_media_by_slug(slug)
+            if not media: return await msg.edit("❌ Media not found in database.")
 
-            soup = BeautifulSoup(html, "html.parser")
-
-            def get_meta(property_name):
-                tag = soup.find("meta", property=property_name) or soup.find("meta", attrs={"name": property_name})
-                return tag.get("content") if tag else None
-
-            title = get_meta("og:title") or soup.title.string if soup.title else "N/A"
-            image_raw = get_meta("og:image")
-            image = urljoin(link, image_raw) if image_raw else None
-            description = get_meta("og:description") or "No description available."
-
-            # Try to extract year and language from metadata or content
-            # These are usually in custom meta tags or within the title
-            year = "N/A"
-            language = "N/A"
-
-            # Simple heuristic for year (4 digits in title)
-            year_match = re.search(r"\((\d{4})\)", title) or re.search(r"\b(19|20)\d{2}\b", title)
-            if year_match:
-                year = year_match.group(0).strip("()")
-
-            # Check for language in title or specific meta
-            for lang in ["Hindi", "English", "Tamil", "Telugu", "Malayalam", "Kannada", "Bengali"]:
-                if lang.lower() in title.lower():
-                    language = lang
-                    break
+            title = media.get('title', 'N/A')
+            year = media.get('year', 'N/A')
+            director = media.get('director', 'N/A')
+            cast = ", ".join(media.get('cast', [])) if media.get('cast') else 'N/A'
+            genres = ", ".join(media.get('genres', [])) if media.get('genres') else 'N/A'
+            score = media.get('score', 'N/A')
+            runtime = media.get('runtime', 'N/A')
+            synopsis = media.get('synopsis', 'No description.')
+            image = media.get('image')
 
             caption = (
-                f"🎬 **Title:** {title}\n"
-                f"📅 **Year:** {year}\n"
-                f"🌐 **Language:** {language}\n\n"
-                f"📝 **Description:**\n{description}\n\n"
-                f"🔗 **Watch Now:**\n{link}\n\n"
+                f"🎬 **Title:** {title}  📅 **Year:** {year}\n"
+                f"📝 **Director:** {director}\n"
+                f"🎭 **Cast:** {cast}\n"
+                f"📂 **Genres:** {genres}\n"
+                f"⭐ **Score:** {score}\n"
+                f"⏱ **Runtime:** {runtime}\n\n"
+                f"📝 **Description:**\n{synopsis}\n\n"
+                f"🔗 **Page Link:** {link}\n\n"
                 f"━━━━━━━━━━━━━━\n"
-                f"⚡ **Posted via Auto Bot (Image + Caption)**"
+                f"⚡ **Posted via MoviesZoneFlix Auto Bot**"
             )
 
             try:
                 if image:
-                    try:
-                        await client.send_photo(channel_id, image, caption=caption)
-                    except Exception as pe:
-                        logger.warning(f"send_photo failed: {pe}")
-                        await client.send_message(channel_id, caption)
+                    await client.send_photo(channel_id, image, caption=caption)
                 else:
                     await client.send_message(channel_id, caption)
-
                 await msg.edit(f"🚀 **Successfully posted to channel:** `{channel_id}`")
             except Exception as e:
                 await msg.edit(f"❌ **Telegram Error:** {str(e)}\n\n💡 *Make sure the bot is an admin in the channel and the ID is correct.*")
 
         except Exception as e:
-            await msg.edit(f"❌ **Scraping Error:** {str(e)}")
+            await msg.edit(f"❌ **Database Error:** {str(e)}")
             logger.error(traceback.format_exc())
 
     @bot.on_message(filters.command("cancel") & filters.private)

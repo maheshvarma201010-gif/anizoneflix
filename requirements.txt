@@ -14,4 +14,3 @@ httpx
 mongomock_motor
 PyJWT
 cryptography
-beautifulsoup4
