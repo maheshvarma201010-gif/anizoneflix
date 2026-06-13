@@ -119,7 +119,7 @@ def register_handlers(bot: Client):
         ]
         await message.reply_text(f"🛠 **Editing:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
 
-    @bot.on_message(filters.command("edit_m") & filters.private)
+    @bot.on_message(filters.command(["edit_m", "edt_m"]) & filters.private)
     async def edit_m_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
         query = " ".join(message.command[1:])
@@ -222,16 +222,16 @@ def register_handlers(bot: Client):
                 f"⭐ **Score:** {score}\n"
                 f"⏱ **Runtime:** {runtime}\n\n"
                 f"📝 **Description:**\n{synopsis}\n\n"
-                f"🔗 **Page Link:** {link}\n\n"
-                f"━━━━━━━━━━━━━━\n"
-                f"⚡ **Posted via MoviesZoneFlix Auto Bot**"
+                f"🔗 **Page Link:** {link}"
             )
+
+            reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(f"🎬 {title}", url=link)]])
 
             try:
                 if image:
-                    await client.send_photo(channel_id, image, caption=caption)
+                    await client.send_photo(channel_id, image, caption=caption, reply_markup=reply_markup)
                 else:
-                    await client.send_message(channel_id, caption)
+                    await client.send_message(channel_id, caption, reply_markup=reply_markup)
                 await msg.edit(f"🚀 **Successfully posted to channel:** `{channel_id}`")
             except Exception as e:
                 await msg.edit(f"❌ **Telegram Error:** {str(e)}\n\n💡 *Make sure the bot is an admin in the channel and the ID is correct.*")
