@@ -214,6 +214,7 @@ async def watch_page(request: Request, aid: str, slug: str, hash: str = None):
             "episode": episode,
             "episodes": all_episodes,
             "stream_url": stream_url,
+            "base_url": base,
             "logo_url": Config.LOGO_URL,
             "site_name": "MoviesZoneFlix"
         })

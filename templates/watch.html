@@ -10,7 +10,7 @@
             </a>
             <div>
                 <h1 class="text-xl md:text-3xl font-black tracking-tight">{{ anime.title }}</h1>
-                <p class="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-widest mt-1">
+                <p id="episode-meta" class="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-widest mt-1">
                     Season {{ episode.season }} • Episode {{ episode.episode }} • {{ episode.quality }}
                 </p>
             </div>
@@ -56,15 +56,15 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="flex flex-col items-center p-4 glass rounded-2xl border border-white/5">
                         <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Quality</span>
-                        <span class="font-bold text-sm text-red-500">{{ episode.quality }}</span>
+                        <span id="info-quality" class="font-bold text-sm text-red-500">{{ episode.quality }}</span>
                     </div>
                     <div class="flex flex-col items-center p-4 glass rounded-2xl border border-white/5">
                         <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Audio</span>
-                        <span class="font-bold text-sm">{{ episode.audio or 'Telugu' }}</span>
+                        <span id="info-audio" class="font-bold text-sm">{{ episode.audio or 'Telugu' }}</span>
                     </div>
                     <div class="flex flex-col items-center p-4 glass rounded-2xl border border-white/5">
                         <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Codec</span>
-                        <span class="font-bold text-sm">{{ episode.codec or 'H.264' }}</span>
+                        <span id="info-codec" class="font-bold text-sm">{{ episode.codec or 'H.264' }}</span>
                     </div>
                 </div>
             </div>
@@ -79,9 +79,10 @@
 <script>
     // Metadata injection from server
     const allEpisodes = {{ episodes | tojson }};
-    const currentHash = "{{ episode.hash }}";
+    let currentHash = "{{ episode.hash }}";
     const currentAid = "{{ anime._id }}";
     const currentSlug = "{{ anime.slug }}";
+    const baseUrl = "{{ base_url }}";
 
     const seasonSelect = document.getElementById('season-select');
     const episodeSelect = document.getElementById('episode-select');
@@ -89,18 +90,30 @@
     const qualitySelect = document.getElementById('quality-select');
 
     function populateSelectors() {
-        // Unique Seasons
         const seasons = [...new Set(allEpisodes.map(ep => ep.season))].sort((a, b) => a - b);
-        seasonSelect.innerHTML = seasons.map(s => `<option value="${s}" ${s == {{ episode.season }} ? 'selected' : ''}>Season ${s}</option>`).join('');
+        seasonSelect.innerHTML = seasons.map(s => `<option value="${s}">Season ${s}</option>`).join('');
+        seasonSelect.value = "{{ episode.season }}";
 
-        updateEpisodes();
+        const s = parseInt(seasonSelect.value);
+        const eps = [...new Set(allEpisodes.filter(ep => ep.season === s).map(ep => ep.episode))].sort((a, b) => a - b);
+        episodeSelect.innerHTML = eps.map(e => `<option value="${e}">Episode ${e}</option>`).join('');
+        episodeSelect.value = "{{ episode.episode }}";
+
+        const e = parseInt(episodeSelect.value);
+        const langs = [...new Set(allEpisodes.filter(ep => ep.season === s && ep.episode === e).map(ep => ep.audio || 'Telugu'))];
+        languageSelect.innerHTML = langs.map(l => `<option value="${l}">${l}</option>`).join('');
+        languageSelect.value = "{{ episode.audio or 'Telugu' }}";
+
+        const l = languageSelect.value;
+        const qualities = allEpisodes.filter(ep => ep.season === s && ep.episode === e && (ep.audio || 'Telugu') === l);
+        qualitySelect.innerHTML = qualities.map(q => `<option value="${q.hash}">${q.quality}</option>`).join('');
+        qualitySelect.value = currentHash;
     }
 
     function updateEpisodes() {
         const s = parseInt(seasonSelect.value);
         const eps = [...new Set(allEpisodes.filter(ep => ep.season === s).map(ep => ep.episode))].sort((a, b) => a - b);
-        episodeSelect.innerHTML = eps.map(e => `<option value="${e}" ${e == {{ episode.episode }} ? 'selected' : ''}>Episode ${e}</option>`).join('');
-
+        episodeSelect.innerHTML = eps.map(e => `<option value="${e}">Episode ${e}</option>`).join('');
         updateLanguages();
     }
 
@@ -108,8 +121,7 @@
         const s = parseInt(seasonSelect.value);
         const e = parseInt(episodeSelect.value);
         const langs = [...new Set(allEpisodes.filter(ep => ep.season === s && ep.episode === e).map(ep => ep.audio || 'Telugu'))];
-        languageSelect.innerHTML = langs.map(l => `<option value="${l}" ${l === "{{ episode.audio or 'Telugu' }}" ? 'selected' : ''}>${l}</option>`).join('');
-
+        languageSelect.innerHTML = langs.map(l => `<option value="${l}">${l}</option>`).join('');
         updateQualities();
     }
 
@@ -118,20 +130,83 @@
         const e = parseInt(episodeSelect.value);
         const l = languageSelect.value;
         const qualities = allEpisodes.filter(ep => ep.season === s && ep.episode === e && (ep.audio || 'Telugu') === l);
-
-        qualitySelect.innerHTML = qualities.map(q => `<option value="${q.hash}" ${q.hash === currentHash ? 'selected' : ''}>${q.quality}</option>`).join('');
+        qualitySelect.innerHTML = qualities.map(q => `<option value="${q.hash}">${q.quality}</option>`).join('');
     }
 
-    seasonSelect.addEventListener('change', updateEpisodes);
-    episodeSelect.addEventListener('change', updateLanguages);
-    languageSelect.addEventListener('change', updateQualities);
+    seasonSelect.addEventListener('change', () => {
+        updateEpisodes();
+        if (qualitySelect.value !== currentHash) changeEpisode(qualitySelect.value);
+    });
+    episodeSelect.addEventListener('change', () => {
+        updateLanguages();
+        if (qualitySelect.value !== currentHash) changeEpisode(qualitySelect.value);
+    });
+    languageSelect.addEventListener('change', () => {
+        updateQualities();
+        if (qualitySelect.value !== currentHash) changeEpisode(qualitySelect.value);
+    });
 
     qualitySelect.addEventListener('change', () => {
         const hash = qualitySelect.value;
         if (hash !== currentHash) {
-            window.location.href = `/watch/${currentAid}/${currentSlug}?hash=${hash}`;
+            changeEpisode(hash);
         }
     });
+
+    function changeEpisode(hash) {
+        const ep = allEpisodes.find(e => e.hash === hash);
+        if (!ep) return;
+
+        currentHash = hash;
+
+        // Update Meta UI
+        document.getElementById('episode-meta').textContent = `Season ${ep.season} • Episode ${ep.episode} • ${ep.quality}`;
+        document.getElementById('info-quality').textContent = ep.quality;
+        document.getElementById('info-audio').textContent = ep.audio || 'Telugu';
+        document.getElementById('info-codec').textContent = ep.codec || 'H.264';
+
+        // Update URL
+        const newUrl = `/watch/${currentAid}/${currentSlug}?hash=${hash}`;
+        window.history.pushState({ hash: hash }, '', newUrl);
+
+        // Update Video.js Source
+        try {
+            if (typeof player !== 'undefined' && player.src) {
+                const newSrc = `${baseUrl}/stream/${ep.hash}/${encodeURIComponent(ep.file_name || 'video.mp4')}`;
+                player.src({ type: 'video/mp4', src: newSrc });
+                player.play().catch(() => {}); // Ignore autoplay block errors
+            }
+        } catch (e) {
+            console.error("Player update error:", e);
+        }
+    }
+
+    window.onpopstate = function(event) {
+        if (event.state && event.state.hash) {
+            // Need to update selectors to match the state
+            const ep = allEpisodes.find(e => e.hash === event.state.hash);
+            if (ep) {
+                seasonSelect.value = ep.season;
+                updateEpisodes();
+                episodeSelect.value = ep.episode;
+                updateLanguages();
+                languageSelect.value = ep.audio || 'Telugu';
+                updateQualities();
+                qualitySelect.value = ep.hash;
+
+                // Finally update player without pushState
+                const newSrc = `${baseUrl}/stream/${ep.hash}/${encodeURIComponent(ep.file_name || 'video.mp4')}`;
+                player.src({ type: 'video/mp4', src: newSrc });
+                player.play();
+
+                // Update UI tags
+                document.getElementById('episode-meta').textContent = `Season ${ep.season} • Episode ${ep.episode} • ${ep.quality}`;
+                document.getElementById('info-quality').textContent = ep.quality;
+                document.getElementById('info-audio').textContent = ep.audio || 'Telugu';
+                document.getElementById('info-codec').textContent = ep.codec || 'H.264';
+            }
+        }
+    };
 
     // Initialize
     populateSelectors();
