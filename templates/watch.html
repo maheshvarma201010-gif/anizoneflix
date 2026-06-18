@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="min-h-screen bg-[#050505] text-white">
+    <!-- Watch Header -->
+    <div class="max-w-7xl mx-auto px-4 py-6">
+        <div class="flex items-center gap-4 mb-8">
+            <a href="/anime/{{ anime.slug }}" class="w-10 h-10 glass rounded-full flex items-center justify-center hover:bg-red-600 transition-all">
+                <i class="fa-solid fa-arrow-left"></i>
+            </a>
+            <div>
+                <h1 class="text-xl md:text-3xl font-black tracking-tight">{{ anime.title }}</h1>
+                <p class="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-widest mt-1">
+                    Season {{ episode.season }} • Episode {{ episode.episode }} • {{ episode.quality }}
+                </p>
+            </div>
+        </div>
+
+        <!-- Video Player Container -->
+        <div class="relative w-full aspect-video rounded-2xl overflow-hidden glass border border-white/5 shadow-2xl mb-12 group">
+            <div id="player" class="w-full h-full"></div>
+        </div>
+
+        <!-- External Players & Info -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 space-y-8">
+                <div class="glass rounded-3xl p-8 border border-white/5">
+                    <h3 class="text-xl font-black mb-6 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-play text-red-600"></i>
+                        External Media Players
+                    </h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <a href="vlc://{{ stream_url }}" class="flex flex-col items-center p-4 glass rounded-2xl hover:bg-orange-600/20 border border-white/5 transition-all group">
+                            <i class="fa-solid fa-play text-2xl mb-3 text-orange-500"></i>
+                            <span class="text-[10px] font-black uppercase tracking-widest">VLC</span>
+                        </a>
+                        <a href="intent:{{ stream_url }}#Intent;package=com.mxtech.videoplayer.ad;end" class="flex flex-col items-center p-4 glass rounded-2xl hover:bg-blue-600/20 border border-white/5 transition-all group">
+                            <i class="fa-solid fa-bolt text-2xl mb-3 text-blue-500"></i>
+                            <span class="text-[10px] font-black uppercase tracking-widest">MX Player</span>
+                        </a>
+                        <a href="intent:{{ stream_url }}#Intent;package=com.nex.vicat;end" class="flex flex-col items-center p-4 glass rounded-2xl hover:bg-purple-600/20 border border-white/5 transition-all group">
+                            <i class="fa-solid fa-forward-step text-2xl mb-3 text-purple-500"></i>
+                            <span class="text-[10px] font-black uppercase tracking-widest">PLAYit</span>
+                        </a>
+                        <a href="nplayer-{{ stream_url }}" class="flex flex-col items-center p-4 glass rounded-2xl hover:bg-green-600/20 border border-white/5 transition-all group">
+                            <i class="fa-solid fa-mobile-screen text-2xl mb-3 text-green-500"></i>
+                            <span class="text-[10px] font-black uppercase tracking-widest">nPlayer</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-8">
+                <div class="glass rounded-3xl p-8 border border-white/5">
+                    <h3 class="text-xl font-black mb-6 uppercase tracking-tighter">Series Metadata</h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center py-3 border-b border-white/5">
+                            <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest">Format</span>
+                            <span class="font-bold text-sm text-red-500">{{ episode.quality }}</span>
+                        </div>
+                        <div class="flex justify-between items-center py-3 border-b border-white/5">
+                            <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest">Audio</span>
+                            <span class="font-bold text-sm">{{ episode.audio or 'Original' }}</span>
+                        </div>
+                        <div class="flex justify-between items-center py-3">
+                            <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest">Codec</span>
+                            <span class="font-bold text-sm">{{ episode.codec or 'H.264' }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
+<script>
+    var art = new ArtPlayer({
+        container: '#player',
+        url: '{{ stream_url }}',
+        title: '{{ anime.title }} - E{{ episode.episode }}',
+        poster: '{{ anime.image }}',
+        volume: 0.7,
+        isLive: false,
+        muted: false,
+        autoplay: false,
+        pip: true,
+        autoSize: true,
+        autoMini: true,
+        screenshot: true,
+        setting: true,
+        loop: false,
+        flip: true,
+        playbackRate: true,
+        aspectRatio: true,
+        fullscreen: true,
+        fullscreenWeb: true,
+        subtitleOffset: true,
+        miniProgressBar: true,
+        mutex: true,
+        backdrop: true,
+        playsInline: true,
+        autoPlayback: true,
+        airplay: true,
+        theme: '#ff3c00',
+        lang: 'en',
+        moreVideoAttr: {
+            crossOrigin: 'anonymous',
+        },
+        settings: [
+            {
+                html: 'Playback Speed',
+                width: 200,
+                types: [
+                    { html: '0.5x', value: 0.5 },
+                    { html: '0.75x', value: 0.75 },
+                    { html: 'Normal', value: 1, default: true },
+                    { html: '1.25x', value: 1.25 },
+                    { html: '1.5x', value: 1.5 },
+                    { html: '2x', value: 2 },
+                ],
+                onSelect: function (item) {
+                    art.playbackRate = item.value;
+                    return item.html;
+                },
+            },
+        ],
+    });
+</script>
+<style>
+    .art-video-container { background: #000 !important; }
+    .art-poster { object-fit: contain !important; background: #000 !important; }
+</style>
+{% endblock %}

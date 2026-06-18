@@ -16,6 +16,7 @@ class Config:
     BASE_URL = os.getenv("BASE_URL", "https://anizoneflix-04c0.onrender.com")
     PORT = int(os.getenv("PORT", 10000))
     LOGO_URL = os.getenv("LOGO_URL", "https://telegra.ph/file/0c1737e466395b3531b78.jpg")
+    BIN_CHANNEL = int(os.getenv("BIN_CHANNEL", 0))
 
     # Security & Intelligence
     SECRET_KEY = os.getenv("SECRET_KEY", "executive-suite-secret-key-v2")
@@ -34,4 +35,6 @@ class Config:
             return False, "MONGO_URI is missing in production environment!"
         if not cls.BOT_TOKEN:
             return False, "BOT_TOKEN is missing!"
+        if not cls.BIN_CHANNEL:
+            return False, "BIN_CHANNEL is missing! Stream links will fail."
         return True, "Configuration Validated."

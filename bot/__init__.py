@@ -56,7 +56,11 @@ async def set_commands(client):
         BotCommand("del", "Permanent Archive Erasure"),
         BotCommand("save", "Backup & Restore Data"),
         BotCommand("cancel", "Abort Active Process"),
-        BotCommand("ping", "System Latency Check")
+        BotCommand("ping", "System Latency Check"),
+        BotCommand("preview", "Preview drafts"),
+        BotCommand("editz", "Edit draft metadata"),
+        BotCommand("sort", "Sort drafts"),
+        BotCommand("done", "Publish drafts")
     ]
     await client.set_bot_commands(commands)
     logger.info("Bot commands synchronized.")
@@ -87,6 +91,61 @@ def register_handlers(bot: Client):
     @bot.on_message(filters.all, group=-2)
     async def auto_file_grouping(client, message):
         if (message.document or message.video) and message.from_user and not message.from_user.is_bot:
+            state = user_state.get(message.from_user.id)
+            if state and state.get("action") == "uploading":
+                try:
+                    import secrets
+                    from utils.parser import parse_filename
+
+                    media = message.document or message.video
+                    fname = media.file_name or "video.mp4"
+                    caption = message.caption or ""
+
+                    # Extract metadata from filename or caption
+                    parsed = parse_filename(fname)
+                    if caption:
+                        # Try to extract from caption if filename fails or to refine
+                        c_parsed = parse_filename(caption)
+                        if c_parsed["episode"] != 1: parsed["episode"] = c_parsed["episode"]
+                        if c_parsed["season"] != 1: parsed["season"] = c_parsed["season"]
+                        if c_parsed["quality"] != "HD": parsed["quality"] = c_parsed["quality"]
+
+                    # Forward to BIN_CHANNEL
+                    fwd = await message.forward(Config.BIN_CHANNEL)
+
+                    hash_token = secrets.token_hex(12)
+                    ep_data = {
+                        "mal_id": state["mal_id"],
+                        "season": parsed["season"],
+                        "episode": parsed["episode"],
+                        "quality": parsed["quality"],
+                        "audio": parsed["audio"],
+                        "codec": parsed["codec"],
+                        "file_id": media.file_id,
+                        "msg_id": fwd.id,
+                        "file_name": fname,
+                        "file_size": media.file_size,
+                        "hash": hash_token,
+                        "status": "draft",
+                        "uploaded_by": message.from_user.id,
+                        "views": 0,
+                        "downloads": 0
+                    }
+
+                    if await db.ping():
+                        await db.add_episode(ep_data)
+                        await message.reply(
+                            f"✅ **Draft Saved:** S{parsed['season']} E{parsed['episode']} ({parsed['quality']})\n"
+                            f"📂 `{fname}`\n"
+                            f"🔗 Token: `{hash_token}`\n\n"
+                            "Continue sending files or send /done to publish."
+                        )
+                except Exception as e:
+                    logger.error(f"Upload Error: {e}")
+                    await message.reply(f"❌ **Upload Failed:** {str(e)}")
+
+                raise ContinuePropagation
+
             try:
                 from utils.parser import parse_filename
                 fname = message.document.file_name if message.document else "video.mp4"
@@ -98,7 +157,8 @@ def register_handlers(bot: Client):
                             "mal_id": anime["mal_id"], "season": parsed["season"], "episode": parsed["episode"],
                             "quality": parsed["quality"], "audio": parsed["audio"], "codec": parsed["codec"],
                             "file_id": message.document.file_id if message.document else message.video.file_id,
-                            "file_name": fname, "file_size": "N/A", "views": 0, "downloads": 0
+                            "file_name": fname, "file_size": "N/A", "views": 0, "downloads": 0,
+                            "status": "published"
                         })
                         logger.info(f"Auto-Link Success: {fname} -> {anime['title']}")
             except Exception as e:
@@ -268,6 +328,7 @@ def register_handlers(bot: Client):
             aid = anime["_id"]
 
             buttons = [
+                [InlineKeyboardButton("📤 Upload Media (Draft)", callback_data=f"upload_media_{aid}")],
                 [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{aid}")],
                 [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
                 [InlineKeyboardButton("📂 Change Category", callback_data=f"manage_category_{aid}")],
@@ -387,8 +448,88 @@ def register_handlers(bot: Client):
     @bot.on_message(filters.command("cancel"))
     async def cancel_handler(client, message):
         if message.from_user:
-            user_state.pop(message.from_user.id, None)
-        await message.reply("✨ **Action Cancelled.** standby.")
+            uid = message.from_user.id
+            state = user_state.get(uid)
+            if state and state.get("action") == "uploading":
+                await db.delete_drafts(state["mal_id"], uid)
+                await message.reply("🗑 **Upload Session Purged.** Drafts deleted.")
+            user_state.pop(uid, None)
+        else:
+            await message.reply("✨ **Action Cancelled.** standby.")
+
+    @bot.on_message(filters.command("preview"))
+    async def preview_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id): return
+        state = user_state.get(message.from_user.id)
+        if not state or state.get("action") != "uploading":
+            return await message.reply("❌ No active upload session.")
+
+        drafts = await db.get_episodes(state["mal_id"], status="draft")
+        if not drafts: return await message.reply("📭 No drafts in current session.")
+
+        text = f"📑 **Preview: {state['title']} (Drafts)**\n\n"
+        # Group by season for display
+        seasons = {}
+        for d in drafts:
+            s = d['season']
+            if s not in seasons: seasons[s] = []
+            seasons[s].append(d)
+
+        for s in sorted(seasons.keys()):
+            text += f"**Season {s}**\n"
+            for d in sorted(seasons[s], key=lambda x: x['episode']):
+                text += f" • E{d['episode']} [{d['quality']}] - {d['file_name'][:30]}...\n"
+            text += "\n"
+
+        text += f"🔗 [View on Site]({Config.BASE_URL}/anime/{slugify(state['title'])})\n"
+        text += "Send /done to publish or /editz to modify."
+        await message.reply(text, disable_web_page_preview=True)
+
+    @bot.on_message(filters.command("done"))
+    async def done_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id): return
+        uid = message.from_user.id
+        state = user_state.get(uid)
+        if not state or state.get("action") != "uploading":
+            return await message.reply("❌ No active upload session.")
+
+        await db.publish_episodes(state["mal_id"], uid)
+        user_state.pop(uid, None)
+        await message.reply(
+            f"🚀 **Mission Accomplished!**\n\n"
+            f"All drafts for `{state['title']}` are now **LIVE**.\n"
+            f"Portal: {Config.BASE_URL}/anime/{slugify(state['title'])}"
+        )
+
+    @bot.on_message(filters.command("editz"))
+    async def editz_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id): return
+        state = user_state.get(message.from_user.id)
+        if not state or state.get("action") != "uploading":
+            return await message.reply("❌ No active upload session.")
+
+        drafts = await db.get_episodes(state["mal_id"], status="draft")
+        if not drafts: return await message.reply("📭 No drafts to edit.")
+
+        buttons = []
+        for d in drafts[:20]: # Limit to 20 for now
+            label = f"S{d['season']} E{d['episode']} ({d['quality']})"
+            buttons.append([InlineKeyboardButton(label, callback_data=f"edit_draft_{d['_id']}")])
+
+        await message.reply("📝 **Select draft to edit:**", reply_markup=InlineKeyboardMarkup(buttons))
+
+    @bot.on_message(filters.command("sort"))
+    async def sort_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id): return
+        state = user_state.get(message.from_user.id)
+        if not state or state.get("action") != "uploading":
+            return await message.reply("❌ No active upload session.")
+
+        buttons = [
+            [InlineKeyboardButton("🔢 Auto Sort (S > E > Q)", callback_data=f"auto_sort_{state['mal_id']}")],
+            [InlineKeyboardButton("🛡 Back", callback_data="cancel_op")]
+        ]
+        await message.reply("⚖️ **Manual & Auto Sorting Logic**\n\nChoose sorting strategy for current drafts:", reply_markup=InlineKeyboardMarkup(buttons))
 
     # --- CALLBACK HANDLERS ---
 
@@ -647,6 +788,30 @@ def register_handlers(bot: Client):
         except Exception as e:
             await callback_query.answer(f"❌ Error: {e}", show_alert=True)
 
+    @bot.on_callback_query(filters.regex("^edit_draft_"))
+    async def edit_draft_cb(client, callback_query):
+        ep_id = callback_query.data.split("edit_draft_")[-1]
+        user_state[callback_query.from_user.id].update({"action": "editing_draft", "ep_id": ep_id})
+        await callback_query.message.edit_text(
+            "✏️ **Draft Metadata Editor**\n\n"
+            "Format: `Season | Episode | Quality | Title` (or `/skip` to cancel)\n"
+            "Example: `1 | 5 | 1080p | The Hero Awakens`",
+            reply_markup=None
+        )
+
+    @bot.on_callback_query(filters.regex("^auto_sort_"))
+    async def auto_sort_cb(client, callback_query):
+        mid = callback_query.data.split("auto_sort_")[-1]
+        drafts = await db.get_episodes(mid, status="draft")
+        # Sorting logic: Season ASC, Episode ASC, Quality DESC (assuming 1080p > 720p)
+        sorted_eps = sorted(drafts, key=lambda x: (x.get('season', 1), x.get('episode', 1), x.get('quality', '')))
+
+        for idx, ep in enumerate(sorted_eps):
+            await db.update_episode(ep["_id"], {"sort_order": idx})
+
+        await callback_query.answer("✅ Drafts re-indexed successfully.")
+        await callback_query.message.edit_text("🔢 **Automatic indexing complete.** Drafts will follow S > E > Q order.")
+
     @bot.on_callback_query(filters.regex("^back_to_edit_"))
     async def back_to_edit_cb(client, callback_query):
         aid = callback_query.data.split("back_to_edit_")[-1]
@@ -654,6 +819,7 @@ def register_handlers(bot: Client):
         if not anime: return await callback_query.answer("❌ Not Found")
 
         buttons = [
+            [InlineKeyboardButton("📤 Upload Media (Draft)", callback_data=f"upload_media_{aid}")],
             [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{aid}")],
             [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
             [InlineKeyboardButton("📂 Change Category", callback_data=f"manage_category_{aid}")],
@@ -981,6 +1147,27 @@ def register_handlers(bot: Client):
         aid = callback_query.data.split("edit_title_")[-1]
         user_state[callback_query.from_user.id] = {"action": "ask_change_series_title", "slug": aid}
         await callback_query.message.edit_text("🏷 **Change Series Title:**\n\nSend the **New Title** for this series:", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^upload_media_"))
+    async def upload_media_cb(client, callback_query):
+        aid = callback_query.data.split("upload_media_")[-1]
+        anime = await db.get_anime(aid)
+        if not anime: return await callback_query.answer("❌ Not Found")
+
+        user_state[callback_query.from_user.id] = {
+            "action": "uploading",
+            "mal_id": anime["mal_id"],
+            "aid": aid,
+            "title": anime["title"]
+        }
+        await callback_query.message.edit_text(
+            f"📤 **Upload Mode Activated: {anime['title']}**\n\n"
+            "• Forward/Send video files or media.\n"
+            "• Bot will extract metadata & generate stream links.\n"
+            "• Files stay in **Draft** until you send /done.\n\n"
+            "⚡ **Send files now...**",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]])
+        )
 
     @bot.on_callback_query(filters.regex("^cancel_op$"))
     async def cancel_op_cb(client, callback_query):
@@ -1328,6 +1515,28 @@ def register_handlers(bot: Client):
             elif action == "ask_edit_btn_name":
                 user_state[uid].update({"action": "ask_edit_btn_link", "new_name": message.text.strip()})
                 await message.reply(f"🔗 **New URL for '{message.text.strip()}':**\n*(or `/skip` to keep current)*")
+            elif action == "editing_draft":
+                if message.text == "/skip":
+                    user_state[uid]["action"] = "uploading"
+                    return await message.reply("Action aborted.")
+
+                parts = [p.strip() for p in message.text.split("|")]
+                if len(parts) < 3: return await message.reply("❌ Invalid format. Use: `S | E | Q | Title`")
+
+                try:
+                    update_data = {
+                        "season": int(parts[0]),
+                        "episode": int(parts[1]),
+                        "quality": parts[2]
+                    }
+                    if len(parts) > 3: update_data["display_title"] = parts[3]
+
+                    await db.update_episode(state["ep_id"], update_data)
+                    user_state[uid]["action"] = "uploading"
+                    await message.reply("✅ **Metadata Updated.** back to upload mode.")
+                except Exception as e:
+                    await message.reply(f"❌ Error: {str(e)}")
+
             elif action == "ask_edit_btn_link":
                 idx, aid = state["btn_idx"], state["slug"]
                 anime = await db.get_anime(aid)
