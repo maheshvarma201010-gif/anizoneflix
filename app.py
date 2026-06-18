@@ -203,7 +203,7 @@ async def watch_page(request: Request, aid: str, slug: str, hash: str = None):
             if not eps: return RedirectResponse(f"/anime/{anime['slug']}")
             episode = eps[0]
 
-        stream_url = f"{Config.BASE_URL}/stream/{episode['hash']}"
+        stream_url = f"{Config.BASE_URL}/stream/{episode['hash']}/{quote(episode.get('file_name', 'video.mp4'))}"
         return templates.TemplateResponse(request=request, name="watch.html", context={
             "anime": anime,
             "episode": episode,

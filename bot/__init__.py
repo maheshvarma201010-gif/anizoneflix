@@ -511,12 +511,18 @@ def register_handlers(bot: Client):
         if not state or state.get("action") != "uploading":
             return await message.reply("❌ No active upload session.")
 
-        await db.publish_episodes(state["mal_id"], uid)
-        user_state.pop(uid, None)
+        # Ask for session language before publishing
+        buttons = [
+            [InlineKeyboardButton("Telugu", callback_data=f"publang_Telugu_{state['mal_id']}")],
+            [InlineKeyboardButton("Tamil", callback_data=f"publang_Tamil_{state['mal_id']}")],
+            [InlineKeyboardButton("Hindi", callback_data=f"publang_Hindi_{state['mal_id']}")],
+            [InlineKeyboardButton("English", callback_data=f"publang_English_{state['mal_id']}")],
+            [InlineKeyboardButton("Multi-Audio", callback_data=f"publang_Multi-Audio_{state['mal_id']}")],
+            [InlineKeyboardButton("Skip (Use Parsed)", callback_data=f"publang_skip_{state['mal_id']}")]
+        ]
         await message.reply(
-            f"🚀 **Mission Accomplished!**\n\n"
-            f"All drafts for `{state['title']}` are now **LIVE**.\n"
-            f"Portal: {Config.BASE_URL}/anime/{slugify(state['title'])}"
+            f"🌐 **Finalize Session: {state['title']}**\n\nSelect the primary language for this batch of files:",
+            reply_markup=InlineKeyboardMarkup(buttons)
         )
 
     @bot.on_message(filters.command("editz"))
@@ -829,6 +835,34 @@ def register_handlers(bot: Client):
 
         await callback_query.answer("✅ Drafts re-indexed successfully.")
         await callback_query.message.edit_text("🔢 **Automatic indexing complete.** Drafts will follow S > E > Q order.")
+
+    @bot.on_callback_query(filters.regex("^publang_"))
+    async def publish_lang_cb(client, callback_query):
+        uid = callback_query.from_user.id
+        state = user_state.get(uid)
+        if not state or state.get("action") != "uploading":
+            return await callback_query.answer("❌ Session Expired", show_alert=True)
+
+        data = callback_query.data.split("_", 2)
+        lang = data[1]
+        mid = data[2]
+
+        if lang != "skip":
+            # Update all drafts with the selected language
+            drafts = await db.get_episodes(mid, status="draft")
+            for d in drafts:
+                if d.get("uploaded_by") == uid:
+                    await db.update_episode(d["_id"], {"audio": lang})
+
+        await db.publish_episodes(mid, uid)
+        user_state.pop(uid, None)
+
+        await callback_query.message.edit_text(
+            f"🚀 **Mission Accomplished!**\n\n"
+            f"All drafts for `{state['title']}` are now **LIVE**.\n"
+            f"Portal: {Config.BASE_URL}/anime/{slugify(state['title'])}"
+        )
+        await callback_query.answer("Content Published!")
 
     @bot.on_callback_query(filters.regex("^back_to_edit_"))
     async def back_to_edit_cb(client, callback_query):
