@@ -243,13 +243,37 @@ class Database:
             return []
 
     async def publish_episodes(self, mal_id, user_id):
-        """Transition all user drafts to live status"""
+        """Transition all user drafts to live status with duplicate prevention"""
         try:
             if self._episodes is None: return None
-            return await self._episodes.update_many(
-                {"mal_id": mal_id, "uploaded_by": user_id, "status": "draft"},
-                {"$set": {"status": "published"}}
-            )
+
+            # Fetch all drafts to be published
+            cursor = self._episodes.find({
+                "mal_id": mal_id,
+                "uploaded_by": user_id,
+                "status": "draft"
+            })
+            drafts = await cursor.to_list(length=1000)
+
+            for draft in drafts:
+                # Coordinate-based duplicate check
+                query = {
+                    "mal_id": mal_id,
+                    "season": draft.get("season"),
+                    "episode": draft.get("episode"),
+                    "quality": draft.get("quality"),
+                    "audio": draft.get("audio"),
+                    "status": "published"
+                }
+                # Remove any existing published version to avoid duplicates
+                await self._episodes.delete_many(query)
+
+                # Mark current draft as published
+                await self._episodes.update_one(
+                    {"_id": draft["_id"]},
+                    {"$set": {"status": "published"}}
+                )
+            return True
         except Exception as e:
             logger.error(f"Publish Error: {e}")
             return None

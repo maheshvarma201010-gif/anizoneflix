@@ -165,8 +165,6 @@ async def anime_detail(request: Request, slug: str):
         if not anime:
             return templates.TemplateResponse(request=request, name="404.html", context={"error": "Title not found."}, status_code=404)
 
-        categories = await db.get_all_categories()
-
         # Check admin for drafts
         token = request.cookies.get("admin_token")
         is_admin = False
@@ -177,7 +175,11 @@ async def anime_detail(request: Request, slug: str):
             except: pass
 
         episodes = await db.get_episodes(anime.get("mal_id", "0"), status=None if is_admin else "published")
+        if episodes:
+            # Redirect to the first episode on the watch page
+            return RedirectResponse(url=f"/watch/{anime['_id']}/{anime['slug']}?hash={episodes[0]['hash']}")
 
+        categories = await db.get_all_categories()
         return templates.TemplateResponse(request=request, name="details.html", context={
             "anime": anime,
             "episodes": episodes or [],
@@ -263,15 +265,16 @@ async def stream_media_handler(request: Request, hash: str, filename: str = None
 
         async def stream_generator():
             try:
-                # Pyrogram stream_media uses 1MB chunks. offset/limit are in chunks.
+                # Pyrogram stream_media uses 1MB chunks internally.
                 chunk_size = 1024 * 1024
-                offset_chunks = start // chunk_size
-                skip_bytes = start % chunk_size
+                bytes_read = 0
                 bytes_to_read = end - start + 1
 
-                bytes_read = 0
-
                 while bytes_read < bytes_to_read:
+                    current_pos = start + bytes_read
+                    offset_chunks = current_pos // chunk_size
+                    skip_bytes = current_pos % chunk_size
+
                     try:
                         async for chunk in bot.stream_media(media, offset=offset_chunks):
                             if skip_bytes > 0:
@@ -281,27 +284,24 @@ async def stream_media_handler(request: Request, hash: str, filename: str = None
                             if bytes_read + len(chunk) > bytes_to_read:
                                 chunk = chunk[:bytes_to_read - bytes_read]
 
+                            if not chunk:
+                                break
+
                             yield chunk
                             bytes_read += len(chunk)
-
-                            # Increment offset for potential continuation after FloodWait
-                            # Since we don't know exactly how many chunks were consumed,
-                            # we can estimate or just let it restart from current bytes_read.
-                            # But Pyrogram's stream_media is an async generator.
 
                             if bytes_read >= bytes_to_read:
                                 break
 
-                        if bytes_read >= bytes_to_read:
-                            break
+                        # If we reached here without yielding everything and without error,
+                        # it might mean the generator finished early.
+                        if bytes_read < bytes_to_read:
+                            await asyncio.sleep(1) # Small delay before retry
+                            continue
 
                     except FloodWait as e:
                         logger.warning(f"FloodWait encountered: waiting {e.value} seconds")
                         await asyncio.sleep(e.value)
-                        # Re-calculate offset based on bytes_read
-                        current_pos = start + bytes_read
-                        offset_chunks = current_pos // chunk_size
-                        skip_bytes = current_pos % chunk_size
                         continue
                     except Exception as e:
                         logger.error(f"Error during stream: {e}")
