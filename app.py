@@ -20,7 +20,7 @@ from urllib.parse import quote
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("ANIZONEFLIX_APP")
+logger = logging.getLogger("MZ_APP")
 
 # --- GLOBAL ERROR HANDLING ---
 
@@ -35,7 +35,7 @@ sys.excepthook = handle_exception
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # STARTUP
-    logger.info("AniZoneFlix Production Engine starting...")
+    logger.info("MoviesZoneFlix Production Engine starting...")
     try:
         await db.connect()
         loop = asyncio.get_running_loop()
@@ -71,7 +71,7 @@ async def lifespan(app: FastAPI):
 
 # --- APP INITIALIZATION ---
 
-app = FastAPI(title="ANIZONEFLIX", lifespan=lifespan)
+app = FastAPI(title="MOVIESZONEFLIX", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -122,13 +122,13 @@ async def index(request: Request):
             "recent": recent or [],
             "categories": categories or [],
             "logo_url": Config.LOGO_URL,
-            "site_name": "ANIZONEFLIX"
+            "site_name": "MoviesZoneFlix"
         })
     except Exception as e:
         logger.error(f"Index error: {e}")
         return templates.TemplateResponse(request=request, name="index.html", context={
             "trending": [], "recent": [], "categories": [],
-            "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
+            "logo_url": Config.LOGO_URL, "site_name": "MoviesZoneFlix"
         })
 
 @app.get("/ping")
@@ -148,13 +148,13 @@ async def schedule_page(request: Request):
             "schedules": schedules,
             "categories": categories or [],
             "logo_url": Config.LOGO_URL,
-            "site_name": "ANIZONEFLIX"
+            "site_name": "MoviesZoneFlix"
         })
     except Exception as e:
         logger.error(f"Schedule page error: {e}")
         return templates.TemplateResponse(request=request, name="schedule.html", context={
             "schedules": {}, "categories": [],
-            "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
+            "logo_url": Config.LOGO_URL, "site_name": "MoviesZoneFlix"
         })
 
 @app.get("/anime/{slug}")
@@ -182,7 +182,7 @@ async def anime_detail(request: Request, slug: str):
             "episodes": episodes or [],
             "categories": categories or [],
             "logo_url": Config.LOGO_URL,
-            "site_name": "ANIZONEFLIX"
+            "site_name": "MoviesZoneFlix"
         })
     except Exception as e:
         logger.error(f"Detail error for {slug}: {e}")
@@ -209,7 +209,7 @@ async def watch_page(request: Request, aid: str, slug: str, hash: str = None):
             "episode": episode,
             "stream_url": stream_url,
             "logo_url": Config.LOGO_URL,
-            "site_name": "ANIZONEFLIX"
+            "site_name": "MoviesZoneFlix"
         })
     except Exception as e:
         logger.error(f"Watch Error: {e}")
@@ -319,7 +319,7 @@ async def search_web(request: Request, q: str = ""):
             "query": q,
             "categories": categories or [],
             "logo_url": Config.LOGO_URL,
-            "site_name": "ANIZONEFLIX"
+            "site_name": "MoviesZoneFlix"
         })
     except Exception as e:
         logger.error(f"Search error: {e}")
@@ -359,7 +359,7 @@ async def az_index(request: Request):
             "chars": chars + "#",
             "categories": categories or [],
             "logo_url": Config.LOGO_URL,
-            "site_name": "ANIZONEFLIX"
+            "site_name": "MoviesZoneFlix"
         })
     except Exception as e:
         logger.error(f"AZ Index error: {e}")
@@ -384,7 +384,7 @@ async def admin_login(request: Request, token: str = None):
 async def admin_dashboard(request: Request, admin=Depends(get_current_admin)):
     posts = await db.get_all_anime(limit=100)
     return templates.TemplateResponse(request=request, name="admin_dashboard.html", context={
-        "posts": posts or [], "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
+        "posts": posts or [], "logo_url": Config.LOGO_URL, "site_name": "MoviesZoneFlix"
     })
 
 @app.get("/admin/edit/{mal_id}")
@@ -394,7 +394,7 @@ async def edit_post_page(request: Request, mal_id: str, admin=Depends(get_curren
     anime = await db.get_anime_by_mal_id(query_id)
     if not anime: return RedirectResponse(url="/admin/dashboard")
     return templates.TemplateResponse(request=request, name="edit.html", context={
-        "anime": anime, "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
+        "anime": anime, "logo_url": Config.LOGO_URL, "site_name": "MoviesZoneFlix"
     })
 
 @app.post("/api/admin/save/{mal_id}")

@@ -19,8 +19,8 @@ def parse_filename(filename):
     if ep_match:
         data["episode"] = int(ep_match.group(1))
     else:
-        # Fallback to loose digit if it looks like an episode
-        ep_match_alt = re.search(r'\s+(\d{1,3})(?:\s+|\[|\()', filename)
+        # Fallback to loose digit if it looks like an episode (2-3 digits)
+        ep_match_alt = re.search(r'(?:\s+|\[|\()(\d{1,3})(?:\s+|\]|\)|$)', filename)
         if ep_match_alt:
             data["episode"] = int(ep_match_alt.group(1))
 

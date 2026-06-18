@@ -20,10 +20,10 @@ from utils.parser import parse_filename
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("ANIZONEFLIX_BOT")
+logger = logging.getLogger("MZ_BOT")
 
 bot = Client(
-    "anizoneflix_bot",
+    "mz_bot",
     api_id=Config.API_ID,
     api_hash=Config.API_HASH,
     bot_token=Config.BOT_TOKEN,
@@ -173,23 +173,31 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("start"))
     async def start_handler(client, message):
-        await message.reply_photo(
-            photo=Config.LOGO_URL,
-            caption=(
-                "👑 **ANIZONEFLIX PREMIUM v2.0**\n\n"
-                "Welcome to the premier Anime Management Suite. Experience seamless automation and high-speed metadata intelligence.\n\n"
-                "⚡ **Quick Start:**\n"
-                "• `/search <name>` — Automated series setup\n"
-                "• `/add_post <name>` — Rapid one-shot publication\n"
-                "• `/add_page` — Manual content creation\n"
-                "• `/edit <url>` — Manage content groups\n"
-                "• `/help` — View full documentation"
-            ),
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🌐 Access Portal", url=Config.BASE_URL)],
-                [InlineKeyboardButton("📚 Admin Guide", callback_data="help_guide")]
-            ])
+        caption = (
+            "👑 **MOVIESZONEFLIX PREMIUM v2.0**\n\n"
+            "Welcome to the premier Movies & Series Management Suite. Experience seamless automation and high-speed metadata intelligence.\n\n"
+            "⚡ **Quick Start:**\n"
+            "• `/search <name>` — Automated series setup\n"
+            "• `/add_post <name>` — Rapid one-shot publication\n"
+            "• `/add_page` — Manual content creation\n"
+            "• `/edit <url>` — Manage content groups\n"
+            "• `/help` — View full documentation"
         )
+        reply_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🌐 Access Portal", url=Config.BASE_URL)],
+            [InlineKeyboardButton("📚 Admin Guide", callback_data="help_guide")]
+        ])
+        try:
+            await message.reply_photo(
+                photo=Config.LOGO_URL,
+                caption=caption,
+                reply_markup=reply_markup
+            )
+        except Exception:
+            await message.reply_text(
+                text=caption,
+                reply_markup=reply_markup
+            )
 
     @bot.on_message(filters.command("help"))
     async def help_handler(client, message):
@@ -198,7 +206,7 @@ def register_handlers(bot: Client):
             return await message.reply("🚫 **Access Denied.** This zone is for authorized administrators only.")
 
         text = (
-            "👑 **ANIZONEFLIX ULTRA: Executive Suite**\n\n"
+            "👑 **MOVIESZONEFLIX ULTRA: Executive Suite**\n\n"
             "**🛠 CORE COMMANDS**\n"
             "• `/search <name>`: Interactive multi-API setup.\n"
             "• `/add_post <name>`: One-shot instant publication.\n"
@@ -297,7 +305,19 @@ def register_handlers(bot: Client):
             user_state[message.from_user.id] = {"action": "ask_category", "anime_data": details, "season": "1", "image": details["image"]}
             cats = await db.get_all_categories()
             buttons = [[InlineKeyboardButton(c['name'], callback_data=f"setcat_{c['name']}")] for c in (cats if cats else [{"name": "Anime"}])]
-            await message.reply_photo(photo=details["image"] if details["image"] else Config.LOGO_URL, caption=f"🎬 **Archive Ready:** `{details['title']}`\n\nTarget **Category**:", reply_markup=InlineKeyboardMarkup(buttons))
+
+            caption = f"🎬 **Archive Ready:** `{details['title']}`\n\nTarget **Category**:"
+            try:
+                await message.reply_photo(
+                    photo=details["image"] if details["image"] else Config.LOGO_URL,
+                    caption=caption,
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+            except Exception:
+                await message.reply_text(
+                    text=caption,
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
             await msg.delete()
         except Exception as e:
             logger.error(f"Add Post Error: {e}")
@@ -1195,12 +1215,32 @@ def register_handlers(bot: Client):
         if not state or state["action"] != "ask_category_final": return
         cat, data = callback_query.data.split("_")[1], state["anime_data"]
         slug = slugify(data["title"])
-        entry = {"mal_id": f"series_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": state["seasons_data"], "custom_buttons": []}
+        mal_id = f"series_{slug}"
+        entry = {"mal_id": mal_id, "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": state["seasons_data"], "custom_buttons": []}
         try:
             if await db.ping():
                 await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
-                await callback_query.message.edit_text(text=f"💎 **LIVE:** `{data['title']}`\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
-                del user_state[uid]
+                anime = await db.get_anime_by_slug(slug)
+                aid = str(anime["_id"])
+
+                # Automatically transition to Upload Mode
+                user_state[uid] = {
+                    "action": "uploading",
+                    "mal_id": mal_id,
+                    "aid": aid,
+                    "title": data["title"]
+                }
+
+                await callback_query.message.edit_text(
+                    text=(
+                        f"💎 **Page Created:** `{data['title']}`\n"
+                        f"Portal: {Config.BASE_URL}/anime/{slug}\n\n"
+                        "📤 **Upload Mode Activated Automatically!**\n\n"
+                        "• Forward/Send video files or media now.\n"
+                        "• Files stay in **Draft** until you send /done."
+                    ),
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Stop Uploading", callback_data="cancel_op")]])
+                )
             else:
                 await callback_query.answer("❌ Database Offline", show_alert=True)
         except Exception as e: await callback_query.answer(f"DB Error: {e}", show_alert=True)
@@ -1212,12 +1252,32 @@ def register_handlers(bot: Client):
         if not state or state["action"] != "ask_category": return
         cat, data = callback_query.data.split("_")[1], state["anime_data"]
         slug = slugify(data["title"])
-        entry = {"mal_id": f"auto_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {"1": {"480p": None, "720p": None, "1080p": None}}, "custom_buttons": []}
+        mal_id = f"auto_{slug}"
+        entry = {"mal_id": mal_id, "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {}, "custom_buttons": []}
         try:
             if await db.ping():
                 await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
-                await callback_query.message.edit_caption(caption=f"⚡ **Deployment Success!**\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
-                del user_state[uid]
+                anime = await db.get_anime_by_slug(slug)
+                aid = str(anime["_id"])
+
+                # Automatically transition to Upload Mode
+                user_state[uid] = {
+                    "action": "uploading",
+                    "mal_id": mal_id,
+                    "aid": aid,
+                    "title": data["title"]
+                }
+
+                await callback_query.message.edit_caption(
+                    caption=(
+                        f"⚡ **Deployment Success:** `{data['title']}`\n"
+                        f"Portal: {Config.BASE_URL}/anime/{slug}\n\n"
+                        "📤 **Upload Mode Activated Automatically!**\n\n"
+                        "• Forward/Send video files or media now.\n"
+                        "• Files stay in **Draft** until you send /done."
+                    ),
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Stop Uploading", callback_data="cancel_op")]])
+                )
             else:
                 await callback_query.answer("❌ Database Offline", show_alert=True)
         except Exception as e: await callback_query.answer(f"DB Error: {e}", show_alert=True)
@@ -1282,8 +1342,9 @@ def register_handlers(bot: Client):
             # --- PUBLISH MANUAL ---
             elif action == "manual_publish":
                 slug = slugify(state["title"])
+                mal_id = f"manual_{slug}"
                 entry = {
-                    "mal_id": f"manual_{slug}",
+                    "mal_id": mal_id,
                     "title": state["title"],
                     "slug": slug,
                     "synopsis": state["synopsis"],
@@ -1298,10 +1359,27 @@ def register_handlers(bot: Client):
                 }
                 if await db.ping():
                     await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
-                    await message.reply(f"🚀 **Custom Page Published!**\nPortal: {Config.BASE_URL}/anime/{slug}")
+                    anime = await db.get_anime_by_slug(slug)
+                    aid = str(anime["_id"])
+
+                    # Automatically transition to Upload Mode
+                    user_state[uid] = {
+                        "action": "uploading",
+                        "mal_id": mal_id,
+                        "aid": aid,
+                        "title": state["title"]
+                    }
+
+                    await message.reply(
+                        f"🚀 **Custom Page Published!**\n"
+                        f"Portal: {Config.BASE_URL}/anime/{slug}\n\n"
+                        "📤 **Upload Mode Activated Automatically!**\n\n"
+                        "• Forward/Send video files or media now.\n"
+                        "• Files stay in **Draft** until you send /done.",
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Stop Uploading", callback_data="cancel_op")]])
+                    )
                 else:
                     await message.reply("❌ Database Offline")
-                del user_state[uid]
             elif action == "ask_rename_group_new_name":
                 new_name = message.text.strip()
                 aid, old_name = state["slug"], state["old_name"]
@@ -1575,32 +1653,11 @@ def register_handlers(bot: Client):
                 user_state[uid]["action"] = "ask_seasons"
                 await message.reply("✅ **Asset Registered.**\n\n**Step 5: Groups** (e.g. `Season 1, OVA`):")
             elif action == "ask_seasons":
-                groups = [s.strip() for s in message.text.split(",")]
-                user_state[uid].update({"seasons_list": groups, "current_season_idx": 0, "seasons_data": {}, "action": f"ask_480p_{groups[0]}"})
-                await message.reply(f"📦 **Architecting: {groups[0]}**\n\n🛰 **480p Link** or `/skip`:")
-            elif "ask_480p_" in action:
-                g = action.split("ask_480p_")[-1]
-                user_state[uid]["seasons_data"][g] = {"480p": message.text if message.text != "/skip" else None}
-                user_state[uid]["action"] = f"ask_720p_{g}"
-                await message.reply(f"🛰 **720p Link** (or /skip):")
-            elif "ask_720p_" in action:
-                g = action.split("ask_720p_")[-1]
-                user_state[uid]["seasons_data"][g]["720p"] = message.text if message.text != "/skip" else None
-                user_state[uid]["action"] = f"ask_1080p_{g}"
-                await message.reply(f"🛰 **1080p Link** (or /skip):")
-            elif "ask_1080p_" in action:
-                g = action.split("ask_1080p_")[-1]
-                user_state[uid]["seasons_data"][g]["1080p"] = message.text if message.text != "/skip" else None
-                user_state[uid]["current_season_idx"] += 1
-                if user_state[uid]["current_season_idx"] < len(user_state[uid]["seasons_list"]):
-                    next_s = user_state[uid]["seasons_list"][user_state[uid]["current_season_idx"]]
-                    user_state[uid]["action"] = f"ask_480p_{next_s}"
-                    await message.reply(f"📦 **Architecting: {next_s}**\n\n🛰 **480p Link** or `/skip`:")
-                else:
-                    user_state[uid]["action"] = "ask_category_final"
-                    cats = await db.get_all_categories()
-                    buttons = [[InlineKeyboardButton(c['name'], callback_data=f"finalcat_{c['name']}")] for c in (cats if cats else [{"name": "Anime"}])]
-                    await message.reply("🛰 **Aggregation Complete.**\nTarget **Category**:", reply_markup=InlineKeyboardMarkup(buttons))
+                # Skip manual link entry, go straight to category
+                user_state[uid].update({"seasons_data": {}, "action": "ask_category_final"})
+                cats = await db.get_all_categories()
+                buttons = [[InlineKeyboardButton(c['name'], callback_data=f"finalcat_{c['name']}")] for c in (cats if cats else [{"name": "Anime"}])]
+                await message.reply("🛰 **Metadata Verified.**\nTarget **Category**:", reply_markup=InlineKeyboardMarkup(buttons))
         except Exception as e:
             logger.error(f"Interaction Error: {e}\n{traceback.format_exc()}")
             await message.reply(f"❌ **System Error:** `{str(e)}`")
