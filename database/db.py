@@ -215,12 +215,13 @@ class Database:
             data.setdefault("views", 0)
             data.setdefault("downloads", 0)
 
-            # Complex query for multi-quality / episode uniqueness
+            # Complex query for multi-quality / language / episode uniqueness
             query = {
                 "mal_id": data["mal_id"],
                 "season": data.get("season"),
                 "episode": data.get("episode"),
-                "quality": data.get("quality")
+                "quality": data.get("quality"),
+                "audio": data.get("audio")
             }
             return await self._episodes.update_one(query, {"$set": data}, upsert=True)
         except Exception as e:

@@ -225,14 +225,75 @@
         autoplay: true,
         fluid: true,
         playbackRates: [0.5, 1, 1.25, 1.5, 2],
+        controlBar: {
+            children: [
+                'playToggle',
+                'volumePanel',
+                'currentTimeDisplay',
+                'timeDivider',
+                'durationDisplay',
+                'progressControl',
+                'liveDisplay',
+                'remainingTimeDisplay',
+                'customControlSpacer',
+                'playbackRateMenuButton',
+                'chaptersButton',
+                'descriptionsButton',
+                'subsCapsButton',
+                'audioTrackButton',
+                'fullscreenToggle'
+            ]
+        },
         userActions: {
             hotkeys: true
         }
     });
+
+    // Register Skip Backward Component
+    const Button = videojs.getComponent('Button');
+    class SkipBackward extends Button {
+        constructor(player, options) {
+            super(player, options);
+            this.controlText('Skip Backward 10s');
+        }
+        createEl() {
+            return videojs.dom.createEl('button', {
+                className: 'vjs-skip-backward vjs-control vjs-button',
+                innerHTML: '<div class="vjs-control-content"><i class="fa-solid fa-backward-step"></i></div>',
+                title: 'Backward 10s'
+            });
+        }
+        handleClick() {
+            this.player().currentTime(Math.max(0, this.player().currentTime() - 10));
+        }
+    }
+    videojs.registerComponent('SkipBackward', SkipBackward);
+    player.controlBar.addChild('SkipBackward', {}, 1);
+
+    // Register Skip Forward Component
+    class SkipForward extends Button {
+        constructor(player, options) {
+            super(player, options);
+            this.controlText('Skip Forward 10s');
+        }
+        createEl() {
+            return videojs.dom.createEl('button', {
+                className: 'vjs-skip-forward vjs-control vjs-button',
+                innerHTML: '<div class="vjs-control-content"><i class="fa-solid fa-forward-step"></i></div>',
+                title: 'Forward 10s'
+            });
+        }
+        handleClick() {
+            this.player().currentTime(Math.min(this.player().duration() || 0, this.player().currentTime() + 10));
+        }
+    }
+    videojs.registerComponent('SkipForward', SkipForward);
+    player.controlBar.addChild('SkipForward', {}, 2);
 </script>
 <style>
     .video-js { background-color: #000; }
     .vjs-poster { background-size: contain; }
+    .vjs-skip-backward i, .vjs-skip-forward i { font-size: 1.2em; line-height: 2.5; }
     .video-js .vjs-big-play-button {
         background-color: rgba(255, 60, 0, 0.8);
         border-color: #ff3c00;

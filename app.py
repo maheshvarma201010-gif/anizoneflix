@@ -12,6 +12,7 @@ import asyncio
 import sys
 import re
 from bot import bot, set_commands, register_handlers
+from pyrogram.errors import FloodWait
 from utils.auth import get_current_admin, verify_token
 from utils.utils import slugify
 from fastapi.responses import RedirectResponse, JSONResponse, Response, StreamingResponse
@@ -222,8 +223,8 @@ async def watch_page(request: Request, aid: str, slug: str, hash: str = None):
         logger.error(f"Watch Error: {e}")
         return RedirectResponse("/")
 
-@app.get("/stream/{hash}")
-@app.get("/stream/{hash}/{filename}")
+@app.api_route("/stream/{hash}", methods=["GET", "HEAD"])
+@app.api_route("/stream/{hash}/{filename}", methods=["GET", "HEAD"])
 async def stream_media_handler(request: Request, hash: str, filename: str = None):
     try:
         if not bot.is_connected:
@@ -270,35 +271,66 @@ async def stream_media_handler(request: Request, hash: str, filename: str = None
 
                 bytes_read = 0
 
-                async for chunk in bot.stream_media(media, offset=offset_chunks):
-                    if skip_bytes > 0:
-                        chunk = chunk[skip_bytes:]
-                        skip_bytes = 0
+                while bytes_read < bytes_to_read:
+                    try:
+                        async for chunk in bot.stream_media(media, offset=offset_chunks):
+                            if skip_bytes > 0:
+                                chunk = chunk[skip_bytes:]
+                                skip_bytes = 0
 
-                    if bytes_read + len(chunk) > bytes_to_read:
-                        chunk = chunk[:bytes_to_read - bytes_read]
+                            if bytes_read + len(chunk) > bytes_to_read:
+                                chunk = chunk[:bytes_to_read - bytes_read]
 
-                    yield chunk
-                    bytes_read += len(chunk)
+                            yield chunk
+                            bytes_read += len(chunk)
 
-                    if bytes_read >= bytes_to_read:
+                            # Increment offset for potential continuation after FloodWait
+                            # Since we don't know exactly how many chunks were consumed,
+                            # we can estimate or just let it restart from current bytes_read.
+                            # But Pyrogram's stream_media is an async generator.
+
+                            if bytes_read >= bytes_to_read:
+                                break
+
+                        if bytes_read >= bytes_to_read:
+                            break
+
+                    except FloodWait as e:
+                        logger.warning(f"FloodWait encountered: waiting {e.value} seconds")
+                        await asyncio.sleep(e.value)
+                        # Re-calculate offset based on bytes_read
+                        current_pos = start + bytes_read
+                        offset_chunks = current_pos // chunk_size
+                        skip_bytes = current_pos % chunk_size
+                        continue
+                    except Exception as e:
+                        logger.error(f"Error during stream: {e}")
                         break
+
             except Exception as e:
-                logger.error(f"Stream generation error: {e}")
+                logger.error(f"Stream generation outer error: {e}")
 
         headers = {
-            "Content-Range": f"bytes {start}-{end}/{file_size}",
             "Accept-Ranges": "bytes",
             "Content-Length": str(end - start + 1),
             "Content-Type": "video/mp4", # Force mp4 for browser compatibility
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
             "Access-Control-Allow-Headers": "Range, Content-Type",
             "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
             "Content-Disposition": f'inline; filename="{quote(episode.get("file_name", "video.mp4"))}"'
         }
 
-        return StreamingResponse(stream_generator(), status_code=206 if range_header else 200, headers=headers)
+        if range_header:
+            headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+            status_code = 206
+        else:
+            status_code = 200
+
+        if request.method == "HEAD":
+            return Response(status_code=status_code, headers=headers)
+
+        return StreamingResponse(stream_generator(), status_code=status_code, headers=headers)
     except Exception as e:
         logger.error(f"Streaming route failure: {e}")
         raise HTTPException(status_code=500)
