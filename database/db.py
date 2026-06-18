@@ -215,14 +215,21 @@ class Database:
             data.setdefault("views", 0)
             data.setdefault("downloads", 0)
 
-            # Complex query for multi-quality / language / episode uniqueness
+            # Ensure audio is always set for consistent querying
+            if not data.get("audio"):
+                data["audio"] = "Telugu"
+
+            # Strict Uniqueness: mal_id + season + episode + quality + audio
             query = {
                 "mal_id": data["mal_id"],
-                "season": data.get("season"),
-                "episode": data.get("episode"),
-                "quality": data.get("quality"),
-                "audio": data.get("audio")
+                "season": int(data.get("season", 1)),
+                "episode": int(data.get("episode", 1)),
+                "quality": str(data.get("quality", "HD")),
+                "audio": str(data["audio"])
             }
+
+            # Use upsert to replace existing or insert new
+            logger.info(f"Syncing episode: {query['mal_id']} S{query['season']} E{query['episode']} [{query['quality']} | {query['audio']}]")
             return await self._episodes.update_one(query, {"$set": data}, upsert=True)
         except Exception as e:
             logger.error(f"Persistence Error (add_episode): {e}")

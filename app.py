@@ -262,62 +262,63 @@ async def stream_media_handler(request: Request, hash: str, filename: str = None
         elif file_size > 500 * 1024 * 1024: chunk_size = 2 * 1024 * 1024
 
         async def stream_generator():
+            current_pos = start
+            bytes_to_read = end - start + 1
+            bytes_yielded = 0
+            chunk_size = 1024 * 1024 # Pyrogram default chunk size
+
             try:
-                # Pyrogram stream_media uses 1MB chunks. offset/limit are in chunks.
-                chunk_size = 1024 * 1024
-                offset_chunks = start // chunk_size
-                skip_bytes = start % chunk_size
-                bytes_to_read = end - start + 1
+                while bytes_yielded < bytes_to_read:
+                    if await request.is_disconnected():
+                        break
 
-                bytes_read = 0
+                    offset_chunks = current_pos // chunk_size
+                    skip_bytes = current_pos % chunk_size
 
-                while bytes_read < bytes_to_read:
                     try:
                         async for chunk in bot.stream_media(media, offset=offset_chunks):
                             if skip_bytes > 0:
                                 chunk = chunk[skip_bytes:]
                                 skip_bytes = 0
 
-                            if bytes_read + len(chunk) > bytes_to_read:
-                                chunk = chunk[:bytes_to_read - bytes_read]
+                            if bytes_yielded + len(chunk) > bytes_to_read:
+                                chunk = chunk[:bytes_to_read - bytes_yielded]
 
-                            yield chunk
-                            bytes_read += len(chunk)
-
-                            # Increment offset for potential continuation after FloodWait
-                            # Since we don't know exactly how many chunks were consumed,
-                            # we can estimate or just let it restart from current bytes_read.
-                            # But Pyrogram's stream_media is an async generator.
-
-                            if bytes_read >= bytes_to_read:
+                            if not chunk:
                                 break
 
-                        if bytes_read >= bytes_to_read:
-                            break
+                            yield chunk
+                            len_chunk = len(chunk)
+                            bytes_yielded += len_chunk
+                            current_pos += len_chunk
+
+                            if bytes_yielded >= bytes_to_read or await request.is_disconnected():
+                                break
 
                     except FloodWait as e:
-                        logger.warning(f"FloodWait encountered: waiting {e.value} seconds")
+                        logger.warning(f"Streaming FloodWait: {e.value} seconds")
                         await asyncio.sleep(e.value)
-                        # Re-calculate offset based on bytes_read
-                        current_pos = start + bytes_read
-                        offset_chunks = current_pos // chunk_size
-                        skip_bytes = current_pos % chunk_size
                         continue
                     except Exception as e:
-                        logger.error(f"Error during stream: {e}")
+                        logger.error(f"Streaming Error: {e}")
                         break
-
             except Exception as e:
-                logger.error(f"Stream generation outer error: {e}")
+                logger.error(f"Stream Generator Critical Failure: {e}")
+
+        import mimetypes
+        mime_type, _ = mimetypes.guess_type(episode.get("file_name", "video.mp4"))
+        if not mime_type or "video" not in mime_type:
+            mime_type = "video/mp4"
 
         headers = {
             "Accept-Ranges": "bytes",
             "Content-Length": str(end - start + 1),
-            "Content-Type": "video/mp4", # Force mp4 for browser compatibility
+            "Content-Type": mime_type,
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
             "Access-Control-Allow-Headers": "Range, Content-Type",
             "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
+            "Cache-Control": "no-cache",
             "Content-Disposition": f'inline; filename="{quote(episode.get("file_name", "video.mp4"))}"'
         }
 
