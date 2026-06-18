@@ -19,8 +19,14 @@ class Config:
     BIN_CHANNEL = int(os.getenv("BIN_CHANNEL", 0))
 
     # Proxy Configuration
-    TG_PROXY = ( {} ) # {"scheme": "socks5", "hostname": "", "port": 1234, "username": "user", "password": "pass"}
-
+    TG_PROXY = {
+    "scheme": "socks5",
+    "hostname": "202.49.243.217",
+    "port": 1080,
+    "username": "DownloaderZone",
+    "password": "DZ_9Xv#72Kq!Lm4@Rp8$Wc5"
+    }
+    
     # Security & Intelligence
     SECRET_KEY = os.getenv("SECRET_KEY", "executive-suite-secret-key-v2")
     ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "admin-api-key")
