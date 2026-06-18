@@ -46,13 +46,6 @@
                 <p class="text-gray-400 text-base md:text-lg max-w-3xl line-clamp-3 mb-10 leading-relaxed font-medium">{{ anime.synopsis }}</p>
                 {% endif %}
 
-                <div class="flex flex-wrap justify-center md:justify-start gap-4 mb-8">
-                    {% if anime.trailer %}
-                    <a href="{{ anime.trailer }}" target="_blank" class="px-8 py-3.5 bg-white text-black font-black rounded-xl hover:bg-red-600 hover:text-white transition-all flex items-center shadow-xl text-xs uppercase tracking-widest">
-                        <i class="fa-solid fa-play mr-2 text-base"></i> WATCH TRAILER
-                    </a>
-                    {% endif %}
-                </div>
 
                 {% if anime.seasons_links or episodes %}
                 <div class="space-y-6 mt-8">
@@ -61,22 +54,13 @@
                     {% set has_custom = anime.seasons_links|length > 0 %}
                     {% set season_groups = episodes | groupby('season') | list %}
 
-                    {% if (has_episodes and season_groups|length > 1) or (has_custom and (anime.seasons_links.keys()|list)|length > 1) or (has_episodes and has_custom) %}
+                    {% if (has_episodes and season_groups|length > 1) %}
                     <div class="flex flex-wrap justify-center md:justify-start gap-2 mb-6">
                         {% if episodes %}
                             {% for season_group in season_groups %}
                             <button onclick="showSeason('season-{{ season_group.grouper }}')" id="btn-season-{{ season_group.grouper }}"
                                     class="season-btn px-5 py-2.5 rounded-lg font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all border border-white/5 active:scale-95">
                                 Season {{ season_group.grouper }}
-                            </button>
-                            {% endfor %}
-                        {% endif %}
-
-                        {% if anime.seasons_links %}
-                            {% for season, links in anime.seasons_links.items() %}
-                            <button onclick="showSeason('custom-{{ season|slugify }}')" id="btn-custom-{{ season|slugify }}"
-                                    class="season-btn px-5 py-2.5 rounded-lg font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all border border-white/5 active:scale-95">
-                                {{ season }}
                             </button>
                             {% endfor %}
                         {% endif %}
@@ -117,26 +101,6 @@
                         {% endfor %}
                     {% endif %}
 
-                    <!-- Custom Seasons/Links -->
-                    {% if anime.seasons_links %}
-                        {% for season, links in anime.seasons_links.items() %}
-                        <div id="custom-{{ season|slugify }}" class="season-content hidden animate-fade-in">
-                            <div class="flex flex-wrap justify-center md:justify-start gap-3">
-                                {% for q, url in links.items() %}
-                                    {% if url %}
-                                    {% set q_color = 'blue' if '480' in q else ('purple' if '720' in q else 'red') %}
-                                    <a href="{{ url }}" target="_blank"
-                                       class="px-6 py-3 bg-{{ q_color }}-600/20 hover:bg-{{ q_color }}-600 text-{{ q_color }}-400 hover:text-white rounded-xl border border-{{ q_color }}-600/30 transition-all duration-300">
-                                        <div class="text-center">
-                                        <h4 class="text-[11px] font-black uppercase tracking-widest">GET {{ q }}</h4>
-                                        </div>
-                                    </a>
-                                    {% endif %}
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {% endfor %}
-                    {% endif %}
                 </div>
                 {% endif %}
             </div>
@@ -145,25 +109,7 @@
 
     <!-- Content Groups -->
     <div class="space-y-16">
-        <!-- Custom Buttons -->
-        {% if anime.custom_buttons %}
-        <div class="glass rounded-[2rem] p-6 md:p-10 border border-white/5 shadow-2xl">
-            <div class="flex items-center gap-2 mb-8">
-                <i class="fa-solid fa-link text-red-600 mr-2"></i>
-                <h3 class="text-2xl font-black">Direct Access</h3>
-            </div>
-
-            <div class="flex flex-wrap gap-4">
-                {% for btn in anime.custom_buttons %}
-                <a href="{{ btn.link }}" target="_blank" class="px-8 py-4 bg-slate-800/40 hover:bg-white hover:text-black rounded-2xl font-black text-sm transition-all flex items-center gap-2 border border-white/5 shadow-xl">
-                    <i class="fa-solid fa-up-right-from-square text-xs"></i> {{ btn.name }}
-                </a>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        {% if not anime.seasons_links and not anime.custom_buttons and not episodes %}
+        {% if not episodes %}
             <div class="py-24 text-center glass rounded-[3rem] border-dashed border-2 border-white/5">
                 <i class="fa-solid fa-cloud-moon text-6xl text-slate-800 mb-6"></i>
                 <p class="text-gray-500 font-bold text-xl uppercase tracking-widest">No links synchronized yet.</p>

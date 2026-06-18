@@ -194,19 +194,23 @@ async def watch_page(request: Request, aid: str, slug: str, hash: str = None):
         anime = await db.get_anime(aid)
         if not anime: return RedirectResponse("/")
 
+        # Always fetch all published episodes for selectors
+        all_episodes = await db.get_episodes(anime["mal_id"], status="published")
+        if not all_episodes:
+            return RedirectResponse(f"/anime/{anime['slug']}")
+
         episode = None
         if hash:
             episode = await db.get_episode_by_hash(hash)
 
         if not episode:
-            eps = await db.get_episodes(anime["mal_id"], status="published")
-            if not eps: return RedirectResponse(f"/anime/{anime['slug']}")
-            episode = eps[0]
+            episode = all_episodes[0]
 
         stream_url = f"{Config.BASE_URL}/stream/{episode['hash']}/{quote(episode.get('file_name', 'video.mp4'))}"
         return templates.TemplateResponse(request=request, name="watch.html", context={
             "anime": anime,
             "episode": episode,
+            "episodes": all_episodes,
             "stream_url": stream_url,
             "logo_url": Config.LOGO_URL,
             "site_name": "MoviesZoneFlix"
@@ -278,8 +282,10 @@ async def stream_media_handler(request: Request, hash: str, filename: str = None
             "Content-Range": f"bytes {start}-{end}/{file_size}",
             "Accept-Ranges": "bytes",
             "Content-Length": str(end - start + 1),
-            "Content-Type": media.mime_type or "video/mp4",
+            "Content-Type": "video/mp4", # Force mp4 for browser compatibility
             "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Range, Content-Type",
             "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
             "Content-Disposition": f'inline; filename="{quote(episode.get("file_name", "video.mp4"))}"'
         }

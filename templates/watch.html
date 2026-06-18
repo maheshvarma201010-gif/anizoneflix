@@ -17,31 +17,54 @@
         </div>
 
         <!-- Video Player Container -->
-        <div class="relative w-full aspect-video rounded-2xl overflow-hidden glass border border-white/5 shadow-2xl mb-12 group">
+        <div class="relative w-full aspect-video rounded-2xl overflow-hidden glass border border-white/5 shadow-2xl mb-8 group">
             <div id="player" class="w-full h-full"></div>
         </div>
 
-        <!-- Info -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div class="lg:col-span-2 space-y-8">
+        <!-- Interactive Selectors -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-12">
+            <!-- Season Selector -->
+            <div class="glass rounded-2xl p-4 border border-white/5">
+                <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 text-center">Season</label>
+                <select id="season-select" class="w-full bg-white/5 border-none rounded-xl text-sm font-bold p-3 focus:ring-2 focus:ring-red-600 transition-all outline-none">
+                </select>
             </div>
+            <!-- Episode Selector -->
+            <div class="glass rounded-2xl p-4 border border-white/5">
+                <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 text-center">Episode</label>
+                <select id="episode-select" class="w-full bg-white/5 border-none rounded-xl text-sm font-bold p-3 focus:ring-2 focus:ring-red-600 transition-all outline-none">
+                </select>
+            </div>
+            <!-- Language Selector -->
+            <div class="glass rounded-2xl p-4 border border-white/5">
+                <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 text-center">Language</label>
+                <select id="language-select" class="w-full bg-white/5 border-none rounded-xl text-sm font-bold p-3 focus:ring-2 focus:ring-red-600 transition-all outline-none">
+                </select>
+            </div>
+            <!-- Quality Selector -->
+            <div class="glass rounded-2xl p-4 border border-white/5">
+                <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 text-center">Quality</label>
+                <select id="quality-select" class="w-full bg-white/5 border-none rounded-xl text-sm font-bold p-3 focus:ring-2 focus:ring-red-600 transition-all outline-none">
+                </select>
+            </div>
+        </div>
 
-            <div class="space-y-8">
-                <div class="glass rounded-3xl p-8 border border-white/5">
-                    <h3 class="text-xl font-black mb-6 uppercase tracking-tighter">Series Metadata</h3>
-                    <div class="space-y-4">
-                        <div class="flex justify-between items-center py-3 border-b border-white/5">
-                            <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest">Format</span>
-                            <span class="font-bold text-sm text-red-500">{{ episode.quality }}</span>
-                        </div>
-                        <div class="flex justify-between items-center py-3 border-b border-white/5">
-                            <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest">Audio</span>
-                            <span class="font-bold text-sm">{{ episode.audio or 'Original' }}</span>
-                        </div>
-                        <div class="flex justify-between items-center py-3">
-                            <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest">Codec</span>
-                            <span class="font-bold text-sm">{{ episode.codec or 'H.264' }}</span>
-                        </div>
+        <!-- Info -->
+        <div class="max-w-3xl mx-auto">
+            <div class="glass rounded-3xl p-8 border border-white/5">
+                <h3 class="text-xl font-black mb-6 uppercase tracking-tighter text-center">Video Information</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="flex flex-col items-center p-4 glass rounded-2xl border border-white/5">
+                        <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Quality</span>
+                        <span class="font-bold text-sm text-red-500">{{ episode.quality }}</span>
+                    </div>
+                    <div class="flex flex-col items-center p-4 glass rounded-2xl border border-white/5">
+                        <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Audio</span>
+                        <span class="font-bold text-sm">{{ episode.audio or 'Telugu' }}</span>
+                    </div>
+                    <div class="flex flex-col items-center p-4 glass rounded-2xl border border-white/5">
+                        <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Codec</span>
+                        <span class="font-bold text-sm">{{ episode.codec or 'H.264' }}</span>
                     </div>
                 </div>
             </div>
@@ -53,15 +76,75 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
 <script>
+    // Metadata injection from server
+    const allEpisodes = {{ episodes | tojson }};
+    const currentHash = "{{ episode.hash }}";
+    const currentAid = "{{ anime._id }}";
+    const currentSlug = "{{ anime.slug }}";
+
+    const seasonSelect = document.getElementById('season-select');
+    const episodeSelect = document.getElementById('episode-select');
+    const languageSelect = document.getElementById('language-select');
+    const qualitySelect = document.getElementById('quality-select');
+
+    function populateSelectors() {
+        // Unique Seasons
+        const seasons = [...new Set(allEpisodes.map(ep => ep.season))].sort((a, b) => a - b);
+        seasonSelect.innerHTML = seasons.map(s => `<option value="${s}" ${s == {{ episode.season }} ? 'selected' : ''}>Season ${s}</option>`).join('');
+
+        updateEpisodes();
+    }
+
+    function updateEpisodes() {
+        const s = parseInt(seasonSelect.value);
+        const eps = [...new Set(allEpisodes.filter(ep => ep.season === s).map(ep => ep.episode))].sort((a, b) => a - b);
+        episodeSelect.innerHTML = eps.map(e => `<option value="${e}" ${e == {{ episode.episode }} ? 'selected' : ''}>Episode ${e}</option>`).join('');
+
+        updateLanguages();
+    }
+
+    function updateLanguages() {
+        const s = parseInt(seasonSelect.value);
+        const e = parseInt(episodeSelect.value);
+        const langs = [...new Set(allEpisodes.filter(ep => ep.season === s && ep.episode === e).map(ep => ep.audio || 'Telugu'))];
+        languageSelect.innerHTML = langs.map(l => `<option value="${l}" ${l === "{{ episode.audio or 'Telugu' }}" ? 'selected' : ''}>${l}</option>`).join('');
+
+        updateQualities();
+    }
+
+    function updateQualities() {
+        const s = parseInt(seasonSelect.value);
+        const e = parseInt(episodeSelect.value);
+        const l = languageSelect.value;
+        const qualities = allEpisodes.filter(ep => ep.season === s && ep.episode === e && (ep.audio || 'Telugu') === l);
+
+        qualitySelect.innerHTML = qualities.map(q => `<option value="${q.hash}" ${q.hash === currentHash ? 'selected' : ''}>${q.quality}</option>`).join('');
+    }
+
+    seasonSelect.addEventListener('change', updateEpisodes);
+    episodeSelect.addEventListener('change', updateLanguages);
+    languageSelect.addEventListener('change', updateQualities);
+
+    qualitySelect.addEventListener('change', () => {
+        const hash = qualitySelect.value;
+        if (hash !== currentHash) {
+            window.location.href = `/watch/${currentAid}/${currentSlug}?hash=${hash}`;
+        }
+    });
+
+    // Initialize
+    populateSelectors();
+
     var art = new ArtPlayer({
         container: '#player',
         url: '{{ stream_url }}',
+        type: 'mp4',
         title: '{{ anime.title }} - E{{ episode.episode }}',
         poster: '{{ anime.image }}',
         volume: 0.7,
         isLive: false,
         muted: false,
-        autoplay: false,
+        autoplay: true,
         pip: true,
         autoSize: true,
         autoMini: true,
@@ -82,6 +165,10 @@
         airplay: true,
         theme: '#ff3c00',
         lang: 'en',
+        moreVideoAttr: {
+            crossOrigin: 'anonymous',
+            controlsList: 'nodownload'
+        },
         settings: [
             {
                 html: 'Playback Speed',
