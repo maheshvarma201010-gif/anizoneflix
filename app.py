@@ -251,9 +251,26 @@ async def stream_media_handler(request: Request, hash: str, filename: str = None
 
         async def stream_generator():
             try:
-                # Use adaptive chunk sizing logic for performance
-                async for chunk in bot.stream_media(media, offset=start, limit=end - start + 1):
+                # Pyrogram stream_media uses 1MB chunks. offset/limit are in chunks.
+                chunk_size = 1024 * 1024
+                offset_chunks = start // chunk_size
+                skip_bytes = start % chunk_size
+                bytes_to_read = end - start + 1
+                bytes_read = 0
+
+                async for chunk in bot.stream_media(media, offset=offset_chunks):
+                    if skip_bytes > 0:
+                        chunk = chunk[skip_bytes:]
+                        skip_bytes = 0
+
+                    if bytes_read + len(chunk) > bytes_to_read:
+                        chunk = chunk[:bytes_to_read - bytes_read]
+
                     yield chunk
+                    bytes_read += len(chunk)
+
+                    if bytes_read >= bytes_to_read:
+                        break
             except Exception as e:
                 logger.error(f"Stream generation error: {e}")
 

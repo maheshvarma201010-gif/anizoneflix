@@ -37,8 +37,12 @@ def parse_filename(filename):
 
     # Extract Audio
     if re.search(r'Dual|Multi', filename, re.IGNORECASE): data["audio"] = "Multi-Audio"
-    elif re.search(r'Hindi|Hin', filename, re.IGNORECASE): data["audio"] = "Hindi"
-    elif re.search(r'English|Eng', filename, re.IGNORECASE): data["audio"] = "English"
+    elif re.search(r'Hindi|Hin|HIN', filename): data["audio"] = "Hindi"
+    elif re.search(r'Telugu|Tel|TEL', filename): data["audio"] = "Telugu"
+    elif re.search(r'Tamil|Tam|TAM', filename): data["audio"] = "Tamil"
+    elif re.search(r'Malayalam|Mal|MAL', filename): data["audio"] = "Malayalam"
+    elif re.search(r'Kannada|Kan|KAN', filename): data["audio"] = "Kannada"
+    elif re.search(r'English|Eng|ENG', filename): data["audio"] = "English"
 
     # Extract Codec
     if re.search(r'HEVC|x265|H\.265', filename, re.IGNORECASE): data["codec"] = "HEVC"

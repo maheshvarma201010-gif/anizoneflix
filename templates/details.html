@@ -104,8 +104,8 @@
                                     <div class="flex flex-wrap gap-2">
                                         {% for ep in episode_group.list %}
                                         <div class="flex items-center">
-                                            <a href="/watch/{{ anime.slug }}/{{ anime.slug }}?hash={{ ep.hash }}" class="px-5 py-2.5 bg-white/5 hover:bg-red-600 text-gray-300 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border border-white/5 flex items-center gap-2">
-                                                <i class="fa-solid fa-play text-[10px]"></i> {{ ep.quality }}
+                                            <a href="/watch/{{ anime._id }}/{{ anime.slug }}?hash={{ ep.hash }}" class="px-5 py-2.5 bg-white/5 hover:bg-red-600 text-gray-300 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border border-white/5 flex items-center gap-2">
+                                                <i class="fa-solid fa-play text-[10px]"></i> {{ ep.quality }}{% if ep.audio %} | {{ ep.audio }}{% endif %}
                                             </a>
                                         </div>
                                         {% endfor %}

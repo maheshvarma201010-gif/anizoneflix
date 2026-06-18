@@ -5,6 +5,7 @@ import os
 import json
 import zipfile
 import tempfile
+import secrets
 from urllib.parse import unquote
 from io import BytesIO
 from bson import ObjectId
@@ -15,6 +16,7 @@ from config.config import Config
 from api.anime_api import anime_api
 from database.db import db
 from utils.utils import slugify
+from utils.parser import parse_filename
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -94,9 +96,6 @@ def register_handlers(bot: Client):
             state = user_state.get(message.from_user.id)
             if state and state.get("action") == "uploading":
                 try:
-                    import secrets
-                    from utils.parser import parse_filename
-
                     media = message.document or message.video
                     fname = media.file_name or "video.mp4"
                     caption = message.caption or ""
@@ -147,7 +146,6 @@ def register_handlers(bot: Client):
                 raise ContinuePropagation
 
             try:
-                from utils.parser import parse_filename
                 fname = message.document.file_name if message.document else "video.mp4"
                 parsed = parse_filename(fname)
                 if await db.ping():
