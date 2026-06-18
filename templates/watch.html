@@ -3,60 +3,25 @@
 {% block head %}
 <!-- Video.js Styles -->
 <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
-<!-- Shaka Player UI Styles -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shaka-player@4.7.11/dist/controls.css">
-<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <style>
-    :root {
-        --shaka-accent: #ff3c00;
-    }
     .video-js { background-color: #000; width: 100%; height: 100%; }
-    .shaka-video-container {
-        width: 100%;
-        height: 100%;
-        border-radius: 1rem;
-        overflow: hidden;
-    }
-    .shaka-overflow-menu, .shaka-settings-menu {
-        background-color: rgba(15, 15, 15, 0.95);
-        backdrop-filter: blur(10px);
-        border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .shaka-bottom-controls {
-        padding: 0 15px 10px 15px;
-    }
-    .shaka-range-element {
-        accent-color: var(--shaka-accent);
-    }
-    .shaka-seek-bar-container {
-        height: 6px;
-    }
-    /* Custom Skip Buttons Styling */
-    .shaka-skip-button {
-        background: none;
-        border: none;
-        color: white;
-        cursor: pointer;
-        font-size: 24px;
-        padding: 0 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: color 0.2s;
-    }
-    .shaka-skip-button:hover {
-        color: var(--shaka-accent);
-    }
     /* Video.js theme overrides for city */
     .vjs-theme-city .vjs-big-play-button {
-        background-color: var(--shaka-accent);
+        background-color: #ff3c00;
         border-radius: 50%;
         width: 80px;
         height: 80px;
         line-height: 80px;
         margin-top: -40px;
         margin-left: -40px;
+    }
+    .vjs-skip-button {
+        font-size: 1.2em;
+        line-height: 2.5;
+        cursor: pointer;
+    }
+    .vjs-skip-button:hover {
+        color: #ff3c00;
     }
 </style>
 {% endblock %}
@@ -79,9 +44,14 @@
 
         <!-- Video Player Container -->
         <div class="relative w-full aspect-video rounded-2xl overflow-hidden glass border border-white/5 shadow-2xl mb-8 group">
-            <!-- Shaka Player Container (Primary) -->
-            <div id="video-container" class="shaka-video-container" data-shaka-player-container>
-                <video id="video" class="video-js vjs-theme-city" poster="{{ anime.image }}" autoplay playsinline></video>
+            <div id="player-container" class="w-full h-full">
+                <video id="video-player" class="video-js vjs-big-play-centered vjs-theme-city w-full h-full" controls preload="auto" poster="{{ anime.image }}" data-setup='{}'>
+                    <source src="{{ stream_url }}" type="video/mp4">
+                    <p class="vjs-no-js">
+                        To view this video please enable JavaScript, and consider upgrading to a web browser that
+                        <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+                    </p>
+                </video>
             </div>
         </div>
 
@@ -140,121 +110,82 @@
 {% block scripts %}
 <!-- Video.js Core -->
 <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-<!-- Shaka Player Compilers -->
-<script src="https://cdn.jsdelivr.net/npm/shaka-player@4.7.11/dist/shaka-player.ui.js"></script>
 <script>
     const allEpisodes = {{ episodes | tojson }};
     let currentHash = "{{ episode.hash }}";
     const currentAid = "{{ anime._id }}";
     const currentSlug = "{{ anime.slug }}";
     const baseUrl = "{{ base_url }}";
-    let streamUrl = "{{ stream_url }}";
 
-    let player, ui, video;
-
-    async function initPlayer() {
-        video = document.getElementById('video');
-        const container = document.getElementById('video-container');
-
-        player = new shaka.Player(video);
-
-        // Error handling
-        player.addEventListener('error', onPlayerErrorEvent);
-
-        // UI Configuration
-        ui = new shaka.ui.Overlay(player, container, video);
-        const config = {
-            'controlPanelElements': [
-                'play_pause',
-                'skip_backward',
-                'skip_forward',
-                'mute',
-                'volume',
-                'time_and_duration',
-                'spacer',
-                'captions',
-                'quality',
-                'playback_rate',
-                'fullscreen'
-            ],
-            'addFastForwardButton': true,
-            'addRewindButton': true,
-            'castReceiverAppId': '7B43224A',
-            'clearBufferOnQualityChange': true,
-            'doubleClickForFullscreen': true,
-            'enableKeyboardPlaybackControls': true
-        };
-        ui.configure(config);
-
-        // Optimal streaming configuration
-        player.configure({
-            streaming: {
-                bufferingGoal: 30,
-                rebufferingGoal: 15,
-                bufferBehind: 30,
-                retryParameters: {
-                    maxAttempts: 5,
-                    baseDelay: 1000,
-                    backoffFactor: 2
-                }
-            }
-        });
-
-        // Load initial source
-        try {
-            await player.load(streamUrl);
-            console.log('Video loaded successfully');
-        } catch (e) {
-            onPlayerError(e);
+    // Initialize Video.js
+    const player = videojs('video-player', {
+        autoplay: true,
+        fluid: true,
+        playbackRates: [0.5, 1, 1.25, 1.5, 2],
+        controlBar: {
+            children: [
+                'playToggle',
+                'volumePanel',
+                'currentTimeDisplay',
+                'timeDivider',
+                'durationDisplay',
+                'progressControl',
+                'liveDisplay',
+                'remainingTimeDisplay',
+                'customControlSpacer',
+                'playbackRateMenuButton',
+                'chaptersButton',
+                'descriptionsButton',
+                'subsCapsButton',
+                'audioTrackButton',
+                'fullscreenToggle'
+            ]
+        },
+        userActions: {
+            hotkeys: true
         }
-    }
+    });
 
-    function onPlayerErrorEvent(event) {
-        onPlayerError(event.detail);
-    }
+    // Custom Skip Buttons
+    const Button = videojs.getComponent('Button');
 
-    function onPlayerError(error) {
-        console.error('Error code', error.code, 'object', error);
-    }
-
-    // Custom Skip Buttons Implementation
-    class SkipBackwardButton extends shaka.ui.Element {
-        constructor(parent, controls) {
-            super(parent, controls);
-            this.button_ = document.createElement('button');
-            this.button_.classList.add('shaka-skip-button', 'material-icons');
-            this.button_.textContent = 'replay_10';
-            this.button_.title = 'Backward 10s';
-            this.parent.appendChild(this.button_);
-            this.eventManager.listen(this.button_, 'click', () => {
-                video.currentTime = Math.max(0, video.currentTime - 10);
+    class SkipBackward extends Button {
+        constructor(player, options) {
+            super(player, options);
+            this.controlText('Skip Backward 10s');
+        }
+        createEl() {
+            return videojs.dom.createEl('button', {
+                className: 'vjs-skip-backward vjs-control vjs-button vjs-skip-button',
+                innerHTML: '<div class="vjs-control-content"><i class="fa-solid fa-backward-step"></i></div>',
+                title: 'Backward 10s'
             });
         }
-    }
-    shaka.ui.SkipBackwardButton = SkipBackwardButton;
-    shaka.ui.SkipBackwardButton.Factory = class {
-        create(parent, controls) { return new shaka.ui.SkipBackwardButton(parent, controls); }
-    };
-    shaka.ui.Controls.registerElement('skip_backward', new shaka.ui.SkipBackwardButton.Factory());
-
-    class SkipForwardButton extends shaka.ui.Element {
-        constructor(parent, controls) {
-            super(parent, controls);
-            this.button_ = document.createElement('button');
-            this.button_.classList.add('shaka-skip-button', 'material-icons');
-            this.button_.textContent = 'forward_10';
-            this.button_.title = 'Forward 10s';
-            this.parent.appendChild(this.button_);
-            this.eventManager.listen(this.button_, 'click', () => {
-                video.currentTime = Math.min(video.duration, video.currentTime + 10);
-            });
+        handleClick() {
+            this.player().currentTime(Math.max(0, this.player().currentTime() - 10));
         }
     }
-    shaka.ui.SkipForwardButton = SkipForwardButton;
-    shaka.ui.SkipForwardButton.Factory = class {
-        create(parent, controls) { return new shaka.ui.SkipForwardButton(parent, controls); }
-    };
-    shaka.ui.Controls.registerElement('skip_forward', new shaka.ui.SkipForwardButton.Factory());
+    videojs.registerComponent('SkipBackward', SkipBackward);
+    player.controlBar.addChild('SkipBackward', {}, 1);
+
+    class SkipForward extends Button {
+        constructor(player, options) {
+            super(player, options);
+            this.controlText('Skip Forward 10s');
+        }
+        createEl() {
+            return videojs.dom.createEl('button', {
+                className: 'vjs-skip-forward vjs-control vjs-button vjs-skip-button',
+                innerHTML: '<div class="vjs-control-content"><i class="fa-solid fa-forward-step"></i></div>',
+                title: 'Forward 10s'
+            });
+        }
+        handleClick() {
+            this.player().currentTime(Math.min(this.player().duration() || 0, this.player().currentTime() + 10));
+        }
+    }
+    videojs.registerComponent('SkipForward', SkipForward);
+    player.controlBar.addChild('SkipForward', {}, 2);
 
     // Selectors Logic
     const seasonSelect = document.getElementById('season-select');
@@ -323,7 +254,7 @@
         if (hash !== currentHash) changeEpisode(hash);
     });
 
-    async function changeEpisode(hash) {
+    function changeEpisode(hash) {
         const ep = allEpisodes.find(e => e.hash === hash);
         if (!ep) return;
         currentHash = hash;
@@ -338,15 +269,11 @@
         window.history.pushState({ hash: hash }, '', newUrl);
 
         const newSrc = `${baseUrl}/stream/${ep.hash}/${encodeURIComponent(ep.file_name || 'video.mp4')}`;
-        try {
-            await player.load(newSrc);
-            video.play();
-        } catch (e) {
-            console.error("Load Error", e);
-        }
+        player.src({ type: 'video/mp4', src: newSrc });
+        player.play().catch(() => {});
     }
 
-    window.onpopstate = async function(event) {
+    window.onpopstate = function(event) {
         if (event.state && event.state.hash) {
             const ep = allEpisodes.find(e => e.hash === event.state.hash);
             if (ep) {
@@ -358,16 +285,12 @@
                 updateQualities();
                 qualitySelect.value = ep.hash;
                 const newSrc = `${baseUrl}/stream/${ep.hash}/${encodeURIComponent(ep.file_name || 'video.mp4')}`;
-                await player.load(newSrc);
-                video.play();
+                player.src({ type: 'video/mp4', src: newSrc });
+                player.play();
             }
         }
     };
 
-    // Initialize everything
-    document.addEventListener('shaka-ui-loaded', () => {
-        initPlayer();
-    });
     populateSelectors();
 </script>
 {% endblock %}
