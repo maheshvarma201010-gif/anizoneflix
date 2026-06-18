@@ -1,70 +1,196 @@
 {% extends "base.html" %}
 
+{% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/controls.min.css">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+    .shaka-video-container {
+        width: 100%;
+        height: 100%;
+        border-radius: 1rem;
+        overflow: hidden;
+    }
+    .shaka-controls-container [class*="shaka-"] {
+        font-family: 'Material Icons', 'Inter', sans-serif !important;
+    }
+    .shaka-range-container {
+        height: 6px !important;
+    }
+    .shaka-seek-bar {
+        height: 6px !important;
+    }
+    .shaka-bottom-controls {
+        padding: 0 1rem 1rem 1rem !important;
+    }
+    .shaka-play-button {
+        background-color: #ff0000 !important;
+    }
+    .shaka-current-time {
+        font-weight: 800 !important;
+        font-size: 14px !important;
+    }
+    .custom-skip-btn {
+        background: none;
+        border: none;
+        color: white;
+        cursor: pointer;
+        padding: 0 10px;
+        font-size: 1.2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s;
+    }
+    .custom-skip-btn:hover {
+        color: #ff0000;
+        transform: scale(1.2);
+    }
+    .season-btn.active {
+        background-color: #ff0000;
+        color: white;
+        border-color: #ff0000;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="min-h-screen bg-[#050505] text-white">
+<div class="min-h-screen bg-[#050505] text-white pb-20">
     <!-- Watch Header -->
-    <div class="max-w-7xl mx-auto px-4 py-6">
-        <div class="flex items-center gap-4 mb-8">
-            <a href="/anime/{{ anime.slug }}" class="w-10 h-10 glass rounded-full flex items-center justify-center hover:bg-red-600 transition-all">
-                <i class="fa-solid fa-arrow-left"></i>
-            </a>
-            <div>
-                <h1 class="text-xl md:text-3xl font-black tracking-tight">{{ anime.title }}</h1>
-                <p id="episode-meta" class="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-widest mt-1">
-                    Season {{ episode.season }} • Episode {{ episode.episode }} • {{ episode.quality }}
-                </p>
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
+            <div class="flex items-center gap-5">
+                <a href="/" class="w-12 h-12 glass rounded-2xl flex items-center justify-center hover:bg-red-600 transition-all border border-white/5 active:scale-95 shadow-xl">
+                    <i class="fa-solid fa-house"></i>
+                </a>
+                <div>
+                    <h1 class="text-2xl md:text-4xl font-black tracking-tighter leading-tight">{{ anime.title }}</h1>
+                    <p class="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-[0.3em] mt-1">
+                        Currently Viewing: S{{ episode.season }} E{{ episode.episode }} • {{ episode.quality }}
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                {% if anime.score and anime.score != 'N/A' %}
+                <div class="glass px-4 py-2 rounded-xl border border-white/5 flex items-center gap-2 shadow-lg">
+                    <i class="fa-solid fa-star text-yellow-500"></i>
+                    <span class="font-black text-sm">{{ anime.score }}</span>
+                </div>
+                {% endif %}
+                {% if anime.year and anime.year != 'N/A' %}
+                <div class="glass px-4 py-2 rounded-xl border border-white/5 flex items-center gap-2 shadow-lg">
+                    <i class="fa-solid fa-calendar text-red-500"></i>
+                    <span class="font-black text-sm">{{ anime.year }}</span>
+                </div>
+                {% endif %}
             </div>
         </div>
 
-        <!-- Video Player Container -->
-        <div class="relative w-full aspect-video rounded-2xl overflow-hidden glass border border-white/5 shadow-2xl mb-8 group">
-            <div id="player" class="w-full h-full"></div>
-        </div>
-
-        <!-- Interactive Selectors -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-12">
-            <!-- Season Selector -->
-            <div class="glass rounded-2xl p-4 border border-white/5">
-                <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 text-center">Season</label>
-                <select id="season-select" class="w-full bg-white/5 border-none rounded-xl text-sm font-bold p-3 focus:ring-2 focus:ring-red-600 transition-all outline-none">
-                </select>
-            </div>
-            <!-- Episode Selector -->
-            <div class="glass rounded-2xl p-4 border border-white/5">
-                <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 text-center">Episode</label>
-                <select id="episode-select" class="w-full bg-white/5 border-none rounded-xl text-sm font-bold p-3 focus:ring-2 focus:ring-red-600 transition-all outline-none">
-                </select>
-            </div>
-            <!-- Language Selector -->
-            <div class="glass rounded-2xl p-4 border border-white/5">
-                <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 text-center">Language</label>
-                <select id="language-select" class="w-full bg-white/5 border-none rounded-xl text-sm font-bold p-3 focus:ring-2 focus:ring-red-600 transition-all outline-none">
-                </select>
-            </div>
-            <!-- Quality Selector -->
-            <div class="glass rounded-2xl p-4 border border-white/5">
-                <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 text-center">Quality</label>
-                <select id="quality-select" class="w-full bg-white/5 border-none rounded-xl text-sm font-bold p-3 focus:ring-2 focus:ring-red-600 transition-all outline-none">
-                </select>
-            </div>
-        </div>
-
-        <!-- Info -->
-        <div class="max-w-3xl mx-auto">
-            <div class="glass rounded-3xl p-8 border border-white/5">
-                <h3 class="text-xl font-black mb-6 uppercase tracking-tighter text-center">Video Information</h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="flex flex-col items-center p-4 glass rounded-2xl border border-white/5">
-                        <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Quality</span>
-                        <span id="info-quality" class="font-bold text-sm text-red-500">{{ episode.quality }}</span>
+        <!-- Main Watch Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Player Area -->
+            <div class="lg:col-span-2 space-y-8">
+                <div class="relative w-full aspect-video rounded-3xl overflow-hidden glass border border-white/5 shadow-2xl group">
+                    <div id="video-container" class="shaka-video-container" data-shaka-player-container>
+                        <video id="video" class="w-full h-full" data-shaka-player poster="{{ anime.image }}" autoplay></video>
                     </div>
-                    <div class="flex flex-col items-center p-4 glass rounded-2xl border border-white/5">
-                        <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Audio</span>
-                        <span id="info-audio" class="font-bold text-sm">{{ episode.audio or 'Telugu' }}</span>
+                </div>
+
+                <!-- Metadata Card -->
+                <div class="glass rounded-[2.5rem] p-8 md:p-10 border border-white/5 shadow-2xl relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-8 opacity-5">
+                        <i class="fa-solid fa-quote-right text-8xl"></i>
                     </div>
-                    <div class="flex flex-col items-center p-4 glass rounded-2xl border border-white/5">
-                        <span class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Codec</span>
-                        <span id="info-codec" class="font-bold text-sm">{{ episode.codec or 'H.264' }}</span>
+
+                    <div class="flex flex-wrap gap-2 mb-8">
+                        {% if anime.category %}
+                        <span class="px-5 py-2 bg-red-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg shadow-red-900/40">{{ anime.category }}</span>
+                        {% endif %}
+                        {% if anime.genres %}
+                            {% for genre in anime.genres %}
+                            <span class="px-4 py-2 glass text-gray-300 text-[10px] font-bold rounded-full border border-white/5 uppercase tracking-wider">{{ genre }}</span>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+
+                    <h3 class="text-2xl font-black mb-6 uppercase tracking-tighter flex items-center gap-3">
+                        <span class="w-2 h-8 bg-red-600 rounded-full"></span>
+                        Storyline
+                    </h3>
+
+                    {% if anime.synopsis and anime.synopsis != 'N/A' %}
+                    <p class="text-gray-400 text-base md:text-lg leading-relaxed font-medium mb-10">
+                        {{ anime.synopsis }}
+                    </p>
+                    {% endif %}
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="p-5 glass rounded-3xl border border-white/5 text-center">
+                            <span class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Quality</span>
+                            <span class="font-black text-red-500">{{ episode.quality }}</span>
+                        </div>
+                        <div class="p-5 glass rounded-3xl border border-white/5 text-center">
+                            <span class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Audio</span>
+                            <span class="font-black">{{ episode.audio or 'Telugu' }}</span>
+                        </div>
+                        <div class="p-5 glass rounded-3xl border border-white/5 text-center">
+                            <span class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Status</span>
+                            <span class="font-black text-green-500">{{ anime.status or 'Airing' }}</span>
+                        </div>
+                        <div class="p-5 glass rounded-3xl border border-white/5 text-center">
+                            <span class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">Codec</span>
+                            <span class="font-black">{{ episode.codec or 'HEVC' }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Selector Area -->
+            <div class="space-y-6">
+                <div class="glass rounded-[2.5rem] p-6 border border-white/5 shadow-2xl h-full flex flex-col">
+                    <h3 class="text-xl font-black mb-6 px-2 uppercase tracking-tighter flex items-center gap-3">
+                        <i class="fa-solid fa-list-ul text-red-600"></i>
+                        Navigation
+                    </h3>
+
+                    <!-- Season Tabs -->
+                    {% set season_groups = episodes | groupby('season') | list %}
+                    {% if season_groups|length > 1 %}
+                    <div class="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+                        {% for season_group in season_groups %}
+                        <button onclick="showSeason('season-{{ season_group.grouper }}')" id="btn-season-{{ season_group.grouper }}"
+                                class="season-btn whitespace-nowrap px-6 py-3 glass rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border border-white/5 active:scale-95">
+                            Season {{ season_group.grouper }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Episodes List -->
+                    <div class="flex-1 overflow-y-auto pr-2 space-y-4 max-h-[70vh] scrollbar-thin">
+                        {% for season_group in season_groups %}
+                        <div id="season-{{ season_group.grouper }}" class="season-content hidden space-y-3">
+                            {% set episode_groups = season_group.list | groupby('episode') | list %}
+                            {% for episode_group in episode_groups %}
+                            <div class="p-4 glass rounded-2xl border border-white/5 hover:border-red-600/30 transition-all group">
+                                <div class="flex items-center gap-4 mb-4">
+                                    <div class="w-10 h-10 flex items-center justify-center bg-white/5 text-white rounded-xl font-black text-sm group-hover:bg-red-600 transition-colors">
+                                        {{ episode_group.grouper }}
+                                    </div>
+                                    <span class="font-black text-sm uppercase tracking-tight">Episode {{ episode_group.grouper }}</span>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    {% for ep in episode_group.list %}
+                                    <a href="/watch/{{ anime._id }}/{{ anime.slug }}?hash={{ ep.hash }}"
+                                       class="flex-1 min-w-[120px] text-center px-4 py-2.5 {% if ep.hash == episode.hash %}bg-red-600 text-white{% else %}bg-white/5 text-gray-400{% endif %} hover:bg-red-600 hover:text-white rounded-xl font-black text-[9px] uppercase tracking-widest transition-all border border-white/5">
+                                        {{ ep.quality }}{% if ep.audio %} • {{ ep.audio }}{% endif %}
+                                    </a>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
@@ -74,238 +200,105 @@
 {% endblock %}
 
 {% block scripts %}
-<link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
-<script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.11/shaka-player.ui.min.js"></script>
 <script>
-    // Metadata injection from server
-    const allEpisodes = {{ episodes | tojson }};
-    let currentHash = "{{ episode.hash }}";
-    const currentAid = "{{ anime._id }}";
-    const currentSlug = "{{ anime.slug }}";
-    const baseUrl = "{{ base_url }}";
+    async function initPlayer() {
+        const video = document.getElementById('video');
+        const uiContainer = document.getElementById('video-container');
+        const player = new shaka.Player(video);
 
-    const seasonSelect = document.getElementById('season-select');
-    const episodeSelect = document.getElementById('episode-select');
-    const languageSelect = document.getElementById('language-select');
-    const qualitySelect = document.getElementById('quality-select');
+        // UI Configuration
+        const uiConfig = {
+            'controlPanelElements': [
+                'play_pause',
+                'rewind',
+                'fast_forward',
+                'mute',
+                'volume',
+                'spacer',
+                'time_and_duration',
+                'playback_rate',
+                'quality',
+                'fullscreen',
+                'overflow_menu'
+            ],
+            'addResetOnUnload': true,
+            'addBigPlayButton': true,
+            'castReceiverAppId': 'CC1AD845',
+            'clearBufferOnQualityChange': true
+        };
 
-    function populateSelectors() {
-        const seasons = [...new Set(allEpisodes.map(ep => ep.season))].sort((a, b) => a - b);
-        seasonSelect.innerHTML = seasons.map(s => `<option value="${s}">Season ${s}</option>`).join('');
-        seasonSelect.value = "{{ episode.season }}";
+        const ui = new shaka.ui.Overlay(player, uiContainer, video);
+        ui.configure(uiConfig);
 
-        const s = parseInt(seasonSelect.value);
-        const eps = [...new Set(allEpisodes.filter(ep => ep.season === s).map(ep => ep.episode))].sort((a, b) => a - b);
-        episodeSelect.innerHTML = eps.map(e => `<option value="${e}">Episode ${e}</option>`).join('');
-        episodeSelect.value = "{{ episode.episode }}";
+        // Custom Skip Buttons
+        const controls = ui.getControls();
+        const bottomControls = document.querySelector('.shaka-bottom-controls');
 
-        const e = parseInt(episodeSelect.value);
-        const langs = [...new Set(allEpisodes.filter(ep => ep.season === s && ep.episode === e).map(ep => ep.audio || 'Telugu'))];
-        languageSelect.innerHTML = langs.map(l => `<option value="${l}">${l}</option>`).join('');
-        languageSelect.value = "{{ episode.audio or 'Telugu' }}";
+        // Skip Backward Button
+        const skipBack = document.createElement('button');
+        skipBack.innerHTML = '<i class="fa-solid fa-backward-step"></i>';
+        skipBack.className = 'custom-skip-btn';
+        skipBack.title = 'Backward 10s';
+        skipBack.addEventListener('click', () => {
+            video.currentTime = Math.max(0, video.currentTime - 10);
+        });
 
-        const l = languageSelect.value;
-        const qualities = allEpisodes.filter(ep => ep.season === s && ep.episode === e && (ep.audio || 'Telugu') === l);
-        qualitySelect.innerHTML = qualities.map(q => `<option value="${q.hash}">${q.quality}</option>`).join('');
-        qualitySelect.value = currentHash;
-    }
+        // Skip Forward Button
+        const skipForward = document.createElement('button');
+        skipForward.innerHTML = '<i class="fa-solid fa-forward-step"></i>';
+        skipForward.className = 'custom-skip-btn';
+        skipForward.title = 'Forward 10s';
+        skipForward.addEventListener('click', () => {
+            video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+        });
 
-    function updateEpisodes() {
-        const s = parseInt(seasonSelect.value);
-        const eps = [...new Set(allEpisodes.filter(ep => ep.season === s).map(ep => ep.episode))].sort((a, b) => a - b);
-        episodeSelect.innerHTML = eps.map(e => `<option value="${e}">Episode ${e}</option>`).join('');
-        updateLanguages();
-    }
-
-    function updateLanguages() {
-        const s = parseInt(seasonSelect.value);
-        const e = parseInt(episodeSelect.value);
-        const langs = [...new Set(allEpisodes.filter(ep => ep.season === s && ep.episode === e).map(ep => ep.audio || 'Telugu'))];
-        languageSelect.innerHTML = langs.map(l => `<option value="${l}">${l}</option>`).join('');
-        updateQualities();
-    }
-
-    function updateQualities() {
-        const s = parseInt(seasonSelect.value);
-        const e = parseInt(episodeSelect.value);
-        const l = languageSelect.value;
-        const qualities = allEpisodes.filter(ep => ep.season === s && ep.episode === e && (ep.audio || 'Telugu') === l);
-        qualitySelect.innerHTML = qualities.map(q => `<option value="${q.hash}">${q.quality}</option>`).join('');
-    }
-
-    seasonSelect.addEventListener('change', () => {
-        updateEpisodes();
-        if (qualitySelect.value !== currentHash) changeEpisode(qualitySelect.value);
-    });
-    episodeSelect.addEventListener('change', () => {
-        updateLanguages();
-        if (qualitySelect.value !== currentHash) changeEpisode(qualitySelect.value);
-    });
-    languageSelect.addEventListener('change', () => {
-        updateQualities();
-        if (qualitySelect.value !== currentHash) changeEpisode(qualitySelect.value);
-    });
-
-    qualitySelect.addEventListener('change', () => {
-        const hash = qualitySelect.value;
-        if (hash !== currentHash) {
-            changeEpisode(hash);
+        // Add to UI (Insertion logic for Shaka)
+        const playPauseBtn = document.querySelector('.shaka-play-pause-button');
+        if (playPauseBtn) {
+            playPauseBtn.after(skipForward);
+            playPauseBtn.before(skipBack);
         }
-    });
 
-    function changeEpisode(hash) {
-        const ep = allEpisodes.find(e => e.hash === hash);
-        if (!ep) return;
+        player.addEventListener('error', (event) => {
+            console.error('Error code', event.detail.code, 'object', event.detail);
+        });
 
-        currentHash = hash;
-
-        // Update Meta UI
-        document.getElementById('episode-meta').textContent = `Season ${ep.season} • Episode ${ep.episode} • ${ep.quality}`;
-        document.getElementById('info-quality').textContent = ep.quality;
-        document.getElementById('info-audio').textContent = ep.audio || 'Telugu';
-        document.getElementById('info-codec').textContent = ep.codec || 'H.264';
-
-        // Update URL
-        const newUrl = `/watch/${currentAid}/${currentSlug}?hash=${hash}`;
-        window.history.pushState({ hash: hash }, '', newUrl);
-
-        // Update Video.js Source
         try {
-            if (typeof player !== 'undefined' && player.src) {
-                const newSrc = `${baseUrl}/stream/${ep.hash}/${encodeURIComponent(ep.file_name || 'video.mp4')}`;
-                player.src({ type: 'video/mp4', src: newSrc });
-                player.play().catch(() => {}); // Ignore autoplay block errors
-            }
+            await player.load("{{ stream_url }}");
+            console.log('The video has now been loaded!');
         } catch (e) {
-            console.error("Player update error:", e);
+            console.error('Unable to load source', e);
         }
     }
 
-    window.onpopstate = function(event) {
-        if (event.state && event.state.hash) {
-            // Need to update selectors to match the state
-            const ep = allEpisodes.find(e => e.hash === event.state.hash);
-            if (ep) {
-                seasonSelect.value = ep.season;
-                updateEpisodes();
-                episodeSelect.value = ep.episode;
-                updateLanguages();
-                languageSelect.value = ep.audio || 'Telugu';
-                updateQualities();
-                qualitySelect.value = ep.hash;
-
-                // Finally update player without pushState
-                const newSrc = `${baseUrl}/stream/${ep.hash}/${encodeURIComponent(ep.file_name || 'video.mp4')}`;
-                player.src({ type: 'video/mp4', src: newSrc });
-                player.play();
-
-                // Update UI tags
-                document.getElementById('episode-meta').textContent = `Season ${ep.season} • Episode ${ep.episode} • ${ep.quality}`;
-                document.getElementById('info-quality').textContent = ep.quality;
-                document.getElementById('info-audio').textContent = ep.audio || 'Telugu';
-                document.getElementById('info-codec').textContent = ep.codec || 'H.264';
-            }
+    // Season Switching Logic
+    function showSeason(seasonId) {
+        if (!seasonId) return;
+        document.querySelectorAll('.season-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.season-btn').forEach(btn => {
+            btn.classList.remove('bg-red-600', 'text-white', 'border-red-500');
+            btn.classList.add('glass', 'text-gray-300', 'border-white/5');
+        });
+        const activeContent = document.getElementById(seasonId);
+        if (activeContent) activeContent.classList.remove('hidden');
+        const activeBtn = document.getElementById('btn-' + seasonId);
+        if (activeBtn) {
+            activeBtn.classList.remove('glass', 'text-gray-300', 'border-white/5');
+            activeBtn.classList.add('bg-red-600', 'text-white', 'border-red-500');
         }
-    };
+    }
 
-    // Initialize
-    populateSelectors();
-
-    document.getElementById('player').innerHTML = `
-        <video id="video-player" class="video-js vjs-big-play-centered vjs-theme-city w-full h-full" controls preload="auto" poster="{{ anime.image }}" data-setup='{}'>
-            <source src="{{ stream_url }}" type="video/mp4">
-            <p class="vjs-no-js">
-                To view this video please enable JavaScript, and consider upgrading to a web browser that
-                <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
-            </p>
-        </video>
-    `;
-
-    const player = videojs('video-player', {
-        autoplay: true,
-        fluid: true,
-        playbackRates: [0.5, 1, 1.25, 1.5, 2],
-        controlBar: {
-            children: [
-                'playToggle',
-                'volumePanel',
-                'currentTimeDisplay',
-                'timeDivider',
-                'durationDisplay',
-                'progressControl',
-                'liveDisplay',
-                'remainingTimeDisplay',
-                'customControlSpacer',
-                'playbackRateMenuButton',
-                'chaptersButton',
-                'descriptionsButton',
-                'subsCapsButton',
-                'audioTrackButton',
-                'fullscreenToggle'
-            ]
-        },
-        userActions: {
-            hotkeys: true
+    document.addEventListener('shaka-ui-loaded', initPlayer);
+    document.addEventListener('DOMContentLoaded', () => {
+        const firstBtn = document.querySelector('.season-btn');
+        if (firstBtn) {
+            const seasonId = firstBtn.id.replace('btn-', '');
+            showSeason(seasonId);
+        } else {
+            const firstContent = document.querySelector('.season-content');
+            if (firstContent) firstContent.classList.remove('hidden');
         }
     });
-
-    // Register Skip Backward Component
-    const Button = videojs.getComponent('Button');
-    class SkipBackward extends Button {
-        constructor(player, options) {
-            super(player, options);
-            this.controlText('Skip Backward 10s');
-        }
-        createEl() {
-            return videojs.dom.createEl('button', {
-                className: 'vjs-skip-backward vjs-control vjs-button',
-                innerHTML: '<div class="vjs-control-content"><i class="fa-solid fa-backward-step"></i></div>',
-                title: 'Backward 10s'
-            });
-        }
-        handleClick() {
-            this.player().currentTime(Math.max(0, this.player().currentTime() - 10));
-        }
-    }
-    videojs.registerComponent('SkipBackward', SkipBackward);
-    player.controlBar.addChild('SkipBackward', {}, 1);
-
-    // Register Skip Forward Component
-    class SkipForward extends Button {
-        constructor(player, options) {
-            super(player, options);
-            this.controlText('Skip Forward 10s');
-        }
-        createEl() {
-            return videojs.dom.createEl('button', {
-                className: 'vjs-skip-forward vjs-control vjs-button',
-                innerHTML: '<div class="vjs-control-content"><i class="fa-solid fa-forward-step"></i></div>',
-                title: 'Forward 10s'
-            });
-        }
-        handleClick() {
-            this.player().currentTime(Math.min(this.player().duration() || 0, this.player().currentTime() + 10));
-        }
-    }
-    videojs.registerComponent('SkipForward', SkipForward);
-    player.controlBar.addChild('SkipForward', {}, 2);
 </script>
-<style>
-    .video-js { background-color: #000; }
-    .vjs-poster { background-size: contain; }
-    .vjs-skip-backward i, .vjs-skip-forward i { font-size: 1.2em; line-height: 2.5; }
-    .video-js .vjs-big-play-button {
-        background-color: rgba(255, 60, 0, 0.8);
-        border-color: #ff3c00;
-        border-radius: 50%;
-        width: 80px;
-        height: 80px;
-        line-height: 80px;
-        margin-top: -40px;
-        margin-left: -40px;
-    }
-    .video-js:hover .vjs-big-play-button {
-        background-color: #ff3c00;
-    }
-</style>
 {% endblock %}
