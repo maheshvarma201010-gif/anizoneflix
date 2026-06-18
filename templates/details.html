@@ -86,25 +86,33 @@
                     <!-- Episode Display (Grouped by Season) -->
                     {% if episodes %}
                         {% for season_group in season_groups %}
-                        <div id="season-{{ season_group.grouper }}" class="season-content hidden animate-fade-in space-y-3">
-                            <div class="grid grid-cols-1 gap-3">
-                                {% for ep in season_group.list %}
-                                <div class="flex flex-col md:flex-row items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 hover:border-red-600/30 transition-all group">
-                                    <div class="flex items-center gap-4">
-                                        <div class="w-10 h-10 flex items-center justify-center bg-red-600 rounded-lg font-black shadow-lg text-xs">
-                                            {{ ep.episode }}
+                        <div id="season-{{ season_group.grouper }}" class="season-content hidden animate-fade-in space-y-4">
+                            {% set episode_groups = season_group.list | groupby('episode') | list %}
+                            {% for episode_group in episode_groups %}
+                            <div class="glass rounded-2xl p-5 border border-white/5 hover:border-red-600/20 transition-all group/ep">
+                                <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                    <div class="flex items-center gap-5">
+                                        <div class="w-12 h-12 flex items-center justify-center bg-red-600 text-white rounded-xl font-black shadow-xl text-lg group-hover/ep:scale-110 transition-transform">
+                                            {{ episode_group.grouper }}
                                         </div>
                                         <div>
-                                            <div class="font-bold text-[13px] text-gray-200">{{ ep.title or 'Episode ' ~ ep.episode }}</div>
-                                            <div class="text-[9px] font-black text-gray-500 uppercase tracking-widest">{{ ep.quality }} • {{ ep.audio or 'Multi' }}</div>
+                                            <h4 class="text-lg font-black text-white tracking-tight">Episode {{ episode_group.grouper }}</h4>
+                                            <p class="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mt-1">{{ (episode_group.list|first).display_title or 'Standard Broadcast' }}</p>
                                         </div>
                                     </div>
-                                    <a href="/dl?url={{ (ep.file_id or ep.link)|urlencode }}" target="_blank" class="mt-4 md:mt-0 px-5 py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg font-black text-[9px] uppercase tracking-widest transition-all">
-                                        GET FILES
-                                    </a>
+
+                                    <div class="flex flex-wrap gap-2">
+                                        {% for ep in episode_group.list %}
+                                        <div class="flex items-center">
+                                            <a href="/watch/{{ anime.slug }}/{{ anime.slug }}?hash={{ ep.hash }}" class="px-5 py-2.5 bg-white/5 hover:bg-red-600 text-gray-300 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border border-white/5 flex items-center gap-2">
+                                                <i class="fa-solid fa-play text-[10px]"></i> {{ ep.quality }}
+                                            </a>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
                                 </div>
-                                {% endfor %}
                             </div>
+                            {% endfor %}
                         </div>
                         {% endfor %}
                     {% endif %}
@@ -117,7 +125,7 @@
                                 {% for q, url in links.items() %}
                                     {% if url %}
                                     {% set q_color = 'blue' if '480' in q else ('purple' if '720' in q else 'red') %}
-                                    <a href="/dl?url={{ url|urlencode }}" target="_blank"
+                                    <a href="{{ url }}" target="_blank"
                                        class="px-6 py-3 bg-{{ q_color }}-600/20 hover:bg-{{ q_color }}-600 text-{{ q_color }}-400 hover:text-white rounded-xl border border-{{ q_color }}-600/30 transition-all duration-300">
                                         <div class="text-center">
                                         <h4 class="text-[11px] font-black uppercase tracking-widest">GET {{ q }}</h4>

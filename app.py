@@ -10,11 +10,13 @@ import logging
 import traceback
 import asyncio
 import sys
+import re
 from bot import bot, set_commands, register_handlers
 from utils.auth import get_current_admin, verify_token
 from utils.utils import slugify
-from fastapi.responses import RedirectResponse, JSONResponse, Response
+from fastapi.responses import RedirectResponse, JSONResponse, Response, StreamingResponse
 from contextlib import asynccontextmanager
+from urllib.parse import quote
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -163,7 +165,17 @@ async def anime_detail(request: Request, slug: str):
             return templates.TemplateResponse(request=request, name="404.html", context={"error": "Title not found."}, status_code=404)
 
         categories = await db.get_all_categories()
-        episodes = await db.get_episodes(anime.get("mal_id", "0"))
+
+        # Check admin for drafts
+        token = request.cookies.get("admin_token")
+        is_admin = False
+        if token:
+            try:
+                payload = verify_token(token)
+                is_admin = payload and payload.get("is_admin")
+            except: pass
+
+        episodes = await db.get_episodes(anime.get("mal_id", "0"), status=None if is_admin else "published")
 
         return templates.TemplateResponse(request=request, name="details.html", context={
             "anime": anime,
@@ -175,6 +187,90 @@ async def anime_detail(request: Request, slug: str):
     except Exception as e:
         logger.error(f"Detail error for {slug}: {e}")
         return templates.TemplateResponse(request=request, name="404.html", context={"error": "Database error."}, status_code=500)
+
+@app.get("/watch/{aid}/{slug}")
+async def watch_page(request: Request, aid: str, slug: str, hash: str = None):
+    try:
+        anime = await db.get_anime(aid)
+        if not anime: return RedirectResponse("/")
+
+        episode = None
+        if hash:
+            episode = await db.get_episode_by_hash(hash)
+
+        if not episode:
+            eps = await db.get_episodes(anime["mal_id"], status="published")
+            if not eps: return RedirectResponse(f"/anime/{anime['slug']}")
+            episode = eps[0]
+
+        stream_url = f"{Config.BASE_URL}/stream/{episode['hash']}"
+        return templates.TemplateResponse(request=request, name="watch.html", context={
+            "anime": anime,
+            "episode": episode,
+            "stream_url": stream_url,
+            "logo_url": Config.LOGO_URL,
+            "site_name": "ANIZONEFLIX"
+        })
+    except Exception as e:
+        logger.error(f"Watch Error: {e}")
+        return RedirectResponse("/")
+
+@app.get("/stream/{hash}")
+@app.get("/stream/{hash}/{filename}")
+async def stream_media_handler(request: Request, hash: str, filename: str = None):
+    try:
+        if not bot.is_connected:
+            try: await bot.start()
+            except: pass
+
+        episode = await db.get_episode_by_hash(hash)
+        if not episode: raise HTTPException(status_code=404)
+
+        file_id = episode.get("file_id")
+        if not file_id: raise HTTPException(status_code=404)
+
+        # Proxy from Telegram
+        file_info = await bot.get_messages(Config.BIN_CHANNEL, episode.get("msg_id", 0))
+        media = file_info.document or file_info.video
+        if not media: raise HTTPException(status_code=404)
+
+        file_size = media.file_size
+        range_header = request.headers.get("Range")
+
+        start, end = 0, file_size - 1
+        if range_header:
+            match = re.search(r"bytes=(\d+)-(\d*)", range_header)
+            if match:
+                start = int(match.group(1))
+                if match.group(2):
+                    end = int(match.group(2))
+
+        chunk_size = 1024 * 1024 # 1MB default
+        if file_size < 100 * 1024 * 1024: chunk_size = 512 * 1024
+        elif file_size > 500 * 1024 * 1024: chunk_size = 2 * 1024 * 1024
+
+        async def stream_generator():
+            try:
+                # Use adaptive chunk sizing logic for performance
+                async for chunk in bot.stream_media(media, offset=start, limit=end - start + 1):
+                    yield chunk
+            except Exception as e:
+                logger.error(f"Stream generation error: {e}")
+
+        headers = {
+            "Content-Range": f"bytes {start}-{end}/{file_size}",
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(end - start + 1),
+            "Content-Type": media.mime_type or "video/mp4",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
+            "Content-Disposition": f'inline; filename="{quote(episode.get("file_name", "video.mp4"))}"'
+        }
+
+        return StreamingResponse(stream_generator(), status_code=206 if range_header else 200, headers=headers)
+    except Exception as e:
+        logger.error(f"Streaming route failure: {e}")
+        raise HTTPException(status_code=500)
 
 @app.get("/api/anime")
 async def get_anime_api(skip: int = 0, limit: int = 20):

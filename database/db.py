@@ -210,21 +210,74 @@ class Database:
     async def add_episode(self, data):
         try:
             if self._episodes is None: return None
-            query = {"mal_id": data["mal_id"], "season": data.get("season"), "episode": data.get("episode"), "quality": data.get("quality")}
+            # Standardize defaults
+            data.setdefault("status", "published")
+            data.setdefault("views", 0)
+            data.setdefault("downloads", 0)
+
+            # Complex query for multi-quality / episode uniqueness
+            query = {
+                "mal_id": data["mal_id"],
+                "season": data.get("season"),
+                "episode": data.get("episode"),
+                "quality": data.get("quality")
+            }
             return await self._episodes.update_one(query, {"$set": data}, upsert=True)
         except Exception as e:
             logger.error(f"Persistence Error (add_episode): {e}")
             return None
 
-    async def get_episodes(self, mal_id):
+    async def get_episodes(self, mal_id, status=None):
         try:
             if self._episodes is None: return []
-            cursor = self._episodes.find({"mal_id": mal_id}).sort([("season", 1), ("episode", 1)])
+            query = {"mal_id": mal_id}
+            if status:
+                query["status"] = status
+
+            cursor = self._episodes.find(query).sort([("season", 1), ("episode", 1), ("sort_order", 1)])
             docs = await cursor.to_list(length=1000)
             return clean_doc(docs) or []
         except Exception as e:
             logger.error(f"Read Error (get_episodes): {e}")
             return []
+
+    async def publish_episodes(self, mal_id, user_id):
+        """Transition all user drafts to live status"""
+        try:
+            if self._episodes is None: return None
+            return await self._episodes.update_many(
+                {"mal_id": mal_id, "uploaded_by": user_id, "status": "draft"},
+                {"$set": {"status": "published"}}
+            )
+        except Exception as e:
+            logger.error(f"Publish Error: {e}")
+            return None
+
+    async def delete_drafts(self, mal_id, user_id):
+        try:
+            if self._episodes is None: return None
+            return await self._episodes.delete_many({"mal_id": mal_id, "uploaded_by": user_id, "status": "draft"})
+        except Exception as e:
+            logger.error(f"Delete Drafts Error: {e}")
+            return None
+
+    async def get_episode_by_hash(self, hash_token):
+        try:
+            if self._episodes is None: return None
+            doc = await self._episodes.find_one({"hash": hash_token})
+            return clean_doc(doc)
+        except Exception as e:
+            logger.error(f"Hash Lookup Error: {e}")
+            return None
+
+    async def update_episode(self, ep_id, data):
+        try:
+            if self._episodes is None: return None
+            oid = ObjectId(ep_id) if isinstance(ep_id, str) and len(ep_id) == 24 else ep_id
+            return await self._episodes.update_one({"_id": oid}, {"$set": data})
+        except Exception as e:
+            logger.error(f"Episode Update Error: {e}")
+            return None
 
     async def get_all_categories(self):
         try:
