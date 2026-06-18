@@ -18,6 +18,9 @@ class Config:
     LOGO_URL = os.getenv("LOGO_URL", "https://telegra.ph/file/0c1737e466395b3531b78.jpg")
     BIN_CHANNEL = int(os.getenv("BIN_CHANNEL", 0))
 
+    # Proxy Configuration
+    TG_PROXY = ( {} ) # {"scheme": "socks5", "hostname": "", "port": 1234, "username": "user", "password": "pass"}
+
     # Security & Intelligence
     SECRET_KEY = os.getenv("SECRET_KEY", "executive-suite-secret-key-v2")
     ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "admin-api-key")

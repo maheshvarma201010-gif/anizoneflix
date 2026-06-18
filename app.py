@@ -206,7 +206,9 @@ async def watch_page(request: Request, aid: str, slug: str, hash: str = None):
         if not episode:
             episode = all_episodes[0]
 
-        stream_url = f"{Config.BASE_URL}/stream/{episode['hash']}/{quote(episode.get('file_name', 'video.mp4'))}"
+        scheme = "https" if request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https" else "http"
+        base = f"{scheme}://{request.url.netloc}"
+        stream_url = f"{base}/stream/{episode['hash']}/{quote(episode.get('file_name', 'video.mp4'))}"
         return templates.TemplateResponse(request=request, name="watch.html", context={
             "anime": anime,
             "episode": episode,
@@ -224,8 +226,12 @@ async def watch_page(request: Request, aid: str, slug: str, hash: str = None):
 async def stream_media_handler(request: Request, hash: str, filename: str = None):
     try:
         if not bot.is_connected:
-            try: await bot.start()
-            except: pass
+            try:
+                await bot.start()
+                # Give it a moment to stabilize
+                await asyncio.sleep(1)
+            except Exception as e:
+                logger.error(f"Failed to start bot for streaming: {e}")
 
         episode = await db.get_episode_by_hash(hash)
         if not episode: raise HTTPException(status_code=404)
@@ -260,6 +266,7 @@ async def stream_media_handler(request: Request, hash: str, filename: str = None
                 offset_chunks = start // chunk_size
                 skip_bytes = start % chunk_size
                 bytes_to_read = end - start + 1
+
                 bytes_read = 0
 
                 async for chunk in bot.stream_media(media, offset=offset_chunks):

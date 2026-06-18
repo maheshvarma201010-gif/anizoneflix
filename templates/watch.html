@@ -74,7 +74,8 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
+<link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+<script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
 <script>
     // Metadata injection from server
     const allEpisodes = {{ episodes | tojson }};
@@ -135,62 +136,40 @@
     // Initialize
     populateSelectors();
 
-    var art = new ArtPlayer({
-        container: '#player',
-        url: '{{ stream_url }}',
-        type: 'mp4',
-        title: '{{ anime.title }} - E{{ episode.episode }}',
-        poster: '{{ anime.image }}',
-        volume: 0.7,
-        isLive: false,
-        muted: false,
+    document.getElementById('player').innerHTML = `
+        <video id="video-player" class="video-js vjs-big-play-centered vjs-theme-city w-full h-full" controls preload="auto" poster="{{ anime.image }}" data-setup='{}'>
+            <source src="{{ stream_url }}" type="video/mp4">
+            <p class="vjs-no-js">
+                To view this video please enable JavaScript, and consider upgrading to a web browser that
+                <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+            </p>
+        </video>
+    `;
+
+    const player = videojs('video-player', {
         autoplay: true,
-        pip: true,
-        autoSize: true,
-        autoMini: true,
-        screenshot: true,
-        setting: true,
-        loop: false,
-        flip: true,
-        playbackRate: true,
-        aspectRatio: true,
-        fullscreen: true,
-        fullscreenWeb: true,
-        subtitleOffset: true,
-        miniProgressBar: true,
-        mutex: true,
-        backdrop: true,
-        playsInline: true,
-        autoPlayback: true,
-        airplay: true,
-        theme: '#ff3c00',
-        lang: 'en',
-        moreVideoAttr: {
-            crossOrigin: 'anonymous',
-            controlsList: 'nodownload'
-        },
-        settings: [
-            {
-                html: 'Playback Speed',
-                width: 200,
-                types: [
-                    { html: '0.5x', value: 0.5 },
-                    { html: '0.75x', value: 0.75 },
-                    { html: 'Normal', value: 1, default: true },
-                    { html: '1.25x', value: 1.25 },
-                    { html: '1.5x', value: 1.5 },
-                    { html: '2x', value: 2 },
-                ],
-                onSelect: function (item) {
-                    art.playbackRate = item.value;
-                    return item.html;
-                },
-            },
-        ],
+        fluid: true,
+        playbackRates: [0.5, 1, 1.25, 1.5, 2],
+        userActions: {
+            hotkeys: true
+        }
     });
 </script>
 <style>
-    .art-video-container { background: #000 !important; }
-    .art-poster { object-fit: contain !important; background: #000 !important; }
+    .video-js { background-color: #000; }
+    .vjs-poster { background-size: contain; }
+    .video-js .vjs-big-play-button {
+        background-color: rgba(255, 60, 0, 0.8);
+        border-color: #ff3c00;
+        border-radius: 50%;
+        width: 80px;
+        height: 80px;
+        line-height: 80px;
+        margin-top: -40px;
+        margin-left: -40px;
+    }
+    .video-js:hover .vjs-big-play-button {
+        background-color: #ff3c00;
+    }
 </style>
 {% endblock %}
