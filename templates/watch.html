@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 
 {% block head %}
+<!-- Video.js Styles -->
+<link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
 <!-- Shaka Player UI Styles -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shaka-player@4.7.11/dist/controls.css">
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -8,7 +10,7 @@
     :root {
         --shaka-accent: #ff3c00;
     }
-    .video-js { background-color: #000; }
+    .video-js { background-color: #000; width: 100%; height: 100%; }
     .shaka-video-container {
         width: 100%;
         height: 100%;
@@ -46,6 +48,16 @@
     .shaka-skip-button:hover {
         color: var(--shaka-accent);
     }
+    /* Video.js theme overrides for city */
+    .vjs-theme-city .vjs-big-play-button {
+        background-color: var(--shaka-accent);
+        border-radius: 50%;
+        width: 80px;
+        height: 80px;
+        line-height: 80px;
+        margin-top: -40px;
+        margin-left: -40px;
+    }
 </style>
 {% endblock %}
 
@@ -67,8 +79,9 @@
 
         <!-- Video Player Container -->
         <div class="relative w-full aspect-video rounded-2xl overflow-hidden glass border border-white/5 shadow-2xl mb-8 group">
+            <!-- Shaka Player Container (Primary) -->
             <div id="video-container" class="shaka-video-container" data-shaka-player-container>
-                <video id="video" class="w-full h-full" poster="{{ anime.image }}" autoplay></video>
+                <video id="video" class="video-js vjs-theme-city" poster="{{ anime.image }}" autoplay playsinline></video>
             </div>
         </div>
 
@@ -125,6 +138,8 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Video.js Core -->
+<script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
 <!-- Shaka Player Compilers -->
 <script src="https://cdn.jsdelivr.net/npm/shaka-player@4.7.11/dist/shaka-player.ui.js"></script>
 <script>
@@ -144,15 +159,15 @@
         player = new shaka.Player(video);
 
         // Error handling
-        player.addEventListener('error', onPlayerError);
+        player.addEventListener('error', onPlayerErrorEvent);
 
         // UI Configuration
         ui = new shaka.ui.Overlay(player, container, video);
         const config = {
             'controlPanelElements': [
                 'play_pause',
-                'rewind',
-                'fast_forward',
+                'skip_backward',
+                'skip_forward',
                 'mute',
                 'volume',
                 'time_and_duration',
@@ -165,9 +180,25 @@
             'addFastForwardButton': true,
             'addRewindButton': true,
             'castReceiverAppId': '7B43224A',
-            'clearBufferOnQualityChange': true
+            'clearBufferOnQualityChange': true,
+            'doubleClickForFullscreen': true,
+            'enableKeyboardPlaybackControls': true
         };
         ui.configure(config);
+
+        // Optimal streaming configuration
+        player.configure({
+            streaming: {
+                bufferingGoal: 30,
+                rebufferingGoal: 15,
+                bufferBehind: 30,
+                retryParameters: {
+                    maxAttempts: 5,
+                    baseDelay: 1000,
+                    backoffFactor: 2
+                }
+            }
+        });
 
         // Load initial source
         try {
@@ -224,26 +255,6 @@
         create(parent, controls) { return new shaka.ui.SkipForwardButton(parent, controls); }
     };
     shaka.ui.Controls.registerElement('skip_forward', new shaka.ui.SkipForwardButton.Factory());
-
-    // Re-configure UI to include custom buttons
-    function updateUIConfig() {
-        const config = {
-            'controlPanelElements': [
-                'play_pause',
-                'skip_backward',
-                'skip_forward',
-                'mute',
-                'volume',
-                'time_and_duration',
-                'spacer',
-                'captions',
-                'quality',
-                'playback_rate',
-                'fullscreen'
-            ]
-        };
-        ui.configure(config);
-    }
 
     // Selectors Logic
     const seasonSelect = document.getElementById('season-select');
@@ -355,7 +366,7 @@
 
     // Initialize everything
     document.addEventListener('shaka-ui-loaded', () => {
-        initPlayer().then(updateUIConfig);
+        initPlayer();
     });
     populateSelectors();
 </script>

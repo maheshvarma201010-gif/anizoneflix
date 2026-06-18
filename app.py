@@ -11,6 +11,7 @@ import traceback
 import asyncio
 import sys
 import re
+import mimetypes
 from bot import bot, set_commands, register_handlers
 from pyrogram.errors import FloodWait
 from utils.auth import get_current_admin, verify_token
@@ -55,6 +56,16 @@ async def lifespan(app: FastAPI):
 
         me = await bot.get_me()
         logger.info(f"Production Suite LIVE -> @{me.username}")
+
+        # System Integrity Check: Test BIN_CHANNEL access
+        try:
+            test_msg = await bot.send_message(Config.BIN_CHANNEL, "⚡ **MZ_APP:** System integrity check in progress...")
+            await asyncio.sleep(1)
+            await test_msg.delete()
+            logger.info("System Integrity Check: BIN_CHANNEL access verified.")
+        except Exception as e:
+            logger.error(f"System Integrity Check FAILED: {e}")
+
     except Exception as e:
         logger.critical(f"STARTUP FAILURE: {e}")
         logger.error(traceback.format_exc())
@@ -296,16 +307,18 @@ async def stream_media_handler(request: Request, hash: str, filename: str = None
                                 break
 
                     except FloodWait as e:
-                        logger.warning(f"Streaming FloodWait: {e.value} seconds")
+                        logger.warning(f"Streaming FloodWait: {e.value} seconds. Current Pos: {current_pos}")
                         await asyncio.sleep(e.value)
                         continue
+                    except (GeneratorExit, asyncio.CancelledError):
+                        logger.info(f"Stream interrupted by client: {hash}")
+                        break
                     except Exception as e:
-                        logger.error(f"Streaming Error: {e}")
+                        logger.error(f"Streaming Error for {hash}: {e}")
                         break
             except Exception as e:
                 logger.error(f"Stream Generator Critical Failure: {e}")
 
-        import mimetypes
         mime_type, _ = mimetypes.guess_type(episode.get("file_name", "video.mp4"))
         if not mime_type or "video" not in mime_type:
             mime_type = "video/mp4"
