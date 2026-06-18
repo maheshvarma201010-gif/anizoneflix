@@ -119,7 +119,7 @@ def register_handlers(bot: Client):
                         "season": parsed["season"],
                         "episode": parsed["episode"],
                         "quality": parsed["quality"],
-                        "audio": parsed["audio"],
+                        "audio": state.get("upload_lang", parsed["audio"]),
                         "codec": parsed["codec"],
                         "file_id": media.file_id,
                         "msg_id": fwd.id,
@@ -348,6 +348,7 @@ def register_handlers(bot: Client):
 
             buttons = [
                 [InlineKeyboardButton("📤 Upload Media (Draft)", callback_data=f"upload_media_{aid}")],
+                [InlineKeyboardButton("🌐 Add Language Batch", callback_data=f"add_lang_batch_{aid}")],
                 [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{aid}")],
                 [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
                 [InlineKeyboardButton("📂 Change Category", callback_data=f"manage_category_{aid}")],
@@ -512,7 +513,17 @@ def register_handlers(bot: Client):
         if not state or state.get("action") != "uploading":
             return await message.reply("❌ No active upload session.")
 
-        # Ask for session language before publishing
+        # If language was pre-selected, publish directly
+        if state.get("upload_lang"):
+            await db.publish_episodes(state["mal_id"], uid)
+            user_state.pop(uid, None)
+            return await message.reply(
+                f"🚀 **Mission Accomplished!**\n\n"
+                f"All drafts for `{state['title']}` are now **LIVE**.\n"
+                f"Portal: {Config.BASE_URL}/anime/{slugify(state['title'])}"
+            )
+
+        # Otherwise ask for session language before publishing
         buttons = [
             [InlineKeyboardButton("Telugu", callback_data=f"publang_Telugu_{state['mal_id']}")],
             [InlineKeyboardButton("Tamil", callback_data=f"publang_Tamil_{state['mal_id']}")],
@@ -873,6 +884,7 @@ def register_handlers(bot: Client):
 
         buttons = [
             [InlineKeyboardButton("📤 Upload Media (Draft)", callback_data=f"upload_media_{aid}")],
+            [InlineKeyboardButton("🌐 Add Language Batch", callback_data=f"add_lang_batch_{aid}")],
             [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{aid}")],
             [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
             [InlineKeyboardButton("📂 Change Category", callback_data=f"manage_category_{aid}")],
@@ -1200,6 +1212,50 @@ def register_handlers(bot: Client):
         aid = callback_query.data.split("edit_title_")[-1]
         user_state[callback_query.from_user.id] = {"action": "ask_change_series_title", "slug": aid}
         await callback_query.message.edit_text("🏷 **Change Series Title:**\n\nSend the **New Title** for this series:", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^add_lang_batch_"))
+    async def add_lang_batch_cb(client, callback_query):
+        aid = callback_query.data.split("add_lang_batch_")[-1]
+        buttons = [
+            [InlineKeyboardButton("Telugu", callback_data=f"prelang_Telugu_{aid}")],
+            [InlineKeyboardButton("Tamil", callback_data=f"prelang_Tamil_{aid}")],
+            [InlineKeyboardButton("Hindi", callback_data=f"prelang_Hindi_{aid}")],
+            [InlineKeyboardButton("English", callback_data=f"prelang_English_{aid}")],
+            [InlineKeyboardButton("Malayalam", callback_data=f"prelang_Malayalam_{aid}")],
+            [InlineKeyboardButton("Kannada", callback_data=f"prelang_Kannada_{aid}")],
+            [InlineKeyboardButton("Multi-Audio", callback_data=f"prelang_Multi-Audio_{aid}")],
+            [InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{aid}")]
+        ]
+        await callback_query.message.edit_text(
+            "🌐 **Multi-Language Deployment**\n\nSelect the target language for this batch of files:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+
+    @bot.on_callback_query(filters.regex("^prelang_"))
+    async def prelang_cb(client, callback_query):
+        data = callback_query.data.split("_", 2)
+        lang = data[1]
+        aid = data[2]
+
+        anime = await db.get_anime(aid)
+        if not anime: return await callback_query.answer("❌ Not Found")
+
+        user_state[callback_query.from_user.id] = {
+            "action": "uploading",
+            "mal_id": anime["mal_id"],
+            "aid": aid,
+            "title": anime["title"],
+            "upload_lang": lang
+        }
+        await callback_query.message.edit_text(
+            f"📤 **Language Batch Mode: {lang}**\n"
+            f"Series: `{anime['title']}`\n\n"
+            "• Forward/Send video files for this language.\n"
+            "• Metadata will be parsed, but language is locked to **" + lang + "**.\n"
+            "• Files stay in **Draft** until you send /done.\n\n"
+            "⚡ **Send files now...**",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]])
+        )
 
     @bot.on_callback_query(filters.regex("^upload_media_"))
     async def upload_media_cb(client, callback_query):
