@@ -3,6 +3,7 @@ from config.config import Config
 import os
 import logging
 import asyncio
+import re
 from bson import ObjectId
 
 logger = logging.getLogger("ANIZONEFLIX_DB")
@@ -166,12 +167,33 @@ class Database:
     async def search_anime_db(self, query):
         try:
             if self._anime is None: return []
-            cursor = self._anime.find({"title": {"$regex": query, "$options": "i"}})
+            safe_query = re.escape(query)
+            cursor = self._anime.find({"title": {"$regex": safe_query, "$options": "i"}})
             docs = await cursor.to_list(length=20)
             return clean_doc(docs) or []
         except Exception as e:
             logger.error(f"Read Error (search_anime_db): {e}")
             return []
+
+    async def get_anime(self, identifier):
+        """Robust lookup by ID string or Slug"""
+        if not identifier: return None
+        try:
+            if self._anime is None: return None
+
+            # Try ObjectId lookup first if it looks like one
+            if isinstance(identifier, str) and len(identifier) == 24:
+                try:
+                    doc = await self._anime.find_one({"_id": ObjectId(identifier)})
+                    if doc: return clean_doc(doc)
+                except: pass
+
+            # Fallback to slug
+            doc = await self._anime.find_one({"slug": identifier})
+            return clean_doc(doc)
+        except Exception as e:
+            logger.error(f"Read Error (get_anime): {e}")
+            return None
 
     async def delete_anime_by_slug(self, slug):
         try:
