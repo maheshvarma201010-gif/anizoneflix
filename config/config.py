@@ -9,11 +9,11 @@ class Config:
     BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 
     # Database Configuration
-    MONGO_URI = os.getenv("MONGO_URI", "")
+    MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://hemanthbreaker2027:9550399779htr@cluster0.haybbxg.mongodb.net/?appName=Cluster0")
     DB_NAME = os.getenv("DB_NAME", "anizoneflix")
 
     # Core Identity
-    BASE_URL = os.getenv("BASE_URL", "https://anizoneflix-04c0.onrender.com")
+    BASE_URL = os.getenv("BASE_URL", "https://anizoneflix-six.vercel.app")
     PORT = int(os.getenv("PORT", 10000))
     LOGO_URL = os.getenv("LOGO_URL", "https://telegra.ph/file/0c1737e466395b3531b78.jpg")
 
