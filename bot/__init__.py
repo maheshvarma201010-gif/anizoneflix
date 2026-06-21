@@ -586,17 +586,274 @@ def register_handlers(bot: Client):
         buttons = [
             [InlineKeyboardButton("📦 Add Custom Group", callback_data=f"add_cgrp_start_{aid}")],
             [InlineKeyboardButton("➕ Add Custom Button", callback_data=f"add_btn_start_{aid}")],
+            [InlineKeyboardButton("🗃 Add Custom Box", callback_data=f"add_box_start_{aid}")],
+            [InlineKeyboardButton("📋 Manage Boxes", callback_data=f"manage_boxes_{aid}")],
             [InlineKeyboardButton("📝 Manage Buttons", callback_data=f"manage_btns_{aid}")],
             [InlineKeyboardButton("🛡 Back to Archive", callback_data=f"back_to_edit_{aid}")],
             [InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
         ]
-        await callback_query.message.edit_text(f"🖇 **Custom Button Management: {anime['title']}**", reply_markup=InlineKeyboardMarkup(buttons))
+        await callback_query.message.edit_text(f"🖇 **Custom Management: {anime['title']}**", reply_markup=InlineKeyboardMarkup(buttons))
 
     @bot.on_callback_query(filters.regex("^add_cgrp_start_"))
     async def add_cgrp_start_cb(client, callback_query):
         aid = callback_query.data.split("add_cgrp_start_")[-1]
         user_state[callback_query.from_user.id] = {"action": "ask_cgrp_name", "slug": aid}
         await callback_query.message.edit_text("📦 **Custom Group Name:**\n*(e.g. English Dub, Batch Links)*", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^add_box_start_"))
+    async def add_box_start_cb(client, callback_query):
+        aid = callback_query.data.split("add_box_start_")[-1]
+        user_state[callback_query.from_user.id] = {"action": "ask_box_name", "slug": aid}
+        await callback_query.message.edit_text("🗃 **Custom Box Identity:**\n*(e.g. Download Box, Multi-Audio Box)*", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^manage_boxes_"))
+    async def manage_boxes_cb(client, callback_query):
+        aid = callback_query.data.split("manage_boxes_")[-1]
+        if not aid or aid.startswith("remboxidx_") or aid.startswith("mvupbox_") or aid.startswith("mvdnbox_"):
+            # If called internally after an action, retrieve from state
+            state = user_state.get(callback_query.from_user.id)
+            if state: aid = state["slug"]
+            else: return await callback_query.answer("❌ Session Expired")
+
+        anime = await db.get_anime(aid)
+        if not anime: return await callback_query.answer("❌ Not Found", show_alert=True)
+
+        boxes = anime.get("custom_boxes", [])
+        user_state[callback_query.from_user.id] = {"slug": aid, "boxes": boxes}
+
+        buttons = [[InlineKeyboardButton("➕ Add New Box", callback_data=f"add_box_start_{aid}")]]
+        for idx, box in enumerate(boxes):
+            display_name = (box['name'][:12] + '..') if len(box['name']) > 14 else box['name']
+            row = [
+                InlineKeyboardButton(f"⚙️ {display_name}", callback_data=f"selboxidx_{idx}"),
+                InlineKeyboardButton(f"🗑", callback_data=f"remboxidx_{idx}")
+            ]
+            if idx > 0: row.append(InlineKeyboardButton("⬆️", callback_data=f"mvupbox_{idx}"))
+            if idx < len(boxes) - 1: row.append(InlineKeyboardButton("⬇️", callback_data=f"mvdnbox_{idx}"))
+            buttons.append(row)
+
+        buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"edit_m_back_{aid}")])
+        await callback_query.message.edit_text(f"📋 **Custom Boxes: {anime['title']}**", reply_markup=InlineKeyboardMarkup(buttons))
+
+    @bot.on_callback_query(filters.regex("^selboxidx_"))
+    async def select_box_cb(client, callback_query):
+        data = callback_query.data.split("_")
+        if len(data) > 1:
+            idx = int(data[-1])
+        else:
+            # Fallback if called internally
+            state = user_state.get(callback_query.from_user.id)
+            if state and "box_idx" in state: idx = state["box_idx"]
+            else: return await callback_query.answer("❌ Error")
+
+        state = user_state.get(callback_query.from_user.id)
+        if not state: return await callback_query.answer("❌ Session Expired")
+
+        box = state["boxes"][idx]
+        aid = state["slug"]
+
+        user_state[callback_query.from_user.id].update({"box_idx": idx})
+
+        buttons = [
+            [InlineKeyboardButton("🏷 Rename Box", callback_data=f"renbox_{idx}")],
+            [InlineKeyboardButton("🔗 Edit Page Link", callback_data=f"edboxlink_{idx}")],
+            [InlineKeyboardButton("📦 Add Group to Box", callback_data=f"box_add_grp_{idx}")],
+            [InlineKeyboardButton("🗑 Delete Box", callback_data=f"remboxidx_{idx}")]
+        ]
+
+        groups = box.get("groups", {})
+        for g_name in groups.keys():
+            buttons.append([
+                InlineKeyboardButton(f"⚙️ {g_name}", callback_data=f"selboxg_{idx}_{g_name}"),
+                InlineKeyboardButton("🗑", callback_data=f"remboxg_{idx}_{g_name}")
+            ])
+
+        buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"manage_boxes_{aid}")])
+        await callback_query.message.edit_text(f"🗃 **Box: {box['name']}**\nManage box settings and groups:", reply_markup=InlineKeyboardMarkup(buttons))
+
+    @bot.on_callback_query(filters.regex("^box_add_grp_"))
+    async def box_add_grp_cb(client, callback_query):
+        idx = int(callback_query.data.split("_")[-1])
+        aid = user_state[callback_query.from_user.id]["slug"]
+        user_state[callback_query.from_user.id].update({"action": "ask_box_cgrp_name", "box_idx": idx})
+        await callback_query.message.edit_text("📦 **Group Name for Box:**\n*(e.g. 1080p [Dual], Zip File)*", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^box_grp_yes$"))
+    async def box_grp_yes_cb(client, callback_query):
+        # Part of the box creation flow
+        state = user_state.get(callback_query.from_user.id)
+        if not state: return await callback_query.answer("❌ Session Expired")
+        user_state[callback_query.from_user.id].update({"action": "ask_box_initial_grp_name"})
+        await callback_query.message.edit_text("📦 **First Group Name:**", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^box_grp_no$"))
+    async def box_grp_no_cb(client, callback_query):
+        # Part of the box creation flow
+        uid = callback_query.from_user.id
+        state = user_state.get(uid)
+        if not state: return await callback_query.answer("❌ Session Expired")
+
+        aid = state["slug"]
+        new_box = {
+            "name": state["box_name"],
+            "link": state["box_link"],
+            "groups": {}
+        }
+
+        anime = await db.get_anime(aid)
+        boxes = anime.get("custom_boxes", [])
+        boxes.append(new_box)
+
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+        await callback_query.message.edit_text(f"✅ **Box '{state['box_name']}' created successfully (Empty).**")
+        del user_state[uid]
+
+    @bot.on_callback_query(filters.regex("^remboxidx_"))
+    async def remove_box_cb(client, callback_query):
+        idx = int(callback_query.data.split("_")[-1])
+        state = user_state.get(callback_query.from_user.id)
+        if not state: return await callback_query.answer("❌ Session Expired")
+
+        aid = state["slug"]
+        anime = await db.get_anime(aid)
+        boxes = anime.get("custom_boxes", [])
+        if idx < len(boxes):
+            name = boxes[idx]['name']
+            boxes.pop(idx)
+            await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+            await callback_query.answer(f"🗑 Box '{name}' Removed", show_alert=True)
+            return await manage_boxes_cb(client, callback_query)
+
+    @bot.on_callback_query(filters.regex("^mvupbox_"))
+    async def move_box_up_cb(client, callback_query):
+        idx = int(callback_query.data.split("_")[-1])
+        state = user_state.get(callback_query.from_user.id)
+        if not state or idx == 0: return await callback_query.answer("❌ Error")
+
+        aid = state["slug"]
+        anime = await db.get_anime(aid)
+        boxes = anime.get("custom_boxes", [])
+        boxes[idx], boxes[idx-1] = boxes[idx-1], boxes[idx]
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+        await manage_boxes_cb(client, callback_query)
+
+    @bot.on_callback_query(filters.regex("^mvdnbox_"))
+    async def move_box_dn_cb(client, callback_query):
+        idx = int(callback_query.data.split("_")[-1])
+        state = user_state.get(callback_query.from_user.id)
+        if not state: return await callback_query.answer("❌ Error")
+
+        aid = state["slug"]
+        anime = await db.get_anime(aid)
+        boxes = anime.get("custom_boxes", [])
+        if idx >= len(boxes) - 1: return await callback_query.answer("❌ Error")
+
+        boxes[idx], boxes[idx+1] = boxes[idx+1], boxes[idx]
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+        await manage_boxes_cb(client, callback_query)
+
+    @bot.on_callback_query(filters.regex("^remboxg_"))
+    async def remove_box_grp_cb(client, callback_query):
+        parts = callback_query.data.split("_")
+        b_idx, g_name = int(parts[1]), parts[2]
+        state = user_state.get(callback_query.from_user.id)
+        if not state: return await callback_query.answer("❌ Session Expired")
+
+        aid = state["slug"]
+        anime = await db.get_anime(aid)
+        boxes = anime.get("custom_boxes", [])
+        if b_idx < len(boxes):
+            if g_name in boxes[b_idx]["groups"]:
+                del boxes[b_idx]["groups"][g_name]
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                await callback_query.answer(f"🗑 Group '{g_name}' Removed", show_alert=True)
+                return await select_box_cb(client, callback_query)
+
+    @bot.on_callback_query(filters.regex("^selboxg_"))
+    async def select_box_grp_cb(client, callback_query):
+        parts = callback_query.data.split("_")
+        if len(parts) >= 3:
+            b_idx, g_name = int(parts[1]), parts[2]
+        else:
+            state = user_state.get(callback_query.from_user.id)
+            if state and "box_idx" in state and "box_g_name" in state:
+                b_idx, g_name = state["box_idx"], state["box_g_name"]
+            else: return await callback_query.answer("❌ Error")
+
+        state = user_state.get(callback_query.from_user.id)
+        if not state: return await callback_query.answer("❌ Session Expired")
+
+        aid = state["slug"]
+        anime = await db.get_anime(aid)
+        box = anime.get("custom_boxes", [])[b_idx]
+        group_data = box["groups"][g_name]
+
+        user_state[callback_query.from_user.id].update({"box_idx": b_idx, "box_g_name": g_name})
+
+        buttons = [
+            [InlineKeyboardButton("➕ Add Button to Group", callback_data=f"box_g_add_btn_{b_idx}_{g_name}")],
+            [InlineKeyboardButton("🏷 Rename Group", callback_data=f"renboxg_{b_idx}_{g_name}")],
+            [InlineKeyboardButton("🗑 Delete Group", callback_data=f"remboxg_{b_idx}_{g_name}")]
+        ]
+
+        for btn_label in group_data.keys():
+            buttons.append([
+                InlineKeyboardButton(f"✏️ {btn_label}", callback_data=f"eboxgbtn_{b_idx}_{g_name}_{btn_label}"),
+                InlineKeyboardButton("🗑", callback_data=f"rboxgbtn_{b_idx}_{g_name}_{btn_label}")
+            ])
+
+        buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"selboxidx_{b_idx}")])
+        await callback_query.message.edit_text(f"📦 **Group: {g_name}** (Box: {box['name']})", reply_markup=InlineKeyboardMarkup(buttons))
+
+    @bot.on_callback_query(filters.regex("^box_g_add_btn_"))
+    async def box_g_add_btn_cb(client, callback_query):
+        parts = callback_query.data.split("_")
+        b_idx, g_name = int(parts[4]), parts[5]
+        user_state[callback_query.from_user.id].update({"action": "ask_box_g_btn_label", "box_idx": b_idx, "box_g_name": g_name})
+        await callback_query.message.edit_text("🏷 **Button Label:**", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^renbox_"))
+    async def rename_box_cb_prompt(client, callback_query):
+        idx = int(callback_query.data.split("_")[-1])
+        user_state[callback_query.from_user.id].update({"action": "ask_renbox_name", "box_idx": idx})
+        await callback_query.message.edit_text("✏️ **New Box Name:**", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^edboxlink_"))
+    async def edit_box_link_cb_prompt(client, callback_query):
+        idx = int(callback_query.data.split("_")[-1])
+        user_state[callback_query.from_user.id].update({"action": "ask_edbox_link", "box_idx": idx})
+        await callback_query.message.edit_text("🔗 **New Page Link for Box:**\n*(Send URL or /skip to remove)*", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^renboxg_"))
+    async def rename_box_grp_cb_prompt(client, callback_query):
+        parts = callback_query.data.split("_")
+        b_idx, g_name = int(parts[1]), parts[2]
+        user_state[callback_query.from_user.id].update({"action": "ask_renbox_g_name", "box_idx": b_idx, "old_g_name": g_name})
+        await callback_query.message.edit_text(f"✏️ **New Name for Group '{g_name}':**", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^eboxgbtn_"))
+    async def edit_box_gbtn_cb_prompt(client, callback_query):
+        parts = callback_query.data.split("_")
+        b_idx, g_name, label = int(parts[1]), parts[2], parts[3]
+        user_state[callback_query.from_user.id].update({"action": "ask_ebox_gbtn_label", "box_idx": b_idx, "box_g_name": g_name, "old_label": label})
+        await callback_query.message.edit_text(f"✏️ **New Label for '{label}':**\n*(or /skip)*", reply_markup=None)
+
+    @bot.on_callback_query(filters.regex("^rboxgbtn_"))
+    async def remove_box_gbtn_cb(client, callback_query):
+        parts = callback_query.data.split("_")
+        b_idx, g_name, label = int(parts[1]), parts[2], parts[3]
+        state = user_state.get(callback_query.from_user.id)
+        if not state: return await callback_query.answer("❌ Session Expired")
+
+        aid = state["slug"]
+        anime = await db.get_anime(aid)
+        boxes = anime.get("custom_boxes", [])
+        if b_idx < len(boxes):
+            if g_name in boxes[b_idx]["groups"] and label in boxes[b_idx]["groups"][g_name]:
+                del boxes[b_idx]["groups"][g_name][label]
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                await callback_query.answer(f"🗑 Button '{label}' Removed")
+                return await select_box_grp_cb(client, callback_query)
 
     @bot.on_callback_query(filters.regex("^add_btn_start_"))
     async def add_btn_start_cb(client, callback_query):
@@ -1217,6 +1474,132 @@ def register_handlers(bot: Client):
                         [InlineKeyboardButton("🎯 Select Position", callback_data="setposcg_select")]
                     ]
                     await message.reply(f"📍 **Position for group '{state['cgrp_name']}':**", reply_markup=InlineKeyboardMarkup(buttons))
+            elif action == "ask_box_name":
+                user_state[uid].update({"box_name": message.text.strip(), "action": "ask_box_link"})
+                await message.reply("🔗 **Page Link for the Box:**\n*(Send URL or /skip)*")
+            elif action == "ask_box_link":
+                link = message.text.strip() if message.text != "/skip" else None
+                user_state[uid].update({"box_link": link, "action": "ask_box_group_check"})
+                buttons = [
+                    [InlineKeyboardButton("✅ Yes", callback_data="box_grp_yes"), InlineKeyboardButton("❌ No", callback_data="box_grp_no")]
+                ]
+                await message.reply("📦 **Do you want to add a group to this box?**", reply_markup=InlineKeyboardMarkup(buttons))
+            elif action == "ask_box_initial_grp_name":
+                user_state[uid].update({"action": "ask_box_initial_grp_btn_count", "temp_grp_name": message.text.strip()})
+                await message.reply(f"🖇 **How many buttons in '{message.text.strip()}'?**")
+            elif action == "ask_box_initial_grp_btn_count":
+                try:
+                    count = int(message.text.strip())
+                    user_state[uid].update({"action": "ask_box_initial_grp_btn_label", "btn_count": count, "current_idx": 1, "temp_grp_data": {}})
+                    await message.reply(f"🏷 **Button 1 Label:**")
+                except: await message.reply("❌ Invalid number.")
+            elif action == "ask_box_initial_grp_btn_label":
+                user_state[uid].update({"action": "ask_box_initial_grp_btn_link", "temp_btn_label": message.text.strip()})
+                await message.reply(f"🔗 **URL for '{message.text.strip()}':**")
+            elif action == "ask_box_initial_grp_btn_link":
+                if not message.text.startswith("http"): return await message.reply("❌ Invalid URL.")
+                state["temp_grp_data"][state["temp_btn_label"]] = message.text.strip()
+                if state["current_idx"] < state["btn_count"]:
+                    user_state[uid]["current_idx"] += 1
+                    user_state[uid]["action"] = "ask_box_initial_grp_btn_label"
+                    await message.reply(f"🏷 **Button {user_state[uid]['current_idx']} Label:**")
+                else:
+                    # Finalize BOX with initial group
+                    aid = state["slug"]
+                    new_box = {
+                        "name": state["box_name"],
+                        "link": state["box_link"],
+                        "groups": {state["temp_grp_name"]: state["temp_grp_data"]}
+                    }
+                    anime = await db.get_anime(aid)
+                    boxes = anime.get("custom_boxes", [])
+                    boxes.append(new_box)
+                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                    await message.reply(f"✅ **Box '{state['box_name']}' created with group '{state['temp_grp_name']}'.**")
+                    del user_state[uid]
+            elif action == "ask_box_cgrp_name":
+                user_state[uid].update({"action": "ask_box_cgrp_btn_count", "temp_grp_name": message.text.strip()})
+                await message.reply(f"🖇 **How many buttons in '{message.text.strip()}'?**")
+            elif action == "ask_box_cgrp_btn_count":
+                try:
+                    count = int(message.text.strip())
+                    user_state[uid].update({"action": "ask_box_cgrp_btn_label", "btn_count": count, "current_idx": 1, "temp_grp_data": {}})
+                    await message.reply(f"🏷 **Button 1 Label:**")
+                except: await message.reply("❌ Invalid number.")
+            elif action == "ask_box_cgrp_btn_label":
+                user_state[uid].update({"action": "ask_box_cgrp_btn_link", "temp_btn_label": message.text.strip()})
+                await message.reply(f"🔗 **URL for '{message.text.strip()}':**")
+            elif action == "ask_box_cgrp_btn_link":
+                if not message.text.startswith("http"): return await message.reply("❌ Invalid URL.")
+                state["temp_grp_data"][state["temp_btn_label"]] = message.text.strip()
+                if state["current_idx"] < state["btn_count"]:
+                    user_state[uid]["current_idx"] += 1
+                    user_state[uid]["action"] = "ask_box_cgrp_btn_label"
+                    await message.reply(f"🏷 **Button {user_state[uid]['current_idx']} Label:**")
+                else:
+                    aid, b_idx = state["slug"], state["box_idx"]
+                    anime = await db.get_anime(aid)
+                    boxes = anime.get("custom_boxes", [])
+                    boxes[b_idx]["groups"][state["temp_grp_name"]] = state["temp_grp_data"]
+                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                    await message.reply(f"✅ **Group '{state['temp_grp_name']}' added to box '{boxes[b_idx]['name']}'.**")
+                    del user_state[uid]
+            elif action == "ask_renbox_name":
+                idx, aid = state["box_idx"], state["slug"]
+                anime = await db.get_anime(aid)
+                boxes = anime.get("custom_boxes", [])
+                boxes[idx]["name"] = message.text.strip()
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                await message.reply("✅ Box Renamed.")
+                del user_state[uid]
+            elif action == "ask_edbox_link":
+                idx, aid = state["box_idx"], state["slug"]
+                anime = await db.get_anime(aid)
+                boxes = anime.get("custom_boxes", [])
+                boxes[idx]["link"] = message.text.strip() if message.text != "/skip" else None
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                await message.reply("✅ Box Link Updated.")
+                del user_state[uid]
+            elif action == "ask_box_g_btn_label":
+                user_state[uid].update({"action": "ask_box_g_btn_link", "temp_btn_label": message.text.strip()})
+                await message.reply(f"🔗 **URL for '{message.text.strip()}':**")
+            elif action == "ask_box_g_btn_link":
+                if not message.text.startswith("http"): return await message.reply("❌ Invalid URL.")
+                aid, b_idx, g_name = state["slug"], state["box_idx"], state["box_g_name"]
+                anime = await db.get_anime(aid)
+                boxes = anime.get("custom_boxes", [])
+                boxes[b_idx]["groups"][g_name][state["temp_btn_label"]] = message.text.strip()
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                await message.reply(f"✅ Button added to group '{g_name}'.")
+                del user_state[uid]
+            elif action == "ask_renbox_g_name":
+                idx, aid, old_name = state["box_idx"], state["slug"], state["old_name"] if "old_name" in state else state["old_g_name"]
+                anime = await db.get_anime(aid)
+                boxes = anime.get("custom_boxes", [])
+                if old_name in boxes[idx]["groups"]:
+                    boxes[idx]["groups"][message.text.strip()] = boxes[idx]["groups"].pop(old_name)
+                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                    await message.reply(f"✅ Group Renamed: {old_name} -> {message.text.strip()}")
+                del user_state[uid]
+            elif action == "ask_ebox_gbtn_label":
+                user_state[uid].update({"action": "ask_ebox_gbtn_link", "new_label": message.text.strip()})
+                await message.reply("🔗 **New URL:**\n*(or /skip)*")
+            elif action == "ask_ebox_gbtn_link":
+                idx, aid, g_name, old_label = state["box_idx"], state["slug"], state["box_g_name"], state["old_label"]
+                anime = await db.get_anime(aid)
+                boxes = anime.get("custom_boxes", [])
+                group = boxes[idx]["groups"][g_name]
+
+                new_label = state["new_label"] if state["new_label"] != "/skip" else old_label
+                new_link = message.text.strip() if message.text != "/skip" else group[old_label]
+
+                if new_label != old_label:
+                    del group[old_label]
+                group[new_label] = new_link
+
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                await message.reply("✅ Button Updated.")
+                del user_state[uid]
             elif action == "ask_new_gbtn_label":
                 user_state[uid].update({"action": "ask_new_gbtn_link", "new_label": message.text.strip()})
                 await message.reply(f"🔗 **URL for '{message.text.strip()}':**")
