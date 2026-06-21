@@ -26,6 +26,17 @@ class Config:
 
     DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
+    # Protection & Verification
+    USE_SHORTLINK = os.getenv("USE_SHORTLINK", "False").lower() == "true"
+    SHORTLINK_URL = os.getenv("SHORTLINK_URL", "") # e.g. api.shareus.io
+    SHORTLINK_API = os.getenv("SHORTLINK_API", "")
+
+    USE_VERIFY = os.getenv("USE_VERIFY", "False").lower() == "true"
+    VERIFY_EXPIRE = int(os.getenv("VERIFY_EXPIRE", 86400)) # 24 hours
+
+    USE_REFERER = os.getenv("USE_REFERER", "False").lower() == "true"
+    REFERER_URL = os.getenv("REFERER_URL", "") # Expected referer domain
+
     @classmethod
     def validate(cls):
         """Validate critical production variables"""

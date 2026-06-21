@@ -13,7 +13,8 @@ import sys
 from bot import bot, set_commands, register_handlers
 from utils.auth import get_current_admin, verify_token
 from utils.utils import slugify
-from fastapi.responses import RedirectResponse, JSONResponse, Response
+from utils.protect import Protect, VERIFY_PAGE_HTML
+from fastapi.responses import RedirectResponse, JSONResponse, Response, HTMLResponse
 from contextlib import asynccontextmanager
 
 # Setup Logging
@@ -212,10 +213,40 @@ async def search_web(request: Request, q: str = ""):
         logger.error(f"Search error: {e}")
         return templates.TemplateResponse(request=request, name="search.html", context={"results": [], "query": q, "categories": []})
 
+@app.get("/verify")
+async def verify_page(request: Request):
+    ip = request.client.host
+    token = Protect.generate_verify_token(ip)
+    # Using simple template replacement for now since Jinja2 is already configured for templates directory
+    html = VERIFY_PAGE_HTML.replace("{{ logo_url }}", Config.LOGO_URL).replace("{{ token }}", token)
+    return HTMLResponse(content=html)
+
+@app.get("/verify/check")
+async def verify_check(request: Request, token: str):
+    ip = request.client.host
+    if Protect.validate_verify_token(token, ip):
+        response = RedirectResponse(url="/")
+        cookie_val = Protect.create_verified_cookie()
+        is_secure = "onrender.com" in str(request.base_url) or request.headers.get("x-forwarded-proto") == "https"
+        response.set_cookie("verify_token", cookie_val, max_age=Config.VERIFY_EXPIRE, httponly=True, secure=is_secure, samesite="lax")
+        return response
+    return RedirectResponse(url="/verify")
+
 @app.get("/dl")
-async def download_redirect(url: str):
+async def download_redirect(request: Request, url: str):
     if not url: return RedirectResponse(url="/")
-    return RedirectResponse(url=url)
+
+    # 1. Referer Check
+    if not Protect.check_referer(request):
+        return RedirectResponse(url="/")
+
+    # 2. Verification Check
+    if not Protect.is_verified(request):
+        return RedirectResponse(url="/verify")
+
+    # 3. Shortlink Generation
+    final_url = await Protect.get_shortlink(url)
+    return RedirectResponse(url=final_url)
 
 @app.get("/az-index")
 async def az_index(request: Request):
