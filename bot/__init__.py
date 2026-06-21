@@ -266,23 +266,39 @@ def register_handlers(bot: Client):
                 if results: anime = results[0]
 
             if not anime: return await message.reply(f"❌ **Not Found:** `{slug}`")
-            aid = anime["_id"]
+            aid = str(anime["_id"])
 
-            buttons = [
-                [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{aid}")],
-                [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
-                [InlineKeyboardButton("📂 Change Category", callback_data=f"manage_category_{aid}")],
-                [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{aid}")],
-                [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{aid}")],
-                [InlineKeyboardButton("🗑 Purge Archive", callback_data=f"confirm_purge_{aid}")],
-                [InlineKeyboardButton("🔄 Refresh", callback_data=f"back_to_edit_{aid}"), InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
-            ]
-            await message.reply(
-                f"🏛 **Executive Suite: {anime['title']}**\n"
-                f"ID: `{aid}`\n\n"
-                "Select a sector to manage:",
-                reply_markup=InlineKeyboardMarkup(buttons)
-            )
+            if message.command[0] == "edit_m":
+                buttons = [
+                    [InlineKeyboardButton("📦 Add Custom Group", callback_data=f"add_cgrp_start_{aid}")],
+                    [InlineKeyboardButton("➕ Add Custom Button", callback_data=f"add_btn_start_{aid}")],
+                    [InlineKeyboardButton("🗃 Add Custom Box", callback_data=f"add_box_start_{aid}")],
+                    [InlineKeyboardButton("📋 Manage Boxes", callback_data=f"manage_boxes_{aid}")],
+                    [InlineKeyboardButton("📝 Manage Buttons", callback_data=f"manage_btns_{aid}")],
+                    [InlineKeyboardButton("🔄 Refresh", callback_data=f"edit_m_back_{aid}")],
+                    [InlineKeyboardButton("🛡 Back to Archive", callback_data=f"back_to_edit_{aid}"), InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
+                ]
+                await message.reply(
+                    f"🖇 **Custom Management: {anime['title']}**\n\nSelect a sector to manage:",
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+            else:
+                buttons = [
+                    [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{aid}")],
+                    [InlineKeyboardButton("🗃 Custom Boxes", callback_data=f"manage_boxes_{aid}")],
+                    [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
+                    [InlineKeyboardButton("📂 Change Category", callback_data=f"manage_category_{aid}")],
+                    [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{aid}")],
+                    [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{aid}")],
+                    [InlineKeyboardButton("🗑 Purge Archive", callback_data=f"confirm_purge_{aid}")],
+                    [InlineKeyboardButton("🔄 Refresh", callback_data=f"back_to_edit_{aid}"), InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
+                ]
+                await message.reply(
+                    f"🏛 **Executive Suite: {anime['title']}**\n"
+                    f"ID: `{aid}`\n\n"
+                    "Select a sector to manage:",
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
         except Exception as e:
             logger.error(f"Edit Cmd Error: {e}")
             await message.reply("❌ **Intelligence Feed Offline.**")
@@ -572,7 +588,7 @@ def register_handlers(bot: Client):
             logger.error(f"Manage Groups Error: {e}")
             await callback_query.answer("Sync Error")
 
-    @bot.on_callback_query(filters.regex("^selgidx_"))
+    @bot.on_callback_query(filters.regex("^selgidx_|^select_group_refresh_"))
     async def select_group_cb(client, callback_query):
         try:
             idx = int(callback_query.data.split("_")[-1])
@@ -601,7 +617,7 @@ def register_handlers(bot: Client):
                 if b_idx < len(group_data) - 1: row.append(InlineKeyboardButton("⬇️", callback_data=f"mvdngb_{idx}_{b_idx}"))
                 buttons.append(row)
 
-            buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"selgidx_{idx}")])
+            buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"select_group_refresh_{idx}")])
             buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"manage_groups_{aid}")])
             await callback_query.message.edit_text(f"📦 **Group: {gname}**\nManage internal buttons:", reply_markup=InlineKeyboardMarkup(buttons))
             await callback_query.answer()
@@ -717,7 +733,7 @@ def register_handlers(bot: Client):
             logger.error(f"Manage Boxes Error: {e}")
             await callback_query.answer("Sync Error")
 
-    @bot.on_callback_query(filters.regex("^selboxidx_"))
+    @bot.on_callback_query(filters.regex("^selboxidx_|^select_box_refresh_"))
     async def select_box_cb(client, callback_query):
         try:
             data = callback_query.data.split("_")
@@ -751,7 +767,7 @@ def register_handlers(bot: Client):
                     InlineKeyboardButton("🗑", callback_data=f"remboxg_{idx}_{g_name}")
                 ])
 
-            buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"selboxidx_{idx}")])
+            buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"select_box_refresh_{idx}")])
             buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"manage_boxes_{aid}")])
             await callback_query.message.edit_text(f"🗃 **Box: {box['name']}**\nManage box settings and groups:", reply_markup=InlineKeyboardMarkup(buttons))
             await callback_query.answer()
@@ -861,17 +877,21 @@ def register_handlers(bot: Client):
                 await callback_query.answer(f"🗑 Group '{g_name}' Removed", show_alert=True)
                 return await select_box_cb(client, callback_query)
 
-    @bot.on_callback_query(filters.regex("^selboxg_"))
+    @bot.on_callback_query(filters.regex("^selboxg_|^select_box_grp_refresh_"))
     async def select_box_grp_cb(client, callback_query):
         try:
-            parts = callback_query.data.split("_", 2)
-            if len(parts) >= 3:
-                b_idx, g_name = int(parts[1]), parts[2]
+            if callback_query.data.startswith("select_box_grp_refresh_"):
+                parts = callback_query.data.split("_refresh_", 1)[1].split(":::")
+                b_idx, g_name = int(parts[0]), parts[1]
             else:
-                state = user_state.get(callback_query.from_user.id)
-                if state and "box_idx" in state and "box_g_name" in state:
-                    b_idx, g_name = state["box_idx"], state["box_g_name"]
-                else: return await callback_query.answer("❌ Error")
+                parts = callback_query.data.split("_", 2)
+                if len(parts) >= 3:
+                    b_idx, g_name = int(parts[1]), parts[2]
+                else:
+                    state = user_state.get(callback_query.from_user.id)
+                    if state and "box_idx" in state and "box_g_name" in state:
+                        b_idx, g_name = state["box_idx"], state["box_g_name"]
+                    else: return await callback_query.answer("❌ Error")
 
             state = user_state.get(callback_query.from_user.id)
             if not state: return await callback_query.answer("❌ Session Expired")
@@ -895,7 +915,7 @@ def register_handlers(bot: Client):
                 InlineKeyboardButton("🗑", callback_data=f"rboxgbtn_{b_idx}:::{g_name}:::{btn_label}")
                 ])
 
-            buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"selboxg_{b_idx}_{g_name}")])
+            buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"select_box_grp_refresh_{b_idx}:::{g_name}")])
             buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"selboxidx_{b_idx}")])
             await callback_query.message.edit_text(f"📦 **Group: {g_name}** (Box: {box['name']})", reply_markup=InlineKeyboardMarkup(buttons))
             await callback_query.answer()
@@ -1609,7 +1629,23 @@ def register_handlers(bot: Client):
                 buttons = [
                     [InlineKeyboardButton("✅ Yes", callback_data="box_grp_yes"), InlineKeyboardButton("❌ No", callback_data="box_grp_no")]
                 ]
-                await message.reply("📦 **Do you want to add a group to this box?**", reply_markup=InlineKeyboardMarkup(buttons))
+                await message.reply("📦 **Do you want to add a group to this box?**\n*(Reply Y/N or use buttons)*", reply_markup=InlineKeyboardMarkup(buttons))
+            elif action == "ask_box_group_check":
+                text = message.text.strip().upper()
+                if text in ["Y", "YES"]:
+                    user_state[uid].update({"action": "ask_box_initial_grp_name"})
+                    await message.reply("📦 **First Group Name:**")
+                elif text in ["N", "NO"]:
+                    aid = state["slug"]
+                    new_box = {"name": state["box_name"], "link": state["box_link"], "groups": {}}
+                    anime = await db.get_anime(aid)
+                    boxes = anime.get("custom_boxes", [])
+                    boxes.append(new_box)
+                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                    await message.reply(f"✅ **Box '{state['box_name']}' created successfully (Empty).**")
+                    del user_state[uid]
+                else:
+                    await message.reply("❌ **Invalid Input.** Please send Y or N:")
             elif action == "ask_box_initial_grp_name":
                 user_state[uid].update({"action": "ask_box_initial_grp_btn_count", "temp_grp_name": message.text.strip()})
                 await message.reply(f"🖇 **How many buttons in '{message.text.strip()}'?**")
@@ -1618,7 +1654,7 @@ def register_handlers(bot: Client):
                     count = int(message.text.strip())
                     user_state[uid].update({"action": "ask_box_initial_grp_btn_label", "btn_count": count, "current_idx": 1, "temp_grp_data": {}})
                     await message.reply(f"🏷 **Button 1 Label:**")
-                except: await message.reply("❌ Invalid number.")
+                except: return await message.reply("❌ **Invalid number.** Send a valid integer:")
             elif action == "ask_box_initial_grp_btn_label":
                 user_state[uid].update({"action": "ask_box_initial_grp_btn_link", "temp_btn_label": message.text.strip()})
                 await message.reply(f"🔗 **URL for '{message.text.strip()}':**")
@@ -1651,7 +1687,7 @@ def register_handlers(bot: Client):
                     count = int(message.text.strip())
                     user_state[uid].update({"action": "ask_box_cgrp_btn_label", "btn_count": count, "current_idx": 1, "temp_grp_data": {}})
                     await message.reply(f"🏷 **Button 1 Label:**")
-                except: await message.reply("❌ Invalid number.")
+                except: return await message.reply("❌ **Invalid number.** Send a valid integer:")
             elif action == "ask_box_cgrp_btn_label":
                 user_state[uid].update({"action": "ask_box_cgrp_btn_link", "temp_btn_label": message.text.strip()})
                 await message.reply(f"🔗 **URL for '{message.text.strip()}':**")
