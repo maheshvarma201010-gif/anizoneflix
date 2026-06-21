@@ -20,11 +20,16 @@
 </head>
 <body class="p-4 md:p-12 selection:bg-red-500/30">
     <div class="max-w-4xl mx-auto">
-        <div class="flex items-center gap-6 mb-12 animate-fade-in">
-            <a href="/admin/dashboard" class="w-12 h-12 flex items-center justify-center glass rounded-xl hover:bg-white hover:text-black transition-all">
-                <i class="fa-solid fa-arrow-left"></i>
-            </a>
-            <h1 class="text-4xl font-black tracking-tighter uppercase">Edit <span class="text-red-600">Archive</span></h1>
+        <div class="flex items-center justify-between mb-12 animate-fade-in">
+            <div class="flex items-center gap-6">
+                <a href="/admin/dashboard" class="w-12 h-12 flex items-center justify-center glass rounded-xl hover:bg-white hover:text-black transition-all">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </a>
+                <h1 class="text-4xl font-black tracking-tighter uppercase">Edit <span class="text-red-600">Archive</span></h1>
+            </div>
+            <button onclick="window.location.reload()" class="w-12 h-12 flex items-center justify-center glass rounded-xl hover:bg-white hover:text-black transition-all">
+                <i class="fa-solid fa-arrows-rotate"></i>
+            </button>
         </div>
 
         <form id="editForm" class="space-y-8 animate-fade-in" style="animation-delay: 0.1s">

@@ -274,7 +274,7 @@ def register_handlers(bot: Client):
                 [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{aid}")],
                 [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{aid}")],
                 [InlineKeyboardButton("🗑 Purge Archive", callback_data=f"confirm_purge_{aid}")],
-                [InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
+                [InlineKeyboardButton("🔄 Refresh", callback_data=f"back_to_edit_{aid}"), InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
             ]
             await message.reply(
                 f"🏛 **Executive Suite: {anime['title']}**\n"
@@ -318,6 +318,7 @@ def register_handlers(bot: Client):
             cats = await db.get_all_categories()
             buttons = [[InlineKeyboardButton(f"🏷 {c['name']}", callback_data=f"vcat_{c['name']}"), InlineKeyboardButton("🗑", callback_data=f"del_cat_{c['name']}")] for c in cats]
             buttons.append([InlineKeyboardButton("➕ Add Category", callback_data="add_cat_prompt")])
+            buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data="categories_refresh")])
             await message.reply("📂 **Category Management**", reply_markup=InlineKeyboardMarkup(buttons))
         except Exception as e:
             logger.error(f"Categories Error: {e}")
@@ -332,7 +333,17 @@ def register_handlers(bot: Client):
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         buttons = [[InlineKeyboardButton(days[i], callback_data=f"edit_sched_{days[i]}"), InlineKeyboardButton(days[i+1], callback_data=f"edit_sched_{days[i+1]}")] for i in range(0, 6, 2)]
         buttons.append([InlineKeyboardButton("Sunday", callback_data="edit_sched_Sunday")])
+        buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data="schedule_refresh")])
         await message.reply("📅 **Airing Schedule**", reply_markup=InlineKeyboardMarkup(buttons))
+
+    @bot.on_callback_query(filters.regex("^schedule_refresh$"))
+    async def schedule_refresh_cb(client, callback_query):
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        buttons = [[InlineKeyboardButton(days[i], callback_data=f"edit_sched_{days[i]}"), InlineKeyboardButton(days[i+1], callback_data=f"edit_sched_{days[i+1]}")] for i in range(0, 6, 2)]
+        buttons.append([InlineKeyboardButton("Sunday", callback_data="edit_sched_Sunday")])
+        buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data="schedule_refresh")])
+        await callback_query.message.edit_text("📅 **Airing Schedule**", reply_markup=InlineKeyboardMarkup(buttons))
+        await callback_query.answer("Schedule Synchronized")
 
     @bot.on_message(filters.command("del"))
     async def delete_handler(client, message):
@@ -450,6 +461,17 @@ def register_handlers(bot: Client):
         await help_handler(client, callback_query.message)
         await callback_query.answer()
 
+    @bot.on_callback_query(filters.regex("^categories_refresh$"))
+    async def categories_refresh_cb(client, callback_query):
+        try:
+            cats = await db.get_all_categories()
+            buttons = [[InlineKeyboardButton(f"🏷 {c['name']}", callback_data=f"vcat_{c['name']}"), InlineKeyboardButton("🗑", callback_data=f"del_cat_{c['name']}")] for c in cats]
+            buttons.append([InlineKeyboardButton("➕ Add Category", callback_data="add_cat_prompt")])
+            buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data="categories_refresh")])
+            await callback_query.message.edit_text("📂 **Category Management**", reply_markup=InlineKeyboardMarkup(buttons))
+            await callback_query.answer("Categories Synchronized")
+        except: await callback_query.answer("Sync Failed")
+
     @bot.on_callback_query(filters.regex("^add_cat_prompt$"))
     async def add_cat_prompt_cb(client, callback_query):
         user_state[callback_query.from_user.id] = {"action": "ask_cat_name"}
@@ -522,6 +544,7 @@ def register_handlers(bot: Client):
             if idx < len(group_list) - 1: row.append(InlineKeyboardButton("⬇️", callback_data=f"mvdng_{idx}"))
             buttons.append(row)
 
+        buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"manage_groups_{aid}")])
         buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{aid}")])
         await callback_query.message.edit_text(f"📝 **Groups: {anime['title']}**\nSelect a group to manage buttons or reorder:", reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -553,6 +576,7 @@ def register_handlers(bot: Client):
             if b_idx < len(group_data) - 1: row.append(InlineKeyboardButton("⬇️", callback_data=f"mvdngb_{idx}_{b_idx}"))
             buttons.append(row)
 
+        buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"selgidx_{idx}")])
         buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"manage_groups_{aid}")])
         await callback_query.message.edit_text(f"📦 **Group: {gname}**\nManage internal buttons:", reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -576,6 +600,7 @@ def register_handlers(bot: Client):
             if idx < len(btns) - 1: row.append(InlineKeyboardButton("⬇️", callback_data=f"mvdnb_{idx}"))
             buttons.append(row)
 
+        buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"manage_btns_{aid}")])
         buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{aid}")])
         await callback_query.message.edit_text(f"🖇 **External Redirects: {anime['title']}**\nManage top-level buttons:", reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -589,8 +614,8 @@ def register_handlers(bot: Client):
             [InlineKeyboardButton("🗃 Add Custom Box", callback_data=f"add_box_start_{aid}")],
             [InlineKeyboardButton("📋 Manage Boxes", callback_data=f"manage_boxes_{aid}")],
             [InlineKeyboardButton("📝 Manage Buttons", callback_data=f"manage_btns_{aid}")],
-            [InlineKeyboardButton("🛡 Back to Archive", callback_data=f"back_to_edit_{aid}")],
-            [InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
+            [InlineKeyboardButton("🔄 Refresh", callback_data=f"edit_m_back_{aid}")],
+            [InlineKeyboardButton("🛡 Back to Archive", callback_data=f"back_to_edit_{aid}"), InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
         ]
         await callback_query.message.edit_text(f"🖇 **Custom Management: {anime['title']}**", reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -632,6 +657,7 @@ def register_handlers(bot: Client):
             if idx < len(boxes) - 1: row.append(InlineKeyboardButton("⬇️", callback_data=f"mvdnbox_{idx}"))
             buttons.append(row)
 
+        buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"manage_boxes_{aid}")])
         buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"edit_m_back_{aid}")])
         await callback_query.message.edit_text(f"📋 **Custom Boxes: {anime['title']}**", reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -668,6 +694,7 @@ def register_handlers(bot: Client):
                 InlineKeyboardButton("🗑", callback_data=f"remboxg_{idx}_{g_name}")
             ])
 
+        buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"selboxidx_{idx}")])
         buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"manage_boxes_{aid}")])
         await callback_query.message.edit_text(f"🗃 **Box: {box['name']}**\nManage box settings and groups:", reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -802,6 +829,7 @@ def register_handlers(bot: Client):
                 InlineKeyboardButton("🗑", callback_data=f"rboxgbtn_{b_idx}_{g_name}_{btn_label}")
             ])
 
+        buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"selboxg_{b_idx}_{g_name}")])
         buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"selboxidx_{b_idx}")])
         await callback_query.message.edit_text(f"📦 **Group: {g_name}** (Box: {box['name']})", reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -876,6 +904,7 @@ def register_handlers(bot: Client):
             label = f"✅ {name}" if name == current_cat else name
             buttons.append([InlineKeyboardButton(label, callback_data=f"setncat_{aid}:::{name}")])
 
+        buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data=f"manage_category_{aid}")])
         buttons.append([InlineKeyboardButton("🛡 Back", callback_data=f"back_to_edit_{aid}")])
         await callback_query.message.edit_text(
             f"📂 **Migrate Category: {anime['title']}**\n\n"
@@ -917,7 +946,7 @@ def register_handlers(bot: Client):
             [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{aid}")],
             [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{aid}")],
             [InlineKeyboardButton("🗑 Purge Archive", callback_data=f"confirm_purge_{aid}")],
-            [InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
+            [InlineKeyboardButton("🔄 Refresh", callback_data=f"back_to_edit_{aid}"), InlineKeyboardButton("❌ Abort", callback_data="cancel_op")]
         ]
         await callback_query.message.edit_text(
             f"🏛 **Executive Suite: {anime['title']}**\n"
