@@ -316,20 +316,23 @@ class Database:
             to_import = {}
             for name, docs in data.items():
                 coll = collections.get(name)
-                if coll and docs:
+                if coll is not None:
                     processed_docs = []
-                    for doc in docs:
-                        if "_id" in doc and isinstance(doc["_id"], str) and len(doc["_id"]) == 24:
-                            try: doc["_id"] = ObjectId(doc["_id"])
-                            except: pass
-                        processed_docs.append(doc)
+                    if isinstance(docs, list):
+                        for doc in docs:
+                            if isinstance(doc, dict):
+                                if "_id" in doc and isinstance(doc["_id"], str) and len(doc["_id"]) == 24:
+                                    try: doc["_id"] = ObjectId(doc["_id"])
+                                    except: pass
+                                processed_docs.append(doc)
                     to_import[name] = processed_docs
 
             # Now perform deletions and insertions
             for name, processed_docs in to_import.items():
                 coll = collections.get(name)
                 await coll.delete_many({})
-                await coll.insert_many(processed_docs)
+                if processed_docs:
+                    await coll.insert_many(processed_docs)
 
             return True
         except Exception as e:
