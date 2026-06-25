@@ -9,7 +9,7 @@ from urllib.parse import unquote
 from io import BytesIO
 from bson import ObjectId
 from pyrogram import Client, filters, enums, ContinuePropagation
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, BotCommand
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, BotCommand, BotCommandScopeDefault, BotCommandScopeChat
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from pyrogram.errors import MessageNotModified, FloodWait
 from config.config import Config
@@ -43,24 +43,51 @@ async def is_authorized(user_id):
         return False
 
 async def set_commands(client):
-    commands = [
-        BotCommand("start", "Start the bot"),
-        BotCommand("search", "Industrial-Grade Search"),
-        BotCommand("add_post", "Rapid One-Shot Post"),
-        BotCommand("add_page", "Manual Content Creation"),
-        BotCommand("manual", "Custom Detailed Creation"),
-        BotCommand("edit_m", "Manage Custom Buttons"),
-        BotCommand("edit", "Manage Content Groups"),
-        BotCommand("change_poster", "Update Series Artwork"),
-        BotCommand("categories", "Manage Genres/Tags"),
-        BotCommand("schedule", "Manage Airing Schedule"),
-        BotCommand("del", "Permanent Archive Erasure"),
-        BotCommand("save", "Backup & Restore Data"),
-        BotCommand("cancel", "Abort Active Process"),
-        BotCommand("ping", "System Latency Check")
+    # Default commands for everyone
+    user_commands = [
+        BotCommand("start", "🚀 Start the Experience"),
+        BotCommand("ping", "⚡ System Latency Check")
     ]
-    await client.set_bot_commands(commands)
-    logger.info("Bot commands synchronized.")
+    await client.set_bot_commands(user_commands, scope=BotCommandScopeDefault())
+
+    # Admin commands
+    admin_commands = [
+        BotCommand("start", "🚀 Admin Dashboard"),
+        BotCommand("search", "🔍 Industrial-Grade Search"),
+        BotCommand("add_post", "⚡ Rapid One-Shot Post"),
+        BotCommand("add_page", "📝 Manual Content Creation"),
+        BotCommand("manual", "💎 Custom Detailed Creation"),
+        BotCommand("edit_m", "🖇 Manage Custom Buttons"),
+        BotCommand("edit", "🏛 Manage Content Groups"),
+        BotCommand("change_poster", "🖼 Update Series Artwork"),
+        BotCommand("categories", "🏷 Manage Genres/Tags"),
+        BotCommand("schedule", "📅 Manage Airing Schedule"),
+        BotCommand("del", "🗑 Permanent Archive Erasure"),
+        BotCommand("save", "💾 Backup & Restore Data"),
+        BotCommand("cancel", "❌ Abort Active Process"),
+        BotCommand("ping", "⚡ Latency Check")
+    ]
+
+    # Sync for static admins
+    for admin_id in Config.ADMIN_IDS:
+        try:
+            await client.set_bot_commands(admin_commands, scope=BotCommandScopeChat(chat_id=admin_id))
+        except Exception as e:
+            logger.warning(f"Failed to set commands for admin {admin_id}: {e}")
+
+    # Sync for dynamic database admins
+    try:
+        db_admins = await db.get_all_admin_ids()
+        for admin_id in db_admins:
+            if admin_id not in Config.ADMIN_IDS:
+                try:
+                    await client.set_bot_commands(admin_commands, scope=BotCommandScopeChat(chat_id=admin_id))
+                except Exception as e:
+                    logger.warning(f"Failed to set commands for db admin {admin_id}: {e}")
+    except Exception as e:
+        logger.error(f"Error fetching DB admins for command sync: {e}")
+
+    logger.info("Bot command scopes synchronized.")
 
 def extract_slug(text):
     """Bulletproof slug extraction from any URL or raw text"""
@@ -116,23 +143,40 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("start"))
     async def start_handler(client, message):
-        await message.reply_photo(
-            photo=Config.LOGO_URL,
-            caption=(
-                "👑 **ANIZONEFLIX PREMIUM v2.0**\n\n"
-                "Welcome to the premier Anime Management Suite. Experience seamless automation and high-speed metadata intelligence.\n\n"
-                "⚡ **Quick Start:**\n"
-                "• `/search <name>` — Automated series setup\n"
-                "• `/add_post <name>` — Rapid one-shot publication\n"
-                "• `/add_page` — Manual content creation\n"
-                "• `/edit <url>` — Manage content groups\n"
-                "• `/help` — View full documentation"
-            ),
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🌐 Access Portal", url=Config.BASE_URL)],
-                [InlineKeyboardButton("📚 Admin Guide", callback_data="help_guide")]
-            ])
-        )
+        is_admin = await is_authorized(message.from_user.id) if message.from_user else False
+
+        if is_admin:
+            await message.reply_photo(
+                photo=Config.LOGO_URL,
+                caption=(
+                    "👑 **ANIZONEFLIX EXECUTIVE SUITE v2.5**\n\n"
+                    "Welcome, Administrator. Your high-speed metadata engine is fully operational. Manage your empire with precision.\n\n"
+                    "⚡ **Administrative Hub:**\n"
+                    "• `/search <name>` — Multi-API Intelligence Search\n"
+                    "• `/add_post <name>` — Rapid Automated Deployment\n"
+                    "• `/edit <url>` — Content Architecture Management\n"
+                    "• `/manual` — Bespoke Page Construction\n\n"
+                    "🎯 **System Integrity:** Verified & Protected."
+                ),
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🌐 Public Portal", url=Config.BASE_URL)],
+                    [InlineKeyboardButton("📊 Admin Console", url=f"{Config.BASE_URL}/admin/dashboard")],
+                    [InlineKeyboardButton("📚 Comprehensive Guide", callback_data="help_guide")]
+                ])
+            )
+        else:
+            await message.reply_photo(
+                photo=Config.LOGO_URL,
+                caption=(
+                    "💎 **WELCOME TO ANIZONEFLIX**\n\n"
+                    "Experience the ultimate anime archive. High-speed streaming, premium library, and a seamless interface await you.\n\n"
+                    "🚀 **Join the revolution of digital entertainment.**"
+                ),
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🌐 ENTER PORTAL", url=Config.BASE_URL)],
+                    [InlineKeyboardButton("📢 Updates Channel", url="https://t.me/AniZoneFlix")]
+                ])
+            )
 
     @bot.on_message(filters.command("help"))
     async def help_handler(client, message):

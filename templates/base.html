@@ -36,6 +36,32 @@
         ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
         .glow-red { border-color: var(--accent); }
+
+        .glow-new {
+            animation: glow-pulse 1.5s infinite;
+            box-shadow: 0 0 5px var(--accent);
+        }
+
+        @keyframes glow-pulse {
+            0% { box-shadow: 0 0 5px var(--accent); }
+            50% { box-shadow: 0 0 20px var(--accent); }
+            100% { box-shadow: 0 0 5px var(--accent); }
+        }
+
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+            display: inline-block;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .animate-float-slow {
+            animation: float 5s ease-in-out infinite;
+            display: inline-block;
+        }
     </style>
     {% block head %}{% endblock %}
 </head>

@@ -276,6 +276,14 @@ class Database:
             return user is not None
         except: return False
 
+    async def get_all_admin_ids(self):
+        try:
+            if self._users is None: return []
+            cursor = self._users.find({"is_admin": True}, {"user_id": 1})
+            users = await cursor.to_list(length=1000)
+            return [u["user_id"] for u in users if "user_id" in u]
+        except: return []
+
     async def export_data(self):
         try:
             if self._db is None: return None

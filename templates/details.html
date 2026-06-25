@@ -16,7 +16,12 @@
                 <img src="{{ anime.image or logo_url }}" class="w-full h-full object-contain relative" alt="{{ anime.title }}">
             </div>
 
-            <div class="flex-1 text-center md:text-left pb-4">
+            <div class="flex-1 text-center md:text-left pb-4 relative">
+                <div class="absolute -top-10 left-1/2 -translate-x-1/2 md:left-0 md:translate-x-0 flex gap-4 pointer-events-none">
+                    <span class="animate-float text-3xl">⭐</span>
+                    <span class="animate-float-slow text-3xl" style="animation-delay: 1s">✨</span>
+                </div>
+
                 <div class="flex flex-wrap justify-center md:justify-start gap-2 mb-6">
                     {% if anime.category %}
                     <span class="px-4 py-1.5 bg-red-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg shadow-red-900/40">{{ anime.category }}</span>
@@ -74,8 +79,10 @@
 
                         {% if anime.seasons_links %}
                             {% for season, links in anime.seasons_links.items() %}
+                            {% set is_new = 'NEW' in season.upper() %}
                             <button onclick="showSeason('custom-{{ season|slugify }}')" id="btn-custom-{{ season|slugify }}"
-                                    class="season-btn px-5 py-2.5 rounded-lg font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all border border-white/5 active:scale-95">
+                                    class="season-btn px-5 py-2.5 rounded-lg font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all border border-white/5 active:scale-95 {{ 'glow-new border-red-600/50' if is_new }}">
+                                {% if is_new %}<span class="animate-float">🚀</span>{% endif %}
                                 {{ season }}
                             </button>
                             {% endfor %}
@@ -149,7 +156,13 @@
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 relative z-10">
                     <div class="flex items-center gap-4">
                         <div class="w-1.5 h-10 bg-red-600 rounded-full"></div>
-                        <h3 class="text-3xl font-black tracking-tight uppercase">{{ box.name }}</h3>
+                        {% set box_is_new = 'NEW' in box.name.upper() %}
+                        <h3 class="text-3xl font-black tracking-tight uppercase flex items-center gap-3">
+                            {{ box.name }}
+                            {% if box_is_new %}
+                            <span class="px-3 py-1 bg-red-600 text-[10px] rounded-lg glow-new animate-float">NEW</span>
+                            {% endif %}
+                        </h3>
                     </div>
                     {% if box.link %}
                     <a href="{{ box.link }}" target="_blank" class="w-full md:w-auto px-8 py-4 bg-white text-black font-black rounded-2xl hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2 shadow-xl shadow-white/5 group">
@@ -161,9 +174,14 @@
                 {% if box.groups %}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
                     {% for g_name, g_links in box.groups.items() %}
-                    <div class="p-6 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] transition-all">
+                    {% set g_is_new = 'NEW' in g_name.upper() %}
+                    <div class="p-6 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] transition-all {{ 'glow-new !border-red-600/30' if g_is_new }}">
                         <h4 class="text-[11px] font-black text-gray-500 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                            <i class="fa-solid fa-layer-group text-red-600/50"></i> {{ g_name }}
+                            <i class="fa-solid fa-layer-group text-red-600/50"></i>
+                            {{ g_name }}
+                            {% if g_is_new %}
+                            <span class="ml-auto animate-float text-sm">🔥</span>
+                            {% endif %}
                         </h4>
                         <div class="flex flex-wrap gap-3">
                             {% for label, url in g_links.items() %}
