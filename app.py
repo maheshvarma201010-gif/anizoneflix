@@ -106,6 +106,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # --- WEB ROUTES ---
 
 
+
 @app.api_route("/", methods=["GET", "HEAD"])
 async def index(request: Request):
     if request.method == "HEAD":
