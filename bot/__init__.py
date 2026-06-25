@@ -64,6 +64,7 @@ async def set_commands(client):
         BotCommand("schedule", "📅 Manage Airing Schedule"),
         BotCommand("del", "🗑 Permanent Archive Erasure"),
         BotCommand("save", "💾 Backup & Restore Data"),
+        BotCommand("redirect", "🔗 Trace URL Redirects"),
         BotCommand("cancel", "❌ Abort Active Process"),
         BotCommand("ping", "⚡ Latency Check")
     ]
@@ -461,6 +462,54 @@ def register_handlers(bot: Client):
             "Choose an action to manage your data safely:",
             reply_markup=InlineKeyboardMarkup(buttons)
         )
+
+    @bot.on_message(filters.command("redirect"))
+    async def redirect_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Unauthorized.**")
+
+        urls = []
+        # 1. From Command Args
+        if len(message.command) > 1:
+            urls.extend(message.text.split(None, 1)[1].split())
+
+        # 2. From Replied Message (Text/Caption/Document)
+        if message.reply_to_message:
+            reply = message.reply_to_message
+            text = reply.text or reply.caption or ""
+            if text:
+                import re
+                urls.extend(re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', text))
+
+            if reply.document and (reply.document.file_name.endswith(".txt") or reply.document.mime_type == "text/plain"):
+                msg = await message.reply("⏳ **Processing document...**")
+                path = await reply.download()
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        urls.extend([line.strip() for line in f if line.strip().startswith("http")])
+                except Exception as e:
+                    logger.error(f"Redirect Doc Error: {e}")
+                finally:
+                    if os.path.exists(path): os.remove(path)
+                await msg.delete()
+
+        if not urls:
+            return await message.reply("💡 **Usage:** `/redirect <url>` or reply to a list/txt file.")
+
+        status_msg = await message.reply(f"🔍 **Tracing {len(urls)} URLs...**")
+        results = []
+
+        import aiohttp
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
+            for url in urls[:50]: # Limit to 50 for safety
+                try:
+                    async with session.get(url, allow_redirects=True) as resp:
+                        final_url = str(resp.url)
+                        results.append(f"original link: `{url}`\nFinal link : `{final_url}`")
+                except Exception as e:
+                    results.append(f"original link: `{url}`\nError    : `{str(e)}`")
+
+        await status_msg.edit("\n\n".join(results) if results else "❌ No valid URLs traced.")
 
     @bot.on_message(filters.command("cancel"))
     async def cancel_handler(client, message):
