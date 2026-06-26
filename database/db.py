@@ -37,6 +37,7 @@ class Database:
         self._schedules = None
         self._settings = None
         self._forward_tasks = None
+        self._peers = None
 
     async def connect(self):
         """Initialize connection with absolute persistence focus and retries"""
@@ -69,6 +70,7 @@ class Database:
                 self._schedules = self._db.schedules
                 self._settings = self._db.settings
                 self._forward_tasks = self._db.forward_tasks
+                self._peers = self._db.peers
 
                 logger.info(f"Database Persistence Verified: {Config.DB_NAME} is active.")
                 return
@@ -106,6 +108,10 @@ class Database:
     @property
     def forward_tasks(self):
         return self._forward_tasks if self._forward_tasks is not None else self.MockCollection("forward_tasks")
+
+    @property
+    def peers(self):
+        return self._peers if self._peers is not None else self.MockCollection("peers")
 
     class MockCollection:
         """Emergency layer to prevent system crashes if Atlas is unreachable"""
@@ -326,6 +332,31 @@ class Database:
         try:
             if self._forward_tasks is None: return None
             return await self._forward_tasks.find_one({"task_id": task_id})
+        except: return None
+
+    async def delete_forward_task(self, task_id):
+        try:
+            if self._forward_tasks is None: return None
+            return await self._forward_tasks.delete_one({"task_id": task_id})
+        except: return None
+
+    async def get_all_forward_tasks(self):
+        try:
+            if self._forward_tasks is None: return []
+            cursor = self._forward_tasks.find()
+            return await cursor.to_list(length=100)
+        except: return []
+
+    async def cache_peer(self, identifier, data):
+        try:
+            if self._peers is None: return None
+            return await self._peers.update_one({"id": identifier}, {"$set": data}, upsert=True)
+        except: return None
+
+    async def get_cached_peer(self, identifier):
+        try:
+            if self._peers is None: return None
+            return await self._peers.find_one({"id": identifier})
         except: return None
 
     async def get_all_admin_ids(self):

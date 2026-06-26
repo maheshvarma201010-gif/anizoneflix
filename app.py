@@ -55,9 +55,9 @@ async def lifespan(app: FastAPI):
         me = await bot.get_me()
         logger.info(f"Production Suite LIVE -> @{me.username}")
 
-        # Restore Userbot Session
-        from bot.userbot import userbot_manager
-        asyncio.create_task(userbot_manager.get_client())
+        # System Health Check & Session Restoration
+        from core.startup_checker import run_health_check
+        asyncio.create_task(run_health_check(bot))
     except Exception as e:
         logger.critical(f"STARTUP FAILURE: {e}")
         logger.error(traceback.format_exc())
