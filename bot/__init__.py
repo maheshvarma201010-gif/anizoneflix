@@ -19,6 +19,8 @@ from config.config import Config
 from api.anime_api import anime_api
 from database.db import db
 from utils.utils import slugify
+from bot.userbot import userbot_manager
+from bot.forwarder import ForwardingTask, active_tasks
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -68,6 +70,10 @@ async def set_commands(client):
         BotCommand("del", "🗑 Permanent Archive Erasure"),
         BotCommand("save", "💾 Backup & Restore Data"),
         BotCommand("redirect", "🔗 Trace URL Redirects"),
+        BotCommand("login", "🔑 Advanced Userbot Login"),
+        BotCommand("logout", "🚪 Userbot Logout"),
+        BotCommand("forward", "🔄 Premium Forwarder"),
+        BotCommand("forwardstop", "🛑 Stop Forwarding"),
         BotCommand("cancel", "❌ Abort Active Process"),
         BotCommand("ping", "⚡ Latency Check")
     ]
@@ -511,6 +517,50 @@ def register_handlers(bot: Client):
                     results.append(f"original link: `{url}`\nError    : `{str(e)}`")
 
         await status_msg.edit("\n\n".join(results) if results else "❌ No valid URLs traced.")
+
+    @bot.on_message(filters.command("login"))
+    async def login_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Unauthorized.**")
+
+        if await userbot_manager.get_client():
+            return await message.reply("✅ **Already logged in.**")
+
+        user_state[message.from_user.id] = {"action": "ask_phone"}
+        await message.reply("📱 **Userbot Login Wizard**\n\nPlease send your phone number in this format:\n`+91XXXXXXXXXX`")
+
+    @bot.on_message(filters.command("logout"))
+    async def logout_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Unauthorized.**")
+
+        await userbot_manager.logout()
+        await message.reply("🚪 **Logged out successfully.** All sessions cleared.")
+
+    @bot.on_message(filters.command("forward"))
+    async def forward_wizard_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Unauthorized.**")
+
+        ubot = await userbot_manager.get_client()
+        if not ubot:
+            return await message.reply("❌ **Please login first using /login**")
+
+        user_state[message.from_user.id] = {"action": "ask_forward_start"}
+        await message.reply("📥 **Premium Forwarder**\n\nSend the **FIRST** message link:")
+
+    @bot.on_message(filters.command("forwardstop"))
+    async def forward_stop_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Unauthorized.**")
+
+        uid = message.from_user.id
+        if uid in active_tasks:
+            active_tasks[uid].stop()
+            del active_tasks[uid]
+            await message.reply("🛑 **Forwarding stopped successfully.**")
+        else:
+            await message.reply("ℹ️ No active forwarding task found.")
 
     @bot.on_message(filters.command("cancel"))
     async def cancel_handler(client, message):
@@ -1572,7 +1622,95 @@ def register_handlers(bot: Client):
 
         action = state.get("action", "")
         try:
-            if action == "ask_search_query":
+            # --- LOGIN WIZARD ---
+            if action == "ask_phone":
+                phone = message.text.strip()
+                if not phone.startswith("+"):
+                    return await message.reply("❌ **Invalid Format.** Use `+91XXXXXXXXXX`:")
+                res = await userbot_manager.start_login(phone)
+                if res:
+                    user_state[uid].update({"action": "ask_otp", "phone": phone})
+                    await message.reply("📩 **OTP Sent.** Please send the code you received:")
+                else:
+                    await message.reply("❌ **Error sending code.** Try again:")
+
+            elif action == "ask_otp":
+                code = message.text.strip()
+                try: await message.delete()
+                except: pass
+                res = await userbot_manager.complete_login(code)
+                if res == "2FA_REQUIRED":
+                    user_state[uid].update({"action": "ask_2fa", "otp": code})
+                    await message.reply("🔐 **2FA Enabled.** Please send your account password:")
+                elif res is True:
+                    await message.reply("✅ **Login Successful!** Userbot is now active.")
+                    del user_state[uid]
+                else:
+                    await message.reply("❌ **Login Failed.** Check OTP and try again:")
+
+            elif action == "ask_2fa":
+                password = message.text.strip()
+                try: await message.delete()
+                except: pass
+                res = await userbot_manager.complete_login(state["otp"], password)
+                if res is True:
+                    await message.reply("✅ **Login Successful!** Userbot is now active.")
+                    del user_state[uid]
+                else:
+                    await message.reply("❌ **Login Failed.** Check password and try again:")
+
+            # --- FORWARD WIZARD ---
+            elif action == "ask_forward_start":
+                link = message.text.strip()
+                try:
+                    parts = link.split("/")
+                    chat_id = parts[-2]
+                    msg_id = int(parts[-1])
+                    user_state[uid].update({"action": "ask_forward_end", "from_chat": chat_id, "start_id": msg_id})
+                    await message.reply("📤 **Send the LAST message link:**")
+                except:
+                    await message.reply("❌ **Invalid Link.** Send a message link from the source channel:")
+
+            elif action == "ask_forward_end":
+                link = message.text.strip()
+                try:
+                    msg_id = int(link.split("/")[-1])
+                    user_state[uid].update({"action": "ask_forward_target", "end_id": msg_id})
+                    await message.reply("🎯 **Send the TARGET CHANNEL username or ID:**")
+                except:
+                    await message.reply("❌ **Invalid Link.** Send a message link from the same channel:")
+
+            elif action == "ask_forward_target":
+                target = message.text.strip()
+                ubot = await userbot_manager.get_client()
+
+                # Peer Resolution & Perm Test
+                try:
+                    chat = await ubot.get_chat(target)
+                    target_id = chat.id
+
+                    task = ForwardingTask(uid, state["from_chat"], target_id, state["start_id"], state["end_id"])
+                    active_tasks[uid] = task
+
+                    progress_msg = await message.reply("🔄 **Forwarding Started...**")
+
+                    async def status_update(stats, current):
+                        try:
+                            await progress_msg.edit(f"🔄 **Forwarding Progress:**\n`{stats['success'] + stats['failed']} / {stats['total']}`")
+                        except: pass
+
+                    # Run in background
+                    async def run_task():
+                        result = await task.run(ubot, status_update)
+                        await client.send_message(uid, result)
+                        active_tasks.pop(uid, None)
+
+                    asyncio.create_task(run_task())
+                    del user_state[uid]
+                except Exception as e:
+                    await message.reply(f"❌ **Setup Failed:** {str(e)}")
+
+            elif action == "ask_search_query":
                 return await search_handler(client, message, is_retry=True)
             elif action == "ask_manual_title":
                 user_state[uid].update({"title": message.text.strip(), "action": "ask_manual_synopsis"})

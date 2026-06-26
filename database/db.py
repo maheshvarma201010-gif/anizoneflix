@@ -35,6 +35,8 @@ class Database:
         self._users = None
         self._categories = None
         self._schedules = None
+        self._settings = None
+        self._forward_tasks = None
 
     async def connect(self):
         """Initialize connection with absolute persistence focus and retries"""
@@ -65,6 +67,8 @@ class Database:
                 self._users = self._db.users
                 self._categories = self._db.categories
                 self._schedules = self._db.schedules
+                self._settings = self._db.settings
+                self._forward_tasks = self._db.forward_tasks
 
                 logger.info(f"Database Persistence Verified: {Config.DB_NAME} is active.")
                 return
@@ -94,6 +98,14 @@ class Database:
     @property
     def schedules(self):
         return self._schedules if self._schedules is not None else self.MockCollection("schedules")
+
+    @property
+    def settings(self):
+        return self._settings if self._settings is not None else self.MockCollection("settings")
+
+    @property
+    def forward_tasks(self):
+        return self._forward_tasks if self._forward_tasks is not None else self.MockCollection("forward_tasks")
 
     class MockCollection:
         """Emergency layer to prevent system crashes if Atlas is unreachable"""
@@ -275,6 +287,46 @@ class Database:
             user = await self._users.find_one({"user_id": user_id, "is_admin": True})
             return user is not None
         except: return False
+
+    async def get_setting(self, key):
+        try:
+            if self._settings is None: return None
+            res = await self._settings.find_one({"key": key})
+            return res.get("value") if res else None
+        except: return None
+
+    async def set_setting(self, key, value):
+        try:
+            if self._settings is None: return None
+            return await self._settings.update_one({"key": key}, {"$set": {"value": value}}, upsert=True)
+        except: return None
+
+    async def delete_setting(self, key):
+        try:
+            if self._settings is None: return None
+            return await self._settings.delete_one({"key": key})
+        except: return None
+
+    async def save_userbot_session(self, session_string):
+        return await self.set_setting("userbot_session", session_string)
+
+    async def get_userbot_session(self):
+        return await self.get_setting("userbot_session")
+
+    async def delete_userbot_session(self):
+        return await self.delete_setting("userbot_session")
+
+    async def update_forward_task(self, task_id, data):
+        try:
+            if self._forward_tasks is None: return None
+            return await self._forward_tasks.update_one({"task_id": task_id}, {"$set": data}, upsert=True)
+        except: return None
+
+    async def get_forward_task(self, task_id):
+        try:
+            if self._forward_tasks is None: return None
+            return await self._forward_tasks.find_one({"task_id": task_id})
+        except: return None
 
     async def get_all_admin_ids(self):
         try:
