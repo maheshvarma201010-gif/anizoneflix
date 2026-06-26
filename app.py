@@ -10,6 +10,7 @@ import logging
 import traceback
 import asyncio
 import sys
+import time
 from bot import bot, set_commands, register_handlers
 from utils.auth import get_current_admin, verify_token
 from utils.utils import slugify
@@ -53,6 +54,10 @@ async def lifespan(app: FastAPI):
 
         me = await bot.get_me()
         logger.info(f"Production Suite LIVE -> @{me.username}")
+
+        # System Health Check & Session Restoration
+        from core.startup_checker import run_health_check
+        asyncio.create_task(run_health_check(bot))
     except Exception as e:
         logger.critical(f"STARTUP FAILURE: {e}")
         logger.error(traceback.format_exc())
@@ -104,6 +109,12 @@ async def global_exception_handler(request: Request, exc: Exception):
     return templates.TemplateResponse(request=request, name="404.html", context={"error": "Internal Server Error"}, status_code=500)
 
 # --- WEB ROUTES ---
+
+
+
+@app.get("/verify-ui")
+async def verify_ui(request: Request):
+    return templates.TemplateResponse(request=request, name="index_verify.html", context={"site_name": "ANIZONEFLIX", "categories": [], "logo_url": ""})
 
 @app.api_route("/", methods=["GET", "HEAD"])
 async def index(request: Request):
@@ -171,7 +182,8 @@ async def anime_detail(request: Request, slug: str):
             "episodes": episodes or [],
             "categories": categories or [],
             "logo_url": Config.LOGO_URL,
-            "site_name": "ANIZONEFLIX"
+            "site_name": "ANIZONEFLIX",
+            "now": time.time()
         })
     except Exception as e:
         logger.error(f"Detail error for {slug}: {e}")
