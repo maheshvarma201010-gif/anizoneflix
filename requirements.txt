@@ -14,3 +14,4 @@ httpx
 mongomock_motor
 PyJWT
 cryptography
+pyromod
