@@ -108,6 +108,10 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 
+@app.get("/verify-ui")
+async def verify_ui(request: Request):
+    return templates.TemplateResponse(request=request, name="index_verify.html", context={"site_name": "ANIZONEFLIX", "categories": [], "logo_url": ""})
+
 @app.api_route("/", methods=["GET", "HEAD"])
 async def index(request: Request):
     if request.method == "HEAD":

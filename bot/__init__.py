@@ -6,6 +6,8 @@ import json
 import zipfile
 import tempfile
 import time
+import aiohttp
+import re
 from urllib.parse import unquote
 from io import BytesIO
 from bson import ObjectId
@@ -479,7 +481,6 @@ def register_handlers(bot: Client):
             reply = message.reply_to_message
             text = reply.text or reply.caption or ""
             if text:
-                import re
                 urls.extend(re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', text))
 
             if reply.document and (reply.document.file_name.endswith(".txt") or reply.document.mime_type == "text/plain"):
@@ -500,7 +501,6 @@ def register_handlers(bot: Client):
         status_msg = await message.reply(f"🔍 **Tracing {len(urls)} URLs...**")
         results = []
 
-        import aiohttp
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
             for url in urls[:50]: # Limit to 50 for safety
                 try:

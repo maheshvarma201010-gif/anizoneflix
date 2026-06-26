@@ -24,6 +24,23 @@
             Access your favorite content in high quality. Fast, simple, and free.
         </p>
 
+        <!-- Dynamic Search Bar -->
+        <div class="max-w-2xl mx-auto mb-12 animate-fade-in" style="animation-delay: 0.2s">
+            <form action="/search" method="GET" class="relative group">
+                <div class="absolute -inset-1 bg-gradient-to-r from-red-600 to-purple-600 rounded-2xl blur opacity-25 group-focus-within:opacity-50 transition duration-1000"></div>
+                <div class="relative flex items-center bg-[#0c0c0c] border border-white/10 rounded-2xl overflow-hidden focus-within:border-red-600/50 transition-all shadow-2xl">
+                    <div class="pl-6 text-gray-500">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </div>
+                    <input type="text" name="q" placeholder="Search for anime, movies, series..."
+                           class="w-full bg-transparent border-none px-6 py-5 text-white placeholder-gray-500 focus:outline-none focus:ring-0 text-lg font-medium">
+                    <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-8 py-5 font-black transition-colors uppercase tracking-widest text-sm">
+                        SEARCH
+                    </button>
+                </div>
+            </form>
+        </div>
+
         <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
             <a href="/search" class="w-full sm:w-auto px-10 py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-xl transition-all flex items-center justify-center">
                 <i class="fa-solid fa-play mr-2"></i> START WATCHING
