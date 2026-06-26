@@ -4,7 +4,7 @@ import traceback
 import os
 import glob
 import importlib
-from pyrogram import Client, filters, ContinuePropagation
+from pyrogram import Client, filters, ContinuePropagation, utils
 from pyrogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
 from config.config import Config
 from database.db import db
@@ -13,11 +13,15 @@ from database.db import db
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ANIZONEFLIX_BOT")
 
+# --- PYROGRAM PATCH ---
+utils.MIN_CHANNEL_ID = -1009999999999
+
 bot = Client(
     "anizoneflix_bot",
     api_id=Config.API_ID,
     api_hash=Config.API_HASH,
     bot_token=Config.BOT_TOKEN,
+    plugins=dict(root="plugins"),
     in_memory=True
 )
 
@@ -44,9 +48,6 @@ async def set_commands(client):
         BotCommand("forwardstop", "🛑 Stop Forwarding"),
         BotCommand("login", "🔑 Userbot Login"),
         BotCommand("logout", "🚪 Userbot Logout"),
-        BotCommand("search", "🔍 Industrial-Grade Search"),
-        BotCommand("add_post", "⚡ Rapid One-Shot Post"),
-        BotCommand("edit", "🏛 Manage Content Groups"),
         BotCommand("redirect", "🔗 Trace Redirects"),
         BotCommand("help", "📖 Documentation")
     ]
@@ -58,17 +59,6 @@ async def set_commands(client):
     logger.info("Bot command scopes synchronized.")
 
 def register_handlers(bot: Client):
-    # Dynamic Plugin Loader
-    plugins = glob.glob("plugins/*.py")
-    for plugin_path in plugins:
-        plugin_name = plugin_path.replace("/", ".").replace(".py", "")
-        try:
-            importlib.import_module(plugin_name)
-            logger.info(f"✔ Plugin Loaded: {plugin_name}")
-        except Exception as e:
-            logger.error(f"✘ Failed to load plugin {plugin_name}: {e}")
-
-    # Global Router for Interactive Wizards
     @bot.on_message(filters.private & filters.text & ~filters.command(["start", "help", "login", "logout", "forward", "forwardstop", "search", "add_post", "edit"]))
     async def global_router(client, message):
         uid = message.from_user.id
@@ -76,13 +66,16 @@ def register_handlers(bot: Client):
         if not state: return
         action = state.get("action")
 
-        # Route based on prefix
-        if action.startswith("ask_") and "phone" in action or "otp" in action or "pass" in action:
+        if action.startswith("ask_") and any(x in action for x in ["phone", "otp", "pass"]):
             from plugins.login import login_wizard
             return await login_wizard(client, message, state)
+
         elif action.startswith("fwd_"):
             from plugins.forward import forward_wizard
             return await forward_wizard(client, message, state)
-        # Add other dynamic routes as needed
+
+        elif any(x in action for x in ["ask_edit_", "select_anime", "edit_", "ask_manual", "ask_category"]):
+            from plugins.anime_admin import anime_wizard
+            return await anime_wizard(client, message, state)
 
     logger.info("Intelligence Suite Initialized.")
