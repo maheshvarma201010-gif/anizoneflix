@@ -11,6 +11,9 @@ import traceback
 import asyncio
 import sys
 from bot import bot, set_commands, register_handlers
+from core.session import userbot_manager
+from core.startup_checker import StartupChecker
+from core.logger import setup_logger
 from utils.auth import get_current_admin, verify_token
 from utils.utils import slugify
 from utils.protect import Protect, VERIFY_PAGE_HTML
@@ -18,8 +21,7 @@ from fastapi.responses import RedirectResponse, JSONResponse, Response, HTMLResp
 from contextlib import asynccontextmanager
 
 # Setup Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("ANIZONEFLIX_APP")
+logger = setup_logger("ANIZONEFLIX_APP")
 
 # --- GLOBAL ERROR HANDLING ---
 
@@ -39,17 +41,16 @@ async def lifespan(app: FastAPI):
         await db.connect()
         loop = asyncio.get_running_loop()
         bot.loop = loop
-        if hasattr(bot, "dispatcher"):
-            bot.dispatcher.loop = loop
 
-        def loop_exception_handler(loop, context):
-            msg = context.get("exception", context["message"])
-            logger.error(f"Async Task Error: {msg}")
-        loop.set_exception_handler(loop_exception_handler)
+        # Health Checks
+        await StartupChecker.check_all(bot)
 
         register_handlers(bot)
         await bot.start()
         await set_commands(bot)
+
+        # Restore Userbot Sessions
+        await userbot_manager.restore_all_sessions()
 
         me = await bot.get_me()
         logger.info(f"Production Suite LIVE -> @{me.username}")
@@ -64,6 +65,9 @@ async def lifespan(app: FastAPI):
     try:
         if bot.is_connected:
             await bot.stop()
+        # Stop all userbot clients
+        for uid in list(userbot_manager.clients.keys()):
+            await userbot_manager.stop_session(uid)
         await anime_api.close()
     except Exception as e:
         logger.error(f"Shutdown error: {e}")
@@ -100,7 +104,6 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"ROUTE ERROR: {request.url.path} -> {exc}")
     if "api" in request.url.path:
         return safe_api_response(False, None, "Internal Server Error")
-    # CRITICAL: Always use keyword arguments for TemplateResponse
     return templates.TemplateResponse(request=request, name="404.html", context={"error": "Internal Server Error"}, status_code=500)
 
 # --- WEB ROUTES ---
@@ -217,7 +220,6 @@ async def search_web(request: Request, q: str = ""):
 async def verify_page(request: Request):
     ip = request.client.host
     token = Protect.generate_verify_token(ip)
-    # Using simple template replacement for now since Jinja2 is already configured for templates directory
     html = VERIFY_PAGE_HTML.replace("{{ logo_url }}", Config.LOGO_URL).replace("{{ token }}", token)
     return HTMLResponse(content=html)
 
@@ -235,16 +237,10 @@ async def verify_check(request: Request, token: str):
 @app.get("/dl")
 async def download_redirect(request: Request, url: str):
     if not url: return RedirectResponse(url="/")
-
-    # 1. Referer Check
     if not Protect.check_referer(request):
         return RedirectResponse(url="/")
-
-    # 2. Verification Check
     if not Protect.is_verified(request):
         return RedirectResponse(url="/verify")
-
-    # 3. Shortlink Generation
     final_url = await Protect.get_shortlink(url)
     return RedirectResponse(url=final_url)
 
@@ -252,7 +248,6 @@ async def download_redirect(request: Request, url: str):
 async def az_index(request: Request):
     try:
         if await db.ping():
-            # Fetch all to build index (for production consider aggregation or separate collection if size is massive)
             all_anime = await db.anime.find({}, {"title": 1, "slug": 1}).sort("title", 1).to_list(length=5000)
         else:
             all_anime = []
