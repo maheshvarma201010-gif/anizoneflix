@@ -79,7 +79,7 @@
 
                         {% if anime.seasons_links %}
                             {% for season, links in anime.seasons_links.items() %}
-                            {% set is_new = 'NEW' in season.upper() %}
+                            {% set is_new = anime.last_group and anime.last_group.name == season and (now - anime.last_group.at < 604800) %}
                             <button onclick="showSeason('custom-{{ season|slugify }}')" id="btn-custom-{{ season|slugify }}"
                                     class="season-btn px-5 py-2.5 rounded-lg font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all border border-white/5 active:scale-95 {{ 'glow-new border-red-600/50' if is_new }}">
                                 {% if is_new %}<span class="animate-float">🚀</span>{% endif %}
@@ -174,7 +174,7 @@
                 {% if box.groups %}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
                     {% for g_name, g_links in box.groups.items() %}
-                    {% set g_is_new = 'NEW' in g_name.upper() %}
+                    {% set g_is_new = anime.last_group and anime.last_group.name == g_name and (now - anime.last_group.at < 604800) %}
                     <div class="p-6 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] transition-all {{ 'glow-new !border-red-600/30' if g_is_new }}">
                         <h4 class="text-[11px] font-black text-gray-500 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
                             <i class="fa-solid fa-layer-group text-red-600/50"></i>

@@ -10,6 +10,7 @@ import logging
 import traceback
 import asyncio
 import sys
+import time
 from bot import bot, set_commands, register_handlers
 from utils.auth import get_current_admin, verify_token
 from utils.utils import slugify
@@ -173,7 +174,8 @@ async def anime_detail(request: Request, slug: str):
             "episodes": episodes or [],
             "categories": categories or [],
             "logo_url": Config.LOGO_URL,
-            "site_name": "ANIZONEFLIX"
+            "site_name": "ANIZONEFLIX",
+            "now": time.time()
         })
     except Exception as e:
         logger.error(f"Detail error for {slug}: {e}")

@@ -5,6 +5,7 @@ import os
 import json
 import zipfile
 import tempfile
+import time
 from urllib.parse import unquote
 from io import BytesIO
 from bson import ObjectId
@@ -1223,13 +1224,17 @@ def register_handlers(bot: Client):
             return await callback_query.message.edit_text("🎯 **Select insertion point:**", reply_markup=InlineKeyboardMarkup(rows))
 
         pos = int(data)
-        new_group = (state["cgrp_name"], state["cgrp_data"])
+        gname = state["cgrp_name"]
+        new_group = (gname, state["cgrp_data"])
         if pos == -1: groups.append(new_group)
         else: groups.insert(pos, new_group)
 
         aid = state["slug"]
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": dict(groups)}})
-        await callback_query.message.edit_text(f"✅ **Group '{state['cgrp_name']}' synchronized at position {pos if pos != -1 else len(groups)}.**")
+        await db.anime.update_one(
+            {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
+            {"$set": {"seasons_links": dict(groups), "last_group": {"name": gname, "at": time.time()}}}
+        )
+        await callback_query.message.edit_text(f"✅ **Group '{gname}' synchronized at position {pos if pos != -1 else len(groups)}.**")
         del user_state[uid]
 
     @bot.on_callback_query(filters.regex("^setposgb_"))
@@ -1520,7 +1525,13 @@ def register_handlers(bot: Client):
         if not state or state["action"] != "ask_category_final": return
         cat, data = callback_query.data.split("_")[1], state["anime_data"]
         slug = slugify(data["title"])
-        entry = {"mal_id": f"series_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": state["seasons_data"], "custom_buttons": []}
+
+        last_g = None
+        if state["seasons_data"]:
+            last_g_name = list(state["seasons_data"].keys())[-1]
+            last_g = {"name": last_g_name, "at": time.time()}
+
+        entry = {"mal_id": f"series_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": state["seasons_data"], "custom_buttons": [], "last_group": last_g}
         try:
             if await db.ping():
                 await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
@@ -1537,7 +1548,7 @@ def register_handlers(bot: Client):
         if not state or state["action"] != "ask_category": return
         cat, data = callback_query.data.split("_")[1], state["anime_data"]
         slug = slugify(data["title"])
-        entry = {"mal_id": f"auto_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {"1": {"480p": None, "720p": None, "1080p": None}}, "custom_buttons": []}
+        entry = {"mal_id": f"auto_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {"1": {"480p": None, "720p": None, "1080p": None}}, "custom_buttons": [], "last_group": {"name": "1", "at": time.time()}}
         try:
             if await db.ping():
                 await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
@@ -1775,16 +1786,20 @@ def register_handlers(bot: Client):
                 else:
                     # Finalize BOX with initial group
                     aid = state["slug"]
+                    gname = state["temp_grp_name"]
                     new_box = {
                         "name": state["box_name"],
                         "link": state["box_link"],
-                        "groups": {state["temp_grp_name"]: state["temp_grp_data"]}
+                        "groups": {gname: state["temp_grp_data"]}
                     }
                     anime = await db.get_anime(aid)
                     boxes = anime.get("custom_boxes", [])
                     boxes.append(new_box)
-                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
-                    await message.reply(f"✅ **Box '{state['box_name']}' created with group '{state['temp_grp_name']}'.**")
+                    await db.anime.update_one(
+                        {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
+                        {"$set": {"custom_boxes": boxes, "last_group": {"name": gname, "at": time.time()}}}
+                    )
+                    await message.reply(f"✅ **Box '{state['box_name']}' created with group '{gname}'.**")
                     del user_state[uid]
             elif action == "ask_box_cgrp_name":
                 user_state[uid].update({"action": "ask_box_cgrp_btn_count", "temp_grp_name": message.text.strip()})
@@ -1807,11 +1822,15 @@ def register_handlers(bot: Client):
                     await message.reply(f"🏷 **Button {user_state[uid]['current_idx']} Label:**")
                 else:
                     aid, b_idx = state["slug"], state["box_idx"]
+                    gname = state["temp_grp_name"]
                     anime = await db.get_anime(aid)
                     boxes = anime.get("custom_boxes", [])
-                    boxes[b_idx]["groups"][state["temp_grp_name"]] = state["temp_grp_data"]
-                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
-                    await message.reply(f"✅ **Group '{state['temp_grp_name']}' added to box '{boxes[b_idx]['name']}'.**")
+                    boxes[b_idx]["groups"][gname] = state["temp_grp_data"]
+                    await db.anime.update_one(
+                        {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
+                        {"$set": {"custom_boxes": boxes, "last_group": {"name": gname, "at": time.time()}}}
+                    )
+                    await message.reply(f"✅ **Group '{gname}' added to box '{boxes[b_idx]['name']}'.**")
                     del user_state[uid]
             elif action == "ask_renbox_name":
                 idx, aid = state["box_idx"], state["slug"]
@@ -1969,9 +1988,10 @@ def register_handlers(bot: Client):
                 await message.reply(f"🛰 **1080p Link** (or /skip):")
             elif action == "ask_edit_1080p":
                 aid = state["slug"]
+                gname = state["group_name"]
                 anime = await db.get_anime(aid)
                 current_groups = list(anime.get("seasons_links", {}).items()) if anime else []
-                new_group_data = (state["group_name"], {"480p": state.get("480p"), "720p": state.get("720p"), "1080p": message.text if message.text != "/skip" else None})
+                new_group_data = (gname, {"480p": state.get("480p"), "720p": state.get("720p"), "1080p": message.text if message.text != "/skip" else None})
 
                 pos = state.get("insert_pos", -1)
                 if pos == -1: current_groups.append(new_group_data)
@@ -1979,7 +1999,10 @@ def register_handlers(bot: Client):
 
                 new_links = dict(current_groups)
                 if await db.ping():
-                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": new_links}})
+                    await db.anime.update_one(
+                        {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
+                        {"$set": {"seasons_links": new_links, "last_group": {"name": gname, "at": time.time()}}}
+                    )
                     await message.reply(f"💎 **Success!** Group synchronized.")
                 else:
                     await message.reply("❌ Database Offline")
