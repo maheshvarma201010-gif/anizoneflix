@@ -4,6 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ site_name }}{% endblock %}</title>
+
+    <!-- Social Media Meta Tags (Page Previews) -->
+    <meta name="description" content="{% block description %}Your ultimate anime destination. Experience a premium OTT-style interface with high-speed updates.{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}{{ site_name }}{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Your ultimate anime destination. Clean and modern experience.{% endblock %}">
+    <meta property="og:image" content="{% block og_image %}{{ logo_url }}{% endblock %}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="{{ site_name }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{% block twitter_title %}{{ site_name }}{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}Your ultimate anime destination.{% endblock %}">
+    <meta name="twitter:image" content="{% block twitter_image %}{{ logo_url }}{% endblock %}">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">

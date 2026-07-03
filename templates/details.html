@@ -1,5 +1,14 @@
 {% extends "base.html" %}
 
+{% block title %}{{ anime.title }} - {{ site_name }}{% endblock %}
+{% block description %}{{ anime.synopsis[:160] }}{% endblock %}
+{% block og_title %}{{ anime.title }} - Watch Online{% endblock %}
+{% block og_description %}{{ anime.synopsis[:200] }}{% endblock %}
+{% block og_image %}{{ anime.image }}{% endblock %}
+{% block twitter_title %}{{ anime.title }}{% endblock %}
+{% block twitter_description %}{{ anime.synopsis[:160] }}{% endblock %}
+{% block twitter_image %}{{ anime.image }}{% endblock %}
+
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 py-12">
     {% if anime %}

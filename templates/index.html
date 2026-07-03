@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 
+{% block og_image %}{{ trending[0].image if trending else logo_url }}{% endblock %}
+{% block twitter_image %}{{ trending[0].image if trending else logo_url }}{% endblock %}
+
 {% block content %}
 <!-- Premium Hero Section -->
 <header class="relative h-[60vh] md:h-[70vh] flex items-center justify-center overflow-hidden">
@@ -35,12 +38,13 @@
                 {% for anime in recent[:15] %}
                 <div class="swiper-slide !w-auto">
                     <a href="/anime/{{ anime.slug }}" class="flex items-center gap-4 glass px-6 py-4 rounded-2xl border-white/5 hover:border-red-600/40 transition-all group">
-                        <div class="w-24 aspect-video rounded-lg overflow-hidden border border-white/10 shadow-xl bg-black">
-                            <img src="{{ anime.image }}" class="w-full h-full object-contain transition-transform duration-500" alt="{{ anime.title }}" loading="lazy">
+                        <div class="w-32 md:w-40 aspect-video rounded-lg overflow-hidden border border-white/10 shadow-xl bg-black relative">
+                            <img src="{{ anime.image }}" class="w-full h-full object-contain transition-transform duration-500 group-hover:scale-110" alt="{{ anime.title }}" loading="lazy">
+                            <div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>
                         </div>
-                        <div>
-                            <span class="block text-[8px] font-bold text-red-600 uppercase tracking-widest mb-1">Updated</span>
-                            <span class="block font-black text-xs uppercase tracking-tight text-white group-hover:text-red-500 transition-colors">{{ anime.title }}</span>
+                        <div class="max-w-[120px] md:max-w-[160px]">
+                            <span class="block text-[8px] font-bold text-red-600 uppercase tracking-widest mb-1">Flash Update</span>
+                            <span class="block font-black text-[10px] md:text-xs uppercase tracking-tight text-white group-hover:text-red-500 transition-colors line-clamp-2 leading-tight">{{ anime.title }}</span>
                         </div>
                     </a>
                 </div>
@@ -140,11 +144,44 @@
         </div>
     </section>
 
+    <!-- Featured Elite Section (Visual Polish) -->
+    <section>
+        <div class="flex justify-between items-end mb-6 px-2">
+            <div class="flex items-center gap-2">
+                <div class="w-1 h-6 bg-red-600 rounded-full shadow-[0_0_8px_var(--primary-glow)]"></div>
+                <h2 class="text-lg md:text-xl font-black tracking-tighter uppercase">Elite <span class="text-red-600">Featured</span></h2>
+            </div>
+        </div>
+
+        <div class="swiper featuredSwiper">
+            <div class="swiper-wrapper">
+                {% for anime in trending[5:15] if anime %}
+                <div class="swiper-slide">
+                    <div class="anime-card">
+                        <a href="/anime/{{ anime.slug }}" class="group block">
+                            <div class="poster-wrapper">
+                                <img src="{{ anime.image }}" alt="{{ anime.title }}" loading="lazy">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-6">
+                                    <div class="btn-premium py-2.5 text-[10px] uppercase tracking-widest shadow-2xl mb-4">Get Files</div>
+                                </div>
+                            </div>
+                            <div class="p-4 bg-gradient-to-b from-transparent to-black/40 text-center">
+                                <h3 class="font-black text-[11px] line-clamp-2 uppercase tracking-tight group-hover:text-red-500 transition-colors leading-tight min-h-[2.5em]">{{ anime.title }}</h3>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="swiper-pagination !-bottom-12"></div>
+        </div>
+    </section>
+
     <!-- Category Explore -->
     <section>
         <div class="flex items-center gap-2 mb-6">
             <div class="w-1 h-6 bg-red-600 rounded-full shadow-[0_0_8px_var(--primary-glow)]"></div>
-            <h2 class="text-xl font-black tracking-tighter uppercase">Categories</h2>
+            <h2 class="text-xl font-black tracking-tighter uppercase">Popular <span class="text-red-600">Categories</span></h2>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -189,6 +226,20 @@
         cssMode: false,
         mousewheel: { forceToAxis: true },
         keyboard: true,
+        breakpoints: {
+            480: { slidesPerView: 2, spaceBetween: 12 },
+            640: { slidesPerView: 3, spaceBetween: 16 },
+            768: { slidesPerView: 4, spaceBetween: 20 },
+            1024: { slidesPerView: 5, spaceBetween: 24 },
+            1280: { slidesPerView: 6, spaceBetween: 24 }
+        }
+    });
+
+    new Swiper(".featuredSwiper", {
+        slidesPerView: 2,
+        slidesPerGroup: 1,
+        spaceBetween: 12,
+        pagination: { el: ".swiper-pagination", clickable: true },
         breakpoints: {
             480: { slidesPerView: 2, spaceBetween: 12 },
             640: { slidesPerView: 3, spaceBetween: 16 },
