@@ -38,7 +38,7 @@
                 <div class="flex flex-wrap justify-center lg:justify-start gap-4">
                     {% if anime.trailer %}
                     <a href="{{ anime.trailer }}" target="_blank" class="btn-premium px-8 py-3.5 text-[10px] tracking-[0.15em]">
-                        <i class="fa-solid fa-play mr-2"></i> WATCH TRAILER
+                        <i class="fa-solid fa-play mr-2"></i> GET FILES
                     </a>
                     {% endif %}
                 </div>
@@ -53,21 +53,21 @@
         <section class="glass rounded-3xl p-6 md:p-10 border-white/5 shadow-2xl">
             <div class="flex items-center gap-3 mb-10">
                 <div class="w-1.5 h-8 bg-red-600 rounded-full"></div>
-                <h3 class="text-3xl font-black tracking-tighter uppercase">Watch <span class="text-red-600">Episodes</span></h3>
+                <h3 class="text-3xl font-black tracking-tighter uppercase">Get <span class="text-red-600">Files</span></h3>
             </div>
 
             {% set season_groups = episodes | groupby('season') | list %}
             <div class="flex flex-wrap gap-2 mb-8">
                 {% for season_group in season_groups %}
                 <button onclick="showSeason('season-{{ season_group.grouper }}')" id="btn-season-{{ season_group.grouper }}"
-                        class="season-btn px-6 py-3 glass rounded-xl font-bold text-[10px] uppercase tracking-widest border-white/5 active:scale-95 transition-all">
+                        class="season-btn px-5 py-2.5 glass rounded-lg font-bold text-[9px] uppercase tracking-widest border-white/5 active:scale-95 transition-all">
                     Season {{ season_group.grouper }}
                 </button>
                 {% endfor %}
 
                 {% for season, links in anime.seasons_links.items() %}
                 <button onclick="showSeason('custom-{{ season|slugify }}')" id="btn-custom-{{ season|slugify }}"
-                        class="season-btn px-6 py-3 glass rounded-xl font-bold text-[10px] uppercase tracking-widest border-white/5 active:scale-95 transition-all">
+                        class="season-btn px-5 py-2.5 glass rounded-lg font-bold text-[9px] uppercase tracking-widest border-white/5 active:scale-95 transition-all">
                     {{ season }}
                 </button>
                 {% endfor %}
@@ -87,8 +87,8 @@
                                 <div class="text-[9px] font-black text-gray-500 uppercase tracking-widest mt-1">{{ ep.quality }} • {{ ep.audio or 'Original' }}</div>
                             </div>
                         </div>
-                        <a href="/dl?url={{ (ep.file_id or ep.link)|urlencode }}" target="_blank" class="px-6 py-3 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-xl font-black text-[9px] uppercase tracking-[0.2em] transition-all border border-red-600/20">
-                            DOWNLOAD
+                        <a href="/dl?url={{ (ep.file_id or ep.link)|urlencode }}" target="_blank" class="px-5 py-2 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg font-bold text-[9px] uppercase tracking-widest transition-all border border-red-600/20">
+                            GET FILES
                         </a>
                     </div>
                     {% endfor %}
@@ -96,12 +96,12 @@
                 {% endfor %}
 
                 {% for season, links in anime.seasons_links.items() %}
-                <div id="custom-{{ season|slugify }}" class="season-content hidden animate-fade-in flex flex-wrap gap-4">
+                <div id="custom-{{ season|slugify }}" class="season-content hidden animate-fade-in flex flex-wrap gap-3">
                     {% for q, url in links.items() if url %}
                     <a href="/dl?url={{ url|urlencode }}" target="_blank"
-                       class="flex-1 min-w-[200px] p-8 glass rounded-3xl border-white/5 hover:bg-red-600 group transition-all text-center">
-                        <span class="block text-[10px] font-black text-gray-500 group-hover:text-white/60 uppercase tracking-[0.3em] mb-2">Access Node</span>
-                        <span class="block text-2xl font-black uppercase tracking-tighter">{{ q }}</span>
+                       class="flex-1 min-w-[100px] p-4 glass rounded-xl border-white/5 hover:bg-red-600 group transition-all text-center">
+                        <span class="block text-[8px] font-bold text-gray-500 group-hover:text-white/60 uppercase tracking-widest mb-1">Get Files</span>
+                        <span class="block text-base font-black uppercase tracking-tight">{{ q }}</span>
                     </a>
                     {% endfor %}
                 </div>
@@ -123,8 +123,8 @@
                     <h3 class="text-3xl font-black tracking-tighter uppercase">{{ box.name }}</h3>
                 </div>
                 {% if box.link %}
-                <a href="{{ box.link }}" target="_blank" class="btn-premium px-8 py-4 text-[10px] tracking-[0.2em]">
-                    VIEW PAGE <i class="fa-solid fa-arrow-up-right-from-square ml-2"></i>
+                <a href="{{ box.link }}" target="_blank" class="btn-premium px-6 py-3 text-[9px] tracking-widest">
+                    GET FILES <i class="fa-solid fa-arrow-up-right-from-square ml-2"></i>
                 </a>
                 {% endif %}
             </div>
@@ -135,11 +135,11 @@
                     <h4 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em] mb-8 flex items-center gap-3">
                         <i class="fa-solid fa-folder-open text-red-600/50"></i> {{ g_name }}
                     </h4>
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-2 gap-3">
                         {% for label, url in g_links.items() %}
                         <a href="/dl?url={{ url|urlencode }}" target="_blank"
-                           class="px-6 py-4 glass bg-white/5 hover:bg-red-600 rounded-2xl font-black text-[9px] uppercase tracking-widest text-center transition-all border-white/5 hover:border-red-500/40">
-                            {{ label }}
+                           class="px-4 py-3 glass bg-white/5 hover:bg-red-600 rounded-xl font-bold text-[9px] uppercase tracking-widest text-center transition-all border-white/5 hover:border-red-500/40">
+                            GET FILES
                         </a>
                         {% endfor %}
                     </div>
