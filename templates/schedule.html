@@ -1,29 +1,29 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 py-24">
-    <div class="text-center mb-32 animate-fade-in">
-        <div class="inline-flex items-center gap-3 px-5 py-2 glass rounded-full mb-8 border-red-600/20">
-            <span class="text-red-500 text-[9px] font-black uppercase tracking-[0.4em]">Real-time Chrono-sync</span>
+<div class="max-w-7xl mx-auto px-4 py-16">
+    <div class="text-center mb-20 animate-fade-in">
+        <div class="inline-flex items-center gap-3 px-4 py-1.5 glass rounded-full mb-6 border-red-600/20">
+            <span class="text-red-500 text-[9px] font-bold uppercase tracking-[0.2em]">Weekly Updates</span>
         </div>
-        <h1 class="text-6xl md:text-9xl font-black mb-8 tracking-tighter uppercase grad-text leading-none">
-            Airing <span class="text-red-600">Sync</span>
+        <h1 class="text-4xl md:text-7xl font-black mb-6 tracking-tighter uppercase grad-text leading-none">
+            Airing <span class="text-red-600">Schedule</span>
         </h1>
-        <p class="text-gray-500 font-bold text-sm max-w-2xl mx-auto uppercase tracking-[0.3em] leading-loose">Synchronizing localized release windows across the global intelligence network.</p>
+        <p class="text-gray-500 font-bold text-xs max-w-xl mx-auto uppercase tracking-[0.2em] leading-relaxed">Stay updated with the latest anime releases for each day of the week.</p>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
         {% if schedules %}
             {% for day, content in schedules.items() %}
-            <div class="glass group rounded-[3rem] overflow-hidden border-white/5 shadow-2xl hover:border-red-600/40 transition-all duration-700 animate-fade-in" style="animation-delay: {{ loop.index0 * 0.1 }}s">
-                <div class="bg-gradient-to-br from-red-600/20 via-transparent to-transparent p-10 border-b border-white/5">
-                    <h3 class="text-2xl font-black tracking-tighter flex items-center uppercase">
-                        <i class="fa-solid fa-clock-rotate-left mr-5 text-red-600 group-hover:rotate-180 transition-transform duration-1000"></i>
+            <div class="glass group rounded-3xl overflow-hidden border-white/5 shadow-2xl hover:border-red-600/40 transition-all duration-700 animate-fade-in" style="animation-delay: {{ loop.index0 * 0.1 }}s">
+                <div class="bg-gradient-to-br from-red-600/20 via-transparent to-transparent p-8 border-b border-white/5">
+                    <h3 class="text-xl font-black tracking-tighter flex items-center uppercase">
+                        <i class="fa-solid fa-calendar-day mr-4 text-red-600"></i>
                         {{ day }}
                     </h3>
                 </div>
-                <div class="p-10 min-h-[300px]">
-                    <div class="space-y-6 text-gray-400 font-bold text-[11px] uppercase tracking-widest leading-relaxed">
+                <div class="p-8 min-h-[200px]">
+                    <div class="space-y-4 text-gray-400 font-bold text-[10px] uppercase tracking-widest leading-relaxed">
                         {% if content and content != "No data synchronized." and content != "No schedule set for this day." %}
                             {% for line in content.split('\n') if line %}
                             <div class="flex items-start gap-4 group/line">
@@ -33,8 +33,8 @@
                             {% endfor %}
                         {% else %}
                             <div class="py-20 text-center text-gray-700 italic opacity-40">
-                                <i class="fa-solid fa-moon text-4xl mb-6 block"></i>
-                                NODE STANDBY
+                                <i class="fa-solid fa-calendar-xmark text-4xl mb-6 block"></i>
+                                NO SCHEDULE
                             </div>
                         {% endif %}
                     </div>
@@ -44,15 +44,15 @@
         {% else %}
             <div class="col-span-full py-40 text-center glass rounded-[4rem]">
                 <i class="fa-solid fa-triangle-exclamation text-8xl text-red-600 mb-10 opacity-30"></i>
-                <h3 class="text-3xl font-black uppercase grad-text">Intelligence Offline</h3>
-                <p class="text-gray-600 mt-6 font-bold uppercase tracking-widest text-xs">CRITICAL: UNABLE TO REACH CHRONO-CORE.</p>
+        <h3 class="text-3xl font-black uppercase grad-text">Schedule Offline</h3>
+        <p class="text-gray-600 mt-6 font-bold uppercase tracking-widest text-xs">UNABLE TO RETRIEVE SCHEDULE DATA.</p>
             </div>
         {% endif %}
     </div>
 
-    <div class="mt-32 py-16 px-10 glass rounded-[4rem] text-center border-white/5 bg-white/[0.01]">
-        <h3 class="text-xs font-black text-gray-500 mb-6 uppercase tracking-[0.5em]">Global Calibration</h3>
-        <p class="text-gray-600 max-w-4xl mx-auto text-xs font-bold uppercase tracking-widest leading-loose">All timestamps are normalized to the central content broadcast. Sync is managed by the Executive Suite Alpha Protocol.</p>
+    <div class="mt-20 py-12 px-8 glass rounded-3xl text-center border-white/5 bg-white/[0.01]">
+        <h3 class="text-xs font-black text-gray-500 mb-4 uppercase tracking-[0.3em]">Information</h3>
+        <p class="text-gray-600 max-w-3xl mx-auto text-[10px] font-bold uppercase tracking-[0.2em] leading-relaxed">Schedules are subject to change based on official broadcast delays. We update our data daily to ensure accuracy.</p>
     </div>
 </div>
 {% endblock %}

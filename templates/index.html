@@ -2,7 +2,7 @@
 
 {% block content %}
 <!-- Premium Hero Section -->
-<header class="relative h-[85vh] flex items-center justify-center overflow-hidden">
+<header class="relative h-[60vh] md:h-[70vh] flex items-center justify-center overflow-hidden">
     <div class="absolute inset-0 z-0">
         <div class="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent z-10"></div>
         <div class="absolute inset-0 bg-gradient-to-r from-[#050505] via-transparent to-[#050505] z-10 opacity-60"></div>
@@ -12,24 +12,24 @@
     <div class="relative z-20 text-center px-6 max-w-5xl animate-fade-in">
         <div class="inline-flex items-center gap-3 px-4 py-2 glass rounded-full mb-8 border-red-600/20">
             <span class="flex h-2 w-2 rounded-full bg-red-600 animate-pulse"></span>
-            <span class="text-red-500 text-[10px] font-black uppercase tracking-[0.4em]">Intelligence Network Active</span>
+            <span class="text-red-500 text-[10px] font-black uppercase tracking-[0.4em]">Online Streaming Platform</span>
         </div>
 
-        <h1 class="text-6xl md:text-[120px] font-black mb-8 tracking-tighter leading-none uppercase">
-            <span class="grad-text">Digital</span><br>
-            <span class="text-red-600">Zenith.</span>
+        <h1 class="text-4xl md:text-6xl font-black mb-4 tracking-tighter leading-tight uppercase">
+            <span class="grad-text">Unlimited</span><br>
+            <span class="text-red-600">Streaming.</span>
         </h1>
 
-        <p class="text-gray-400 text-lg md:text-2xl mb-12 max-w-2xl mx-auto font-medium leading-relaxed">
-            Experience the ultimate archive. High-fidelity streaming, zero limits, pure performance.
+        <p class="text-gray-400 text-base md:text-xl mb-10 max-w-2xl mx-auto font-medium leading-relaxed">
+            Watch your favorite anime in high quality. Fast, free, and unlimited streaming experience.
         </p>
 
-        <div class="flex flex-col sm:flex-row items-center justify-center gap-6">
-            <a href="/search" class="btn-premium w-full sm:w-auto px-12 py-5 text-sm tracking-[0.2em]">
-                <i class="fa-solid fa-bolt mr-2"></i> START WATCHING
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a href="/search" class="btn-premium w-full sm:w-auto px-10 py-4 text-xs tracking-[0.2em]">
+                <i class="fa-solid fa-play mr-2"></i> START WATCHING
             </a>
-            <a href="#trending" class="w-full sm:w-auto px-12 py-5 glass hover:bg-white/10 text-white font-black rounded-2xl transition-all text-sm tracking-[0.2em] border-white/5">
-                EXPLORE ARCHIVE
+            <a href="#trending" class="w-full sm:w-auto px-10 py-4 glass hover:bg-white/10 text-white font-black rounded-xl transition-all text-xs tracking-[0.2em] border-white/5">
+                EXPLORE NOW
             </a>
         </div>
     </div>
@@ -39,13 +39,13 @@
     </div>
 </header>
 
-<div class="max-w-7xl mx-auto px-4 py-24 space-y-32">
+<div class="max-w-7xl mx-auto px-4 py-12 space-y-16">
 
     <!-- Flash Updates Row (OTT Style Auto-scroll) -->
     <section>
-        <div class="flex items-center gap-4 mb-12">
-            <div class="w-2 h-10 bg-red-600 rounded-full shadow-[0_0_15px_var(--primary-glow)]"></div>
-            <h2 class="text-4xl font-black tracking-tighter uppercase">Flash <span class="text-red-600">Updates</span></h2>
+        <div class="flex items-center gap-2 mb-6">
+            <div class="w-1 h-6 bg-red-600 rounded-full shadow-[0_0_8px_var(--primary-glow)]"></div>
+            <h2 class="text-2xl font-black tracking-tighter uppercase">Flash <span class="text-red-600">Updates</span></h2>
         </div>
 
         <div class="swiper flashSwiper !overflow-visible">
@@ -57,7 +57,7 @@
                             <img src="{{ anime.image }}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="{{ anime.title }}" loading="lazy">
                         </div>
                         <div>
-                            <span class="block text-[9px] font-black text-red-600 uppercase tracking-[0.3em] mb-1">Incoming Signal</span>
+                            <span class="block text-[9px] font-black text-red-600 uppercase tracking-[0.3em] mb-1">Just Updated</span>
                             <span class="block font-black text-sm uppercase tracking-tight text-white group-hover:text-red-500 transition-colors">{{ anime.title }}</span>
                         </div>
                     </a>
@@ -69,10 +69,10 @@
 
     <!-- Trending Section -->
     <section id="trending">
-        <div class="flex justify-between items-end mb-12">
-            <div class="flex items-center gap-4">
-                <div class="w-2 h-10 bg-red-600 rounded-full shadow-[0_0_15px_var(--primary-glow)]"></div>
-                <h2 class="text-4xl font-black tracking-tighter uppercase">Elite <span class="text-red-600">Trending</span></h2>
+        <div class="flex justify-between items-end mb-6">
+            <div class="flex items-center gap-2">
+                <div class="w-1 h-6 bg-red-600 rounded-full shadow-[0_0_8px_var(--primary-glow)]"></div>
+                <h2 class="text-2xl font-black tracking-tighter uppercase">Elite <span class="text-red-600">Trending</span></h2>
             </div>
             <a href="/search" class="text-gray-500 hover:text-red-500 text-[10px] font-black uppercase tracking-[0.3em] transition-all">View Full Index <i class="fa-solid fa-arrow-right ml-2"></i></a>
         </div>
@@ -86,7 +86,7 @@
                             <div class="poster-wrapper">
                                 <img src="{{ anime.image }}" alt="{{ anime.title }}" loading="lazy">
                                 <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-6">
-                                    <div class="btn-premium py-2.5 text-[10px] uppercase tracking-widest shadow-2xl mb-4">View Data</div>
+                                    <div class="btn-premium py-2.5 text-[10px] uppercase tracking-widest shadow-2xl mb-4">View Details</div>
                                     <div class="flex items-center gap-4 text-[10px] text-gray-400 font-black tracking-widest">
                                         <span class="text-yellow-500"><i class="fa-solid fa-star mr-2"></i> {{ anime.score or '8.5' }}</span>
                                         <span>•</span>
@@ -115,10 +115,10 @@
 
     <!-- Recent Section -->
     <section>
-        <div class="flex justify-between items-end mb-12">
-            <div class="flex items-center gap-4">
-                <div class="w-2 h-10 bg-red-600 rounded-full shadow-[0_0_15px_var(--primary-glow)]"></div>
-                <h2 class="text-4xl font-black tracking-tighter uppercase">Recent <span class="text-red-600">Releases</span></h2>
+        <div class="flex justify-between items-end mb-6">
+            <div class="flex items-center gap-2">
+                <div class="w-1 h-6 bg-red-600 rounded-full shadow-[0_0_8px_var(--primary-glow)]"></div>
+                <h2 class="text-2xl font-black tracking-tighter uppercase">Recent <span class="text-red-600">Releases</span></h2>
             </div>
         </div>
 
@@ -154,15 +154,15 @@
 
     <!-- Category Explore (Visual Cards) -->
     <section>
-        <div class="flex items-center gap-4 mb-12">
-            <div class="w-2 h-10 bg-red-600 rounded-full shadow-[0_0_15px_var(--primary-glow)]"></div>
-            <h2 class="text-4xl font-black tracking-tighter uppercase">Explore <span class="text-red-600">Genres</span></h2>
+        <div class="flex items-center gap-2 mb-6">
+            <div class="w-1 h-6 bg-red-600 rounded-full shadow-[0_0_8px_var(--primary-glow)]"></div>
+            <h2 class="text-2xl font-black tracking-tighter uppercase">Browse by <span class="text-red-600">Category</span></h2>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {% for cat in categories[:12] %}
-            <a href="/search?q={{ cat.name }}" class="glass p-8 rounded-[2rem] text-center group hover:bg-red-600 transition-all border-white/5 active:scale-95">
-                <i class="fa-solid fa-ghost text-3xl mb-4 group-hover:scale-110 transition-transform"></i>
+            <a href="/search?q={{ cat.name }}" class="glass p-6 rounded-2xl text-center group hover:bg-red-600 transition-all border-white/5 active:scale-95">
+                <i class="fa-solid fa-list text-2xl mb-3 group-hover:scale-110 transition-transform"></i>
                 <span class="block text-[10px] font-black uppercase tracking-[0.2em]">{{ cat.name }}</span>
             </a>
             {% endfor %}
@@ -174,7 +174,7 @@
 <!-- Infinite Loader Section -->
 <div id="loader" class="hidden py-20 text-center">
     <div class="inline-block w-12 h-12 border-4 border-red-600/20 border-t-red-600 rounded-full animate-spin"></div>
-    <p class="mt-4 text-[10px] font-black uppercase tracking-[0.5em] text-gray-600">Syncing Intelligence...</p>
+    <p class="mt-4 text-[10px] font-black uppercase tracking-[0.5em] text-gray-600">Loading more...</p>
 </div>
 
 <div id="animeContainer" class="max-w-7xl mx-auto px-4 pb-40 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
@@ -185,23 +185,17 @@
 
 {% block scripts %}
 <script>
-    // Slider Configuration (OTT Experience)
+    // Slider Configuration
     new Swiper(".flashSwiper", {
         slidesPerView: "auto",
-        spaceBetween: 24,
+        spaceBetween: 20,
         freeMode: true,
-        autoplay: {
-            delay: 1,
-            disableOnInteraction: false,
-        },
-        speed: 5000,
-        loop: true,
+        loop: false,
     });
 
     new Swiper(".trendingSwiper", {
         slidesPerView: 1.4,
-        spaceBetween: 24,
-        autoplay: { delay: 4000, disableOnInteraction: false },
+        spaceBetween: 20,
         pagination: { el: ".swiper-pagination", clickable: true },
         breakpoints: {
             640: { slidesPerView: 2.4 },
@@ -213,8 +207,7 @@
 
     new Swiper(".recentSwiper", {
         slidesPerView: 1.4,
-        spaceBetween: 24,
-        autoplay: { delay: 5000, disableOnInteraction: false },
+        spaceBetween: 20,
         pagination: { el: ".swiper-pagination", clickable: true },
         breakpoints: {
             640: { slidesPerView: 2.4 },

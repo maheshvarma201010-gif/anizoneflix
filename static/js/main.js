@@ -70,11 +70,14 @@ document.addEventListener('DOMContentLoaded', () => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     const img = entry.target;
-                    img.src = img.src;
+                    if (img.dataset.src) {
+                        img.src = img.dataset.src;
+                        img.removeAttribute('data-src');
+                    }
                     observer.unobserve(img);
                 }
             });
-        });
+        }, { rootMargin: '50px' });
         document.querySelectorAll('img[loading="lazy"]').forEach(img => imgObserver.observe(img));
     }
 

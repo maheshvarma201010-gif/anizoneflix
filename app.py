@@ -99,7 +99,7 @@ async def add_security_headers(request: Request, call_next):
     )
     # Optimization: Cache static assets
     if request.url.path.startswith("/static"):
-        response.headers["Cache-Control"] = "public, max-age=31536000"
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return response
 
 app.mount("/static", StaticFiles(directory="static"), name="static")

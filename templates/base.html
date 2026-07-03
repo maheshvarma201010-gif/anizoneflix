@@ -26,7 +26,7 @@
                 <span class="text-xl font-black tracking-tighter uppercase">{{ site_name }}</span>
             </a>
 
-            <div class="hidden md:flex items-center space-x-8 text-[11px] font-black uppercase tracking-widest">
+            <div class="hidden md:flex items-center space-x-6 text-[10px] font-bold uppercase tracking-widest">
                 <a href="/" class="hover:text-red-600 transition">Home</a>
                 <a href="/az-index" class="hover:text-red-600 transition">Index</a>
                 <a href="/schedule" class="hover:text-red-600 transition">Schedule</a>
@@ -34,9 +34,9 @@
                     <button class="hover:text-red-600 transition flex items-center">
                         Categories <i class="fa-solid fa-chevron-down ml-2 text-[8px]"></i>
                     </button>
-                    <div class="absolute top-full right-0 mt-2 w-56 glass rounded-2xl p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform translate-y-2 group-hover:translate-y-0">
+                    <div class="absolute top-full right-0 mt-2 w-48 glass rounded-xl p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform translate-y-1 group-hover:translate-y-0">
                         {% for cat in categories %}
-                        <a href="/search?q={{ cat.name }}" class="block px-4 py-3 hover:bg-red-600/20 rounded-xl transition">{{ cat.name }}</a>
+                        <a href="/search?q={{ cat.name }}" class="block px-4 py-2.5 hover:bg-red-600/20 rounded-lg transition">{{ cat.name }}</a>
                         {% endfor %}
                     </div>
                 </div>
@@ -76,7 +76,7 @@
 
     <!-- Floating Animated Search Button -->
     <div class="search-btn-floating hidden md:flex" title="Quick Search">
-        <i class="fa-solid fa-magnifying-glass"></i>
+        <i class="fa-solid fa-search"></i>
     </div>
 
     <main class="min-h-screen">
@@ -95,8 +95,8 @@
         <div class="max-w-7xl mx-auto">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-16 items-center mb-16">
                 <div class="text-center md:text-left">
-                    <h2 class="text-3xl font-black mb-4 tracking-tighter uppercase">{{ site_name }}</h2>
-                    <p class="text-gray-500 text-xs font-medium leading-relaxed max-w-xs">Premium high-fidelity anime archive. Engineered for elite performance and visual excellence.</p>
+                    <h2 class="text-2xl font-black mb-3 tracking-tighter uppercase">{{ site_name }}</h2>
+                    <p class="text-gray-500 text-[11px] font-medium leading-relaxed max-w-xs">Your ultimate anime destination. High-quality streaming with a clean and modern experience.</p>
                 </div>
                 <div class="flex justify-center gap-10 text-2xl">
                     <a href="#" class="text-gray-700 hover:text-red-600 transition-all"><i class="fa-brands fa-telegram"></i></a>
@@ -104,12 +104,12 @@
                     <a href="#" class="text-gray-700 hover:text-red-600 transition-all"><i class="fa-brands fa-instagram"></i></a>
                 </div>
                 <div class="text-center md:text-right">
-                    <p class="text-[9px] font-black uppercase tracking-[0.4em] text-gray-700">Digital Intelligence Core</p>
-                    <p class="text-red-600 text-[10px] font-black tracking-widest uppercase">Protocol Alpha Active</p>
+                    <p class="text-[9px] font-black uppercase tracking-[0.4em] text-gray-700">Official Portal</p>
+                    <p class="text-red-600 text-[10px] font-black tracking-widest uppercase">Live Updates</p>
                 </div>
             </div>
             <div class="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
-                <p class="text-gray-800 text-[9px] font-black uppercase tracking-[0.5em]">&copy; 2026 {{ site_name }}. Verified Authority.</p>
+                <p class="text-gray-800 text-[9px] font-black uppercase tracking-[0.5em]">&copy; 2026 {{ site_name }}. All rights reserved.</p>
                 <div class="flex gap-8 text-[9px] font-black text-gray-800 uppercase tracking-widest">
                     <a href="#" class="hover:text-gray-500 transition-colors">Privacy</a>
                     <a href="#" class="hover:text-gray-500 transition-colors">Terms</a>

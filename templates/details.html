@@ -4,41 +4,41 @@
 <div class="max-w-7xl mx-auto px-4 py-12">
     {% if anime %}
     <!-- Immersive Header Section -->
-    <div class="relative rounded-[3rem] overflow-hidden glass mb-20 animate-fade-in group border-white/5">
+    <div class="relative rounded-3xl overflow-hidden glass mb-12 animate-fade-in group border-white/5">
         <div class="absolute inset-0 z-0 bg-[#050505]">
             <div class="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent z-10"></div>
-            <img src="{{ anime.image or logo_url }}" class="w-full h-full object-cover opacity-10 blur-2xl" alt="">
+            <img src="{{ anime.image or logo_url }}" class="w-full h-full object-cover opacity-10 blur-xl" alt="">
         </div>
 
-        <div class="relative z-20 flex flex-col lg:flex-row items-center lg:items-end p-8 md:p-16 gap-12">
-            <div class="w-full max-w-[320px] aspect-[2/3] flex-shrink-0 bg-black/40 rounded-[2.5rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 group-hover:border-red-600/40 transition-all duration-700">
-                <img src="{{ anime.image or logo_url }}" class="w-full h-full object-cover" alt="{{ anime.title }}">
+        <div class="relative z-20 flex flex-col lg:flex-row items-center lg:items-end p-6 md:p-10 gap-8">
+            <div class="w-full max-w-[280px] aspect-video flex-shrink-0 bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/10 group-hover:border-red-600/40 transition-all duration-700">
+                <img src="{{ anime.image or logo_url }}" class="w-full h-full object-contain" alt="{{ anime.title }}">
             </div>
 
             <div class="flex-1 text-center lg:text-left">
-                <div class="flex flex-wrap justify-center lg:justify-start gap-3 mb-8">
+                <div class="flex flex-wrap justify-center lg:justify-start gap-2 mb-6">
                     {% if anime.category %}
-                    <span class="px-5 py-2 bg-red-600 text-white text-[10px] font-black rounded-full uppercase tracking-[0.2em] shadow-2xl shadow-red-900/40">{{ anime.category }}</span>
+                    <span class="px-4 py-1.5 bg-red-600 text-white text-[9px] font-black rounded-full uppercase tracking-[0.15em] shadow-xl shadow-red-900/40">{{ anime.category }}</span>
                     {% endif %}
                     {% for genre in anime.genres %}
-                    <span class="px-4 py-2 glass text-gray-400 text-[10px] font-black rounded-full border-white/5 uppercase tracking-widest">{{ genre }}</span>
+                    <span class="px-3 py-1.5 glass text-gray-400 text-[9px] font-bold rounded-full border-white/5 uppercase tracking-widest">{{ genre }}</span>
                     {% endfor %}
                 </div>
 
-                <h1 class="text-5xl md:text-8xl font-black mb-8 leading-[0.95] tracking-tighter uppercase grad-text">{{ anime.title }}</h1>
+                <h1 class="text-4xl md:text-6xl font-black mb-6 leading-tight tracking-tighter uppercase grad-text">{{ anime.title }}</h1>
 
-                <div class="flex flex-wrap justify-center lg:justify-start items-center gap-10 text-[11px] font-black uppercase tracking-[0.2em] text-gray-500 mb-10">
-                    <span class="flex items-center text-yellow-500"><i class="fa-solid fa-star mr-3"></i> {{ anime.score or 'N/A' }}</span>
-                    <span class="flex items-center"><i class="fa-solid fa-calendar-day mr-3 text-red-600"></i> {{ anime.year or 'Archive' }}</span>
-                    <span class="flex items-center"><i class="fa-solid fa-signal mr-3 text-red-600"></i> {{ anime.status or 'N/A' }}</span>
+                <div class="flex flex-wrap justify-center lg:justify-start items-center gap-6 text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-8">
+                    <span class="flex items-center text-yellow-500"><i class="fa-solid fa-star mr-2"></i> {{ anime.score or 'N/A' }}</span>
+                    <span class="flex items-center"><i class="fa-solid fa-calendar mr-2 text-red-600"></i> {{ anime.year or 'N/A' }}</span>
+                    <span class="flex items-center"><i class="fa-solid fa-info-circle mr-2 text-red-600"></i> {{ anime.status or 'N/A' }}</span>
                 </div>
 
-                <p class="text-gray-400 text-lg md:text-xl max-w-4xl line-clamp-4 mb-12 leading-relaxed font-medium">{{ anime.synopsis }}</p>
+                <p class="text-gray-400 text-sm md:text-base max-w-3xl line-clamp-3 mb-8 leading-relaxed">{{ anime.synopsis }}</p>
 
-                <div class="flex flex-wrap justify-center lg:justify-start gap-6">
+                <div class="flex flex-wrap justify-center lg:justify-start gap-4">
                     {% if anime.trailer %}
-                    <a href="{{ anime.trailer }}" target="_blank" class="btn-premium px-10 py-5 text-[11px] tracking-[0.2em]">
-                        <i class="fa-solid fa-play mr-3"></i> INITIALIZE TRAILER
+                    <a href="{{ anime.trailer }}" target="_blank" class="btn-premium px-8 py-3.5 text-[10px] tracking-[0.15em]">
+                        <i class="fa-solid fa-play mr-2"></i> WATCH TRAILER
                     </a>
                     {% endif %}
                 </div>
@@ -46,28 +46,28 @@
         </div>
     </div>
 
-    <!-- Hierarchical Content Core -->
-    <div class="space-y-24">
-        <!-- Episode & Season Matrix -->
+    <!-- Content Core -->
+    <div class="space-y-16">
+        <!-- Episodes Section -->
         {% if anime.seasons_links or episodes %}
-        <section class="glass rounded-[3.5rem] p-8 md:p-16 border-white/5 shadow-2xl">
-            <div class="flex items-center gap-5 mb-12">
-                <div class="w-2 h-10 bg-red-600 rounded-full"></div>
-                <h3 class="text-4xl font-black tracking-tighter uppercase">Data <span class="text-red-600">Matrix</span></h3>
+        <section class="glass rounded-3xl p-6 md:p-10 border-white/5 shadow-2xl">
+            <div class="flex items-center gap-3 mb-10">
+                <div class="w-1.5 h-8 bg-red-600 rounded-full"></div>
+                <h3 class="text-3xl font-black tracking-tighter uppercase">Watch <span class="text-red-600">Episodes</span></h3>
             </div>
 
             {% set season_groups = episodes | groupby('season') | list %}
-            <div class="flex flex-wrap gap-3 mb-12">
+            <div class="flex flex-wrap gap-2 mb-8">
                 {% for season_group in season_groups %}
                 <button onclick="showSeason('season-{{ season_group.grouper }}')" id="btn-season-{{ season_group.grouper }}"
-                        class="season-btn px-8 py-4 glass rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] border-white/5 active:scale-95 transition-all">
-                    Sector {{ season_group.grouper }}
+                        class="season-btn px-6 py-3 glass rounded-xl font-bold text-[10px] uppercase tracking-widest border-white/5 active:scale-95 transition-all">
+                    Season {{ season_group.grouper }}
                 </button>
                 {% endfor %}
 
                 {% for season, links in anime.seasons_links.items() %}
                 <button onclick="showSeason('custom-{{ season|slugify }}')" id="btn-custom-{{ season|slugify }}"
-                        class="season-btn px-8 py-4 glass rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] border-white/5 active:scale-95 transition-all">
+                        class="season-btn px-6 py-3 glass rounded-xl font-bold text-[10px] uppercase tracking-widest border-white/5 active:scale-95 transition-all">
                     {{ season }}
                 </button>
                 {% endfor %}
@@ -83,7 +83,7 @@
                                 {{ ep.episode }}
                             </div>
                             <div>
-                                <div class="font-black text-sm uppercase tracking-tight">{{ ep.title or 'Unit ' ~ ep.episode }}</div>
+                                <div class="font-black text-sm uppercase tracking-tight">{{ ep.title or 'Episode ' ~ ep.episode }}</div>
                                 <div class="text-[9px] font-black text-gray-500 uppercase tracking-widest mt-1">{{ ep.quality }} • {{ ep.audio or 'Original' }}</div>
                             </div>
                         </div>
@@ -112,19 +112,19 @@
 
         <!-- Custom Content Nodes -->
         {% for box in anime.custom_boxes %}
-        <section class="glass rounded-[3.5rem] p-8 md:p-16 border-white/5 shadow-2xl relative overflow-hidden group/box">
+        <section class="glass rounded-3xl p-6 md:p-10 border-white/5 shadow-2xl relative overflow-hidden group/box">
             <div class="absolute -top-10 -right-10 opacity-[0.03] group-hover/box:opacity-[0.07] transition-opacity duration-1000">
-                <i class="fa-solid fa-microchip text-[15rem] rotate-12"></i>
+                <i class="fa-solid fa-box-open text-[10rem] rotate-12"></i>
             </div>
 
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-16 relative z-10">
-                <div class="flex items-center gap-5">
-                    <div class="w-2 h-10 bg-red-600 rounded-full"></div>
-                    <h3 class="text-4xl font-black tracking-tighter uppercase">{{ box.name }}</h3>
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 relative z-10">
+                <div class="flex items-center gap-3">
+                    <div class="w-1.5 h-8 bg-red-600 rounded-full"></div>
+                    <h3 class="text-3xl font-black tracking-tighter uppercase">{{ box.name }}</h3>
                 </div>
                 {% if box.link %}
                 <a href="{{ box.link }}" target="_blank" class="btn-premium px-8 py-4 text-[10px] tracking-[0.2em]">
-                    EXTERNAL NODE <i class="fa-solid fa-arrow-up-right-from-square ml-2"></i>
+                    VIEW PAGE <i class="fa-solid fa-arrow-up-right-from-square ml-2"></i>
                 </a>
                 {% endif %}
             </div>
@@ -153,9 +153,9 @@
     {% else %}
     <div class="py-40 text-center glass rounded-[4rem] border-white/5 animate-fade-in">
         <i class="fa-solid fa-triangle-exclamation text-8xl text-red-600 mb-10 opacity-30"></i>
-        <h2 class="text-5xl font-black tracking-tighter uppercase grad-text">Node Offline</h2>
-        <p class="text-gray-500 mt-6 text-lg font-medium">The requested data fragment could not be retrieved from the archive.</p>
-        <a href="/" class="btn-premium mt-12 px-12 py-5 text-sm">RETURN TO CORE</a>
+        <h2 class="text-5xl font-black tracking-tighter uppercase grad-text">Title Not Found</h2>
+        <p class="text-gray-500 mt-6 text-lg font-medium">The requested content could not be found in our database.</p>
+        <a href="/" class="btn-premium mt-12 px-12 py-5 text-sm">BACK TO HOME</a>
     </div>
     {% endif %}
 </div>
