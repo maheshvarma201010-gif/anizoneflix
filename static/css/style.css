@@ -151,7 +151,7 @@ body {
 }
 
 .anime-card:hover {
-    transform: translateY(-8px) scale(1.02);
+    transform: translateY(-8px);
     border-color: var(--primary);
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 0, 0, 0.2);
     z-index: 10;
@@ -200,8 +200,8 @@ body {
     background: #000;
 }
 
-.anime-card:hover .poster-wrapper img {
-    transform: scale(1); /* Disable scale to prevent edge clipping */
+.anime-card .poster-wrapper img {
+    transform: scale(1) !important; /* Force no scaling on all card images */
 }
 
 /* Navbar */

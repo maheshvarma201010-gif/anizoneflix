@@ -89,6 +89,40 @@
         {% block content %}{% endblock %}
     </main>
 
+    <!-- Join Channel Popup -->
+    <div id="join-popup" class="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm hidden">
+        <div class="glass max-w-sm w-full p-8 rounded-[2.5rem] border-white/10 shadow-[0_0_50px_rgba(255,0,0,0.2)] text-center animate-fade-in relative">
+            <button onclick="closePopup()" class="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors">
+                <i class="fa-solid fa-times"></i>
+            </button>
+            <div class="w-20 h-20 bg-red-600 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-[0_0_30px_rgba(255,0,0,0.4)] rotate-12">
+                <i class="fa-brands fa-telegram text-4xl text-white"></i>
+            </div>
+            <h3 class="text-2xl font-black mb-4 uppercase tracking-tighter">Join Our Community</h3>
+            <p class="text-gray-400 text-xs font-bold uppercase tracking-widest leading-loose mb-10">Get the latest updates, exclusive content, and high-speed files directly on Telegram.</p>
+            <a href="https://t.me/anizoneflix" target="_blank" onclick="closePopup()" class="btn-premium w-full py-5 text-xs tracking-[0.2em] shadow-red-900/40">
+                JOIN CHANNEL NOW
+            </a>
+            <button onclick="closePopup()" class="mt-6 text-[10px] font-black text-gray-600 hover:text-red-600 transition-colors uppercase tracking-[0.3em]">Maybe Later</button>
+        </div>
+    </div>
+
+    <script>
+        function closePopup() {
+            document.getElementById('join-popup').classList.add('hidden');
+            localStorage.setItem('join_popup_dismissed', Date.now());
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            const dismissed = localStorage.getItem('join_popup_dismissed');
+            const now = Date.now();
+            if (!dismissed || (now - dismissed) > 24 * 60 * 60 * 1000) {
+                setTimeout(() => {
+                    document.getElementById('join-popup').classList.remove('hidden');
+                }, 5000);
+            }
+        });
+    </script>
+
     <!-- Global Floating Action Buttons -->
     <div class="fixed bottom-8 right-8 z-[90] flex flex-col space-y-4">
         <button onclick="window.location.reload()" class="w-12 h-12 glass rounded-2xl flex items-center justify-center hover:bg-red-600 transition-all active:scale-90" title="Refresh">
