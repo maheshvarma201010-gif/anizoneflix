@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="no-select">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,146 +8,112 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    <link rel="stylesheet" href="/static/css/style.css?v=2.0">
     <style>
-        :root {
-            --accent: #ff0000;
-            --bg-body: #050505;
-            --bg-card: #0c0c0c;
-            --glass: rgba(15, 15, 15, 0.9);
-            --border: rgba(255, 255, 255, 0.1);
-        }
-        body {
-            background-color: var(--bg-body);
-            color: #FFFFFF;
-            font-family: 'Inter', sans-serif;
-            -webkit-tap-highlight-color: transparent;
-            scroll-behavior: smooth;
-        }
-        /* Simplified styles for better performance */
-        .glass { background: var(--bg-card); border: 1px solid var(--border); }
-        .glass-nav { background: #000000; border-bottom: 1px solid var(--border); }
-
-        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: var(--bg-body); }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
-
-        .glow-red { border-color: var(--accent); }
+        body { background-color: #050505; color: white; }
     </style>
     {% block head %}{% endblock %}
 </head>
 <body class="selection:bg-red-600/40">
     <!-- Navbar -->
-    <nav class="glass-nav sticky top-0 z-50 px-4 md:px-8 py-3">
+    <nav class="navbar-glass sticky top-0 z-50 px-4 md:px-8 py-3">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <a href="/" class="flex items-center space-x-3 group">
-                <div class="relative">
-                    <div class="absolute -inset-1 bg-red-600 rounded-full blur opacity-25 group-hover:opacity-50 transition"></div>
-                    <img src="{{ logo_url }}" class="w-10 h-10 rounded-full relative border border-white/10" alt="Logo">
-                </div>
-                <span class="text-xl font-black tracking-tighter">{{ site_name }}</span>
+            <a href="/" class="flex items-center space-x-2 group">
+                <img src="{{ logo_url }}" class="w-8 h-8 rounded-full border border-white/10" alt="Logo">
+                <span class="text-lg font-black tracking-tighter uppercase">{{ site_name }}</span>
             </a>
 
-            <div class="hidden md:flex items-center space-x-8 text-sm font-semibold">
-                <a href="/" class="hover:text-red-400 transition">Home</a>
-                <a href="/az-index" class="hover:text-red-400 transition">Index</a>
-                <a href="/schedule" class="hover:text-red-400 transition">Schedule</a>
+            <div class="hidden md:flex items-center space-x-6 text-[10px] font-bold uppercase tracking-widest">
+                <a href="/" class="hover:text-red-600 transition">Home</a>
+                <a href="/az-index" class="hover:text-red-600 transition">Index</a>
+                <a href="/schedule" class="hover:text-red-600 transition">Schedule</a>
                 <div class="relative group">
-                    <button class="hover:text-red-400 transition flex items-center">
-                        Categories <i class="fa-solid fa-chevron-down ml-2 text-[10px]"></i>
+                    <button class="hover:text-red-600 transition flex items-center">
+                        Categories <i class="fa-solid fa-chevron-down ml-2 text-[8px]"></i>
                     </button>
-                    <div class="absolute top-full right-0 mt-2 w-48 glass rounded-xl p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform translate-y-2 group-hover:translate-y-0">
+                    <div class="absolute top-full right-0 mt-2 w-48 glass rounded-xl p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform translate-y-1 group-hover:translate-y-0">
                         {% for cat in categories %}
-                        <a href="/search?q={{ cat.name }}" class="block px-4 py-2 hover:bg-red-500/20 rounded-lg transition">{{ cat.name }}</a>
+                        <a href="/search?q={{ cat.name }}" class="block px-4 py-2.5 hover:bg-red-600/20 rounded-lg transition">{{ cat.name }}</a>
                         {% endfor %}
                     </div>
                 </div>
-                <a href="/search" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-xl transition shadow-lg shadow-red-900/20">
-                    <i class="fa-solid fa-search mr-2"></i> Search
+                <a href="/search" class="btn-premium py-2 text-[10px]">
+                    <i class="fa-solid fa-search"></i> SEARCH
                 </a>
             </div>
 
-            <!-- Mobile Menu Toggle -->
-            <button class="md:hidden text-2xl" onclick="document.getElementById('mobile-menu').classList.toggle('hidden')">
+            <button class="md:hidden text-2xl" onclick="toggleMenu(true)">
                 <i class="fa-solid fa-bars-staggered"></i>
             </button>
         </div>
     </nav>
 
     <!-- Mobile Menu -->
-    <div id="mobile-menu" class="hidden fixed inset-0 z-40 bg-slate-900/95 backdrop-blur-xl p-8">
-        <div class="flex justify-end mb-8">
-            <button class="text-3xl" onclick="document.getElementById('mobile-menu').classList.add('hidden')">
+    <div id="mobile-menu" class="hidden fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl p-8">
+        <div class="flex justify-end mb-12">
+            <button class="text-3xl" onclick="toggleMenu(false)">
                 <i class="fa-solid fa-times"></i>
             </button>
         </div>
-        <div class="flex flex-col space-y-6 text-xl font-bold">
-            <a href="/" onclick="document.getElementById('mobile-menu').classList.add('hidden')">Home</a>
-            <a href="/az-index" onclick="document.getElementById('mobile-menu').classList.add('hidden')">Index</a>
-            <a href="/schedule" onclick="document.getElementById('mobile-menu').classList.add('hidden')">Schedule</a>
-            <a href="/search" onclick="document.getElementById('mobile-menu').classList.add('hidden')">Search</a>
-            <div class="pt-6 border-t border-white/10">
-                <p class="text-sm text-gray-500 mb-4 uppercase tracking-widest">Categories</p>
+        <div class="flex flex-col space-y-8 text-2xl font-black uppercase tracking-tighter">
+            <a href="/" onclick="toggleMenu(false)">Home</a>
+            <a href="/az-index" onclick="toggleMenu(false)">Index</a>
+            <a href="/schedule" onclick="toggleMenu(false)">Schedule</a>
+            <a href="/search" onclick="toggleMenu(false)">Search</a>
+            <div class="pt-8 border-t border-white/10">
+                <p class="text-[10px] text-gray-500 mb-6 uppercase tracking-[0.3em]">Archives</p>
                 <div class="grid grid-cols-2 gap-4">
                     {% for cat in categories %}
-                    <a href="/search?q={{ cat.name }}" class="text-lg">{{ cat.name }}</a>
+                    <a href="/search?q={{ cat.name }}" class="text-lg" onclick="toggleMenu(false)">{{ cat.name }}</a>
                     {% endfor %}
                 </div>
             </div>
         </div>
     </div>
 
+
     <main class="min-h-screen">
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Floating Action Buttons -->
-    <div class="fixed bottom-8 right-8 z-[100] flex flex-col space-y-4">
-        <a href="/schedule" class="w-14 h-14 bg-red-600 text-white rounded-full shadow-2xl shadow-red-900/50 flex items-center justify-center transition-all hover:bg-red-700 active:scale-95 group border border-white/10" title="Schedule">
-            <i class="fa-solid fa-calendar-days text-xl"></i>
-        </a>
-        <a href="/search" class="w-14 h-14 bg-red-600 text-white rounded-full shadow-2xl shadow-red-900/50 flex items-center justify-center transition-all hover:bg-red-700 active:scale-95 group border border-white/10" title="Search">
-            <i class="fa-solid fa-magnifying-glass text-xl"></i>
-        </a>
-        <button onclick="window.location.reload()" class="w-14 h-14 bg-red-600 text-white rounded-full shadow-2xl shadow-red-900/50 flex items-center justify-center transition-all hover:bg-red-700 active:scale-95 group border border-white/10" title="Refresh">
-            <i class="fa-solid fa-arrows-rotate text-xl group-hover:rotate-180 transition-transform duration-500"></i>
+    <!-- Global Floating Action Buttons -->
+    <div class="fixed bottom-8 right-8 z-[90] flex flex-col space-y-4">
+        <button onclick="window.location.reload()" class="w-12 h-12 glass rounded-2xl flex items-center justify-center hover:bg-red-600 transition-all active:scale-90" title="Refresh">
+            <i class="fa-solid fa-arrows-rotate"></i>
         </button>
     </div>
 
     <!-- Footer -->
-    <footer class="glass mt-40 border-t border-white/5 py-20 px-6">
+    <footer class="mt-40 border-t border-white/5 py-20 px-6 bg-gradient-to-b from-transparent to-black/50">
         <div class="max-w-7xl mx-auto">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-16 items-center mb-16">
                 <div class="text-center md:text-left">
-                    <h2 class="text-3xl font-black mb-4 tracking-tighter uppercase">{{ site_name }}</h2>
-                <p class="text-gray-500 text-sm max-w-xs font-medium leading-relaxed">The premier anime archive. Engineered for a fast, simple, and high-quality streaming experience.</p>
+                    <h2 class="text-2xl font-black mb-3 tracking-tighter uppercase">{{ site_name }}</h2>
+                    <p class="text-gray-500 text-[11px] font-medium leading-relaxed max-w-xs">Your ultimate anime destination. Clean and modern experience.</p>
                 </div>
                 <div class="flex justify-center gap-10 text-2xl">
-                    <a href="#" class="text-gray-600 hover:text-red-600 transition-all transform hover:-translate-y-2"><i class="fa-brands fa-telegram"></i></a>
-                    <a href="#" class="text-gray-600 hover:text-red-600 transition-all transform hover:-translate-y-2"><i class="fa-brands fa-discord"></i></a>
-                    <a href="#" class="text-gray-600 hover:text-red-600 transition-all transform hover:-translate-y-2"><i class="fa-brands fa-instagram"></i></a>
-                    <a href="#" class="text-gray-600 hover:text-red-600 transition-all transform hover:-translate-y-2"><i class="fa-brands fa-github"></i></a>
+                    <a href="#" class="text-gray-700 hover:text-red-600 transition-all"><i class="fa-brands fa-telegram"></i></a>
+                    <a href="#" class="text-gray-700 hover:text-red-600 transition-all"><i class="fa-brands fa-discord"></i></a>
+                    <a href="#" class="text-gray-700 hover:text-red-600 transition-all"><i class="fa-brands fa-instagram"></i></a>
                 </div>
                 <div class="text-center md:text-right">
-                    <p class="text-gray-500 text-[10px] font-black uppercase tracking-[0.4em] mb-2">Global Digital Presence</p>
-                    <p class="text-red-600 text-[11px] font-black tracking-widest uppercase">Verified Authority</p>
+                    <p class="text-[9px] font-black uppercase tracking-[0.4em] text-gray-700">Official Portal</p>
+                    <p class="text-red-600 text-[10px] font-black tracking-widest uppercase">Live Updates</p>
                 </div>
             </div>
             <div class="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
-                <p class="text-gray-700 text-[9px] font-black uppercase tracking-[0.5em]">&copy; 2026 {{ site_name }}. ARCHIVE PROTOCOL ACTIVE.</p>
-                <div class="flex gap-8 text-[9px] font-black text-gray-700 uppercase tracking-widest">
-                    <a href="#" class="hover:text-gray-400 transition-colors">Privacy</a>
-                    <a href="#" class="hover:text-gray-400 transition-colors">Terms</a>
-                    <a href="#" class="hover:text-gray-400 transition-colors">DMCA</a>
+                <p class="text-gray-800 text-[9px] font-black uppercase tracking-[0.5em]">&copy; 2026 {{ site_name }}. All rights reserved.</p>
+                <div class="flex gap-8 text-[9px] font-black text-gray-800 uppercase tracking-widest">
+                    <a href="#" class="hover:text-gray-500 transition-colors">Privacy</a>
+                    <a href="#" class="hover:text-gray-500 transition-colors">Terms</a>
+                    <a href="#" class="hover:text-gray-500 transition-colors">DMCA</a>
                 </div>
             </div>
         </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script src="/static/js/main.js?v=2.1"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

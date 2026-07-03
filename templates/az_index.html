@@ -1,47 +1,47 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 py-12">
+<div class="max-w-7xl mx-auto px-4 py-16">
     <!-- Header Section -->
     <div class="text-center mb-16 animate-fade-in">
-        <h1 class="text-5xl md:text-7xl font-black mb-6 tracking-tighter">ANIZONE <span class="text-red-600">INDEX</span></h1>
-        <p class="text-gray-400 text-lg max-w-2xl mx-auto font-medium">Automated intelligence-driven archival indexing. Browse the entire network archive by character.</p>
+        <h1 class="text-4xl md:text-7xl font-black mb-6 tracking-tighter uppercase grad-text leading-none">Anime <span class="text-red-600">Index</span></h1>
+        <p class="text-gray-500 font-bold text-[10px] uppercase tracking-[0.3em] max-w-xl mx-auto">Browse our entire anime collection alphabetically.</p>
     </div>
 
-    <!-- Quick Navigation -->
-    <div class="glass rounded-[2.5rem] p-4 md:p-6 mb-12 flex flex-wrap justify-center gap-2 sticky top-24 z-30 border border-white/10 shadow-2xl backdrop-blur-xl">
+    <!-- Sticky Alpha-Nav -->
+    <div class="glass rounded-2xl p-4 mb-16 flex flex-wrap justify-center gap-2 sticky top-24 z-30 border-white/10 shadow-2xl backdrop-blur-xl no-select">
         {% for char in chars %}
-        <a href="#char-{{ char }}" class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl glass hover:bg-red-600 hover:text-white transition-all font-black text-sm border border-white/5 shadow-lg active:scale-95">
+        <a href="#char-{{ char }}" class="w-10 h-10 md:w-11 md:h-11 flex items-center justify-center rounded-xl glass hover:bg-red-600 hover:text-white transition-all font-black text-[10px] border-white/5 active:scale-90 uppercase shadow-lg">
             {{ char }}
         </a>
         {% endfor %}
     </div>
 
-    <!-- Index Sections -->
-    <div class="space-y-16">
+    <!-- Index Segments -->
+    <div class="space-y-24">
         {% for char, items in indexed_data.items() %}
         <div id="char-{{ char }}" class="scroll-mt-40 animate-fade-in" style="animation-delay: {{ loop.index0 * 0.05 }}s">
             <div class="flex items-center gap-6 mb-10">
-                <div class="w-20 h-20 rounded-[2rem] bg-red-600 flex items-center justify-center text-4xl font-black shadow-2xl shadow-red-900/40">
+                <div class="w-16 h-16 rounded-2xl bg-red-600 flex items-center justify-center text-3xl font-black shadow-[0_12px_32px_var(--primary-glow)] border-2 border-white/10">
                     {{ char }}
                 </div>
-                <div class="h-px flex-1 bg-gradient-to-r from-red-600/40 via-red-600/10 to-transparent"></div>
+                <div class="h-px flex-1 bg-gradient-to-r from-red-600/40 via-red-600/5 to-transparent"></div>
             </div>
 
             {% if items %}
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {% for item in items %}
-                <a href="/anime/{{ item.slug }}" class="glass p-6 rounded-[1.5rem] flex items-center justify-between hover:bg-red-600 hover:text-white group transition-all duration-300 border border-white/5 shadow-lg">
-                    <span class="font-black text-sm tracking-tight truncate pr-4">{{ item.title }}</span>
-                    <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-white group-hover:text-red-600 transition-colors">
-                        <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                <a href="/anime/{{ item.slug }}" class="glass p-6 rounded-2xl flex items-center justify-between hover:bg-red-600 hover:text-white group transition-all duration-300 border-white/5 shadow-xl hover:-translate-y-1">
+                    <span class="font-black text-[11px] uppercase tracking-[0.05em] truncate pr-4">{{ item.title }}</span>
+                    <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-white group-hover:text-red-600 transition-all">
+                        <i class="fa-solid fa-chevron-right text-[10px] group-hover:translate-x-1 transition-transform"></i>
                     </div>
                 </a>
                 {% endfor %}
             </div>
             {% else %}
-            <div class="glass p-10 rounded-[2rem] text-center border-dashed border-2 border-white/5">
-                <p class="text-gray-500 font-bold uppercase tracking-widest text-sm">No synchronized titles for this sector.</p>
+            <div class="glass p-20 rounded-[3rem] text-center border-dashed border-2 border-white/5 opacity-40">
+                <p class="text-gray-600 font-black uppercase tracking-[0.3em] text-[10px]">No titles found for this letter.</p>
             </div>
             {% endif %}
         </div>
