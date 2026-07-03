@@ -191,7 +191,7 @@ body {
 }
 
 .anime-card:hover .poster-wrapper img {
-    transform: scale(1.08);
+    transform: scale(1); /* Disable scale to prevent edge clipping */
 }
 
 /* Navbar */
@@ -218,8 +218,8 @@ body {
 /* Responsive Grid */
 .responsive-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr); /* Mobile: Exactly 2 cards */
-    gap: 12px;
+    grid-template-columns: 1fr; /* Mobile: Exactly 1 post per row */
+    gap: 16px;
 }
 
 @media (min-width: 640px) {
