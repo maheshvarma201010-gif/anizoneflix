@@ -36,7 +36,7 @@
                 <div class="swiper-slide !w-auto">
                     <a href="/anime/{{ anime.slug }}" class="flex items-center gap-4 glass px-6 py-4 rounded-2xl border-white/5 hover:border-red-600/40 transition-all group">
                         <div class="w-24 aspect-video rounded-lg overflow-hidden border border-white/10 shadow-xl bg-black">
-                            <img src="{{ anime.image }}" class="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" alt="{{ anime.title }}" loading="lazy">
+                            <img src="{{ anime.image }}" class="w-full h-full object-contain transition-transform duration-500" alt="{{ anime.title }}" loading="lazy">
                         </div>
                         <div>
                             <span class="block text-[8px] font-bold text-red-600 uppercase tracking-widest mb-1">Updated</span>
@@ -159,7 +159,7 @@
     <p class="mt-4 text-[10px] font-black uppercase tracking-[0.5em] text-gray-600">Loading more...</p>
 </div>
 
-<div id="animeContainer" class="max-w-7xl mx-auto px-4 pb-40 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+<div id="animeContainer" class="max-w-7xl mx-auto px-4 pb-40 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
     <!-- Infinite scroll content will be injected here -->
 </div>
 
@@ -170,32 +170,34 @@
     // Slider Configuration
     new Swiper(".flashSwiper", {
         slidesPerView: "auto",
-        spaceBetween: 20,
+        spaceBetween: 16,
         freeMode: true,
         loop: false,
     });
 
     new Swiper(".trendingSwiper", {
-        slidesPerView: 1.4,
-        spaceBetween: 20,
+        slidesPerView: 2,
+        slidesPerGroup: 1,
+        spaceBetween: 16,
         pagination: { el: ".swiper-pagination", clickable: true },
         breakpoints: {
-            640: { slidesPerView: 2.4 },
-            768: { slidesPerView: 3.4 },
-            1024: { slidesPerView: 4.4 },
-            1280: { slidesPerView: 5.4 }
+            640: { slidesPerView: 3, spaceBetween: 20 },
+            768: { slidesPerView: 4, spaceBetween: 20 },
+            1024: { slidesPerView: 5, spaceBetween: 24 },
+            1280: { slidesPerView: 6, spaceBetween: 24 }
         }
     });
 
     new Swiper(".recentSwiper", {
-        slidesPerView: 1.4,
-        spaceBetween: 20,
+        slidesPerView: 2,
+        slidesPerGroup: 1,
+        spaceBetween: 16,
         pagination: { el: ".swiper-pagination", clickable: true },
         breakpoints: {
-            640: { slidesPerView: 2.4 },
-            768: { slidesPerView: 3.4 },
-            1024: { slidesPerView: 4.4 },
-            1280: { slidesPerView: 5.4 }
+            640: { slidesPerView: 3, spaceBetween: 20 },
+            768: { slidesPerView: 4, spaceBetween: 20 },
+            1024: { slidesPerView: 5, spaceBetween: 24 },
+            1280: { slidesPerView: 6, spaceBetween: 24 }
         }
     });
 
@@ -223,15 +225,24 @@
                             <a href="/anime/${anime.slug}" class="group block">
                                 <div class="poster-wrapper">
                                     <img src="${anime.image}" alt="${anime.title}" loading="lazy">
-                                    <div class="absolute top-3 left-3 glass px-2.5 py-1 rounded-lg text-[8px] font-black border-white/5">
-                                        ${anime.category || 'ANIME'}
+                                    <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-6">
+                                        <div class="btn-premium py-2.5 text-[10px] uppercase tracking-widest shadow-2xl mb-4">Get Files</div>
+                                        <div class="flex items-center gap-4 text-[10px] text-gray-400 font-black tracking-widest">
+                                            <span class="text-yellow-500"><i class="fa-solid fa-star mr-2"></i> ${anime.score || '8.5'}</span>
+                                            <span>•</span>
+                                            <span>${anime.year || '2024'}</span>
+                                        </div>
                                     </div>
-                                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
-                                        <div class="btn-premium w-full py-2 text-[8px] uppercase tracking-widest">Get Files</div>
+                                    <div class="absolute top-4 right-4 glass px-3 py-1.5 rounded-xl text-[10px] font-black border-white/10 shadow-2xl">
+                                        <i class="fa-solid fa-star text-yellow-500 mr-2"></i> ${anime.score || '8.5'}
                                     </div>
                                 </div>
-                                <div class="p-4">
-                                    <h3 class="font-black text-[11px] line-clamp-2 uppercase tracking-tight group-hover:text-red-500 transition-colors">${anime.title}</h3>
+                                <div class="p-4 bg-gradient-to-b from-transparent to-black/40">
+                                    <h3 class="font-black text-[11px] line-clamp-2 uppercase tracking-tight group-hover:text-red-500 transition-colors leading-tight min-h-[2.5em]">${anime.title}</h3>
+                                    <div class="flex items-center justify-between mt-2">
+                                        <span class="text-[8px] text-gray-500 font-bold uppercase tracking-widest">${anime.category || 'ANIME'}</span>
+                                        <span class="text-[8px] text-red-600 font-bold uppercase tracking-widest">${anime.status || 'RELEASED'}</span>
+                                    </div>
                                 </div>
                             </a>
                         </div>

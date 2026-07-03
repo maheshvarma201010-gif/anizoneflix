@@ -16,14 +16,14 @@
 </head>
 <body class="selection:bg-red-600/40">
     <!-- Navbar -->
-    <nav class="navbar-glass sticky top-0 z-50 px-4 md:px-8 py-3">
+    <nav class="navbar-glass sticky top-0 z-50 px-6 md:px-8 py-4">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <a href="/" class="flex items-center space-x-2 group">
-                <img src="{{ logo_url }}" class="w-8 h-8 rounded-full border border-white/10" alt="Logo">
-                <span class="text-lg font-black tracking-tighter uppercase">{{ site_name }}</span>
+            <a href="/" class="flex items-center space-x-3 group">
+                <img src="{{ logo_url }}" class="w-9 h-9 rounded-full border border-white/10" alt="Logo">
+                <span class="text-xl font-black tracking-tighter uppercase">{{ site_name }}</span>
             </a>
 
-            <div class="hidden md:flex items-center space-x-6 text-[10px] font-bold uppercase tracking-widest">
+            <div class="hidden md:flex items-center space-x-8 text-[10px] font-bold uppercase tracking-widest">
                 <a href="/" class="hover:text-red-600 transition">Home</a>
                 <a href="/az-index" class="hover:text-red-600 transition">Index</a>
                 <a href="/schedule" class="hover:text-red-600 transition">Schedule</a>
@@ -49,22 +49,22 @@
     </nav>
 
     <!-- Mobile Menu -->
-    <div id="mobile-menu" class="hidden fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl p-8">
+    <div id="mobile-menu" class="hidden fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl p-10">
         <div class="flex justify-end mb-12">
-            <button class="text-3xl" onclick="toggleMenu(false)">
+            <button class="text-4xl text-gray-400 hover:text-white transition-colors" onclick="toggleMenu(false)">
                 <i class="fa-solid fa-times"></i>
             </button>
         </div>
-        <div class="flex flex-col space-y-8 text-2xl font-black uppercase tracking-tighter">
-            <a href="/" onclick="toggleMenu(false)">Home</a>
-            <a href="/az-index" onclick="toggleMenu(false)">Index</a>
-            <a href="/schedule" onclick="toggleMenu(false)">Schedule</a>
-            <a href="/search" onclick="toggleMenu(false)">Search</a>
-            <div class="pt-8 border-t border-white/10">
-                <p class="text-[10px] text-gray-500 mb-6 uppercase tracking-[0.3em]">Archives</p>
-                <div class="grid grid-cols-2 gap-4">
+        <div class="flex flex-col space-y-10 text-3xl font-black uppercase tracking-tighter">
+            <a href="/" onclick="toggleMenu(false)" class="hover:text-red-600 transition-colors">Home</a>
+            <a href="/az-index" onclick="toggleMenu(false)" class="hover:text-red-600 transition-colors">Index</a>
+            <a href="/schedule" onclick="toggleMenu(false)" class="hover:text-red-600 transition-colors">Schedule</a>
+            <a href="/search" onclick="toggleMenu(false)" class="hover:text-red-600 transition-colors">Search</a>
+            <div class="pt-10 border-t border-white/10">
+                <p class="text-[12px] text-gray-500 mb-8 uppercase tracking-[0.4em] font-bold">Archives</p>
+                <div class="grid grid-cols-2 gap-x-6 gap-y-6">
                     {% for cat in categories %}
-                    <a href="/search?q={{ cat.name }}" class="text-lg" onclick="toggleMenu(false)">{{ cat.name }}</a>
+                    <a href="/search?q={{ cat.name }}" class="text-xl font-bold hover:text-red-600 transition-colors" onclick="toggleMenu(false)">{{ cat.name }}</a>
                     {% endfor %}
                 </div>
             </div>
