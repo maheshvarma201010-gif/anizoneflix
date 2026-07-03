@@ -16,11 +16,11 @@
 </head>
 <body class="selection:bg-red-600/40">
     <!-- Navbar -->
-    <nav class="navbar-glass sticky top-0 z-50 px-6 md:px-8 py-4">
+    <nav class="navbar-glass sticky top-0 z-50 px-2 md:px-8 py-3 md:py-4">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <a href="/" class="flex items-center space-x-3 group">
-                <img src="{{ logo_url }}" class="w-9 h-9 rounded-full border border-white/10" alt="Logo">
-                <span class="text-xl font-black tracking-tighter uppercase">{{ site_name }}</span>
+            <a href="/" class="flex items-center space-x-2 md:space-x-3 group min-w-0">
+                <img src="{{ logo_url }}" class="w-8 h-8 md:w-9 md:h-9 rounded-full border border-white/10 flex-shrink-0" alt="Logo">
+                <span class="text-base md:text-xl font-black tracking-tighter uppercase whitespace-nowrap overflow-hidden text-ellipsis">{{ site_name }}</span>
             </a>
 
             <div class="hidden md:flex items-center space-x-8 text-[10px] font-bold uppercase tracking-widest">
@@ -42,7 +42,7 @@
                 </a>
             </div>
 
-            <button class="md:hidden text-2xl" onclick="toggleMenu(true)">
+            <button class="md:hidden text-xl p-2" onclick="toggleMenu(true)">
                 <i class="fa-solid fa-bars-staggered"></i>
             </button>
         </div>

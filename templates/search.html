@@ -20,7 +20,7 @@
     </div>
 
     {% if results %}
-    <div class="responsive-grid">
+    <div class="responsive-grid gap-3 md:gap-6">
         {% for anime in results if anime %}
         <div class="anime-card animate-fade-in no-select no-drag" style="animation-delay: {{ loop.index0 * 0.05 }}s">
             <a href="/anime/{{ anime.slug }}" class="group block">
@@ -42,8 +42,7 @@
                     <h3 class="font-black text-[11px] line-clamp-2 uppercase tracking-tight group-hover:text-red-500 transition-colors leading-tight min-h-[2.5em]">{{ anime.title }}</h3>
                     <div class="flex items-center justify-between mt-2">
                         <span class="text-[8px] text-gray-500 font-bold uppercase tracking-widest">{{ anime.category }}</span>
-                        <span>•</span>
-                        <span>{{ anime.year or '2024' }}</span>
+                        <span class="text-[8px] text-red-600 font-bold uppercase tracking-widest">{{ anime.status or 'RELEASED' }}</span>
                     </div>
                 </div>
             </a>
