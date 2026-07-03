@@ -1,63 +1,98 @@
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('ANIZONEFLIX initialized');
+    console.log('ANIZONEFLIX Production Suite LIVE');
 
-    // Mobile Menu Toggle
-    const menuToggle = document.getElementById('menu-toggle');
-    const mobileNav = document.getElementById('mobile-nav');
-    const closeMenu = document.getElementById('close-menu');
-
-    if (menuToggle && mobileNav && closeMenu) {
-        menuToggle.addEventListener('click', () => {
-            mobileNav.classList.add('active');
-        });
-
-        closeMenu.addEventListener('click', () => {
-            mobileNav.classList.remove('active');
-        });
-    }
-
-    // Search Overlay
-    const searchTrigger = document.getElementById('search-trigger');
-    const searchOverlay = document.getElementById('search-overlay');
-    const closeSearch = document.getElementById('close-search');
-
-    if (searchTrigger && searchOverlay && closeSearch) {
-        searchTrigger.addEventListener('click', () => {
-            searchOverlay.classList.add('active');
-            searchOverlay.querySelector('input').focus();
-        });
-
-        closeSearch.addEventListener('click', () => {
-            searchOverlay.classList.remove('active');
-        });
-
-        // Close on ESC
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                searchOverlay.classList.remove('active');
-                mobileNav.classList.remove('active');
+    // --- Anti-Copy Protection ---
+    const disableProtections = () => {
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        document.addEventListener('keydown', e => {
+            if (
+                e.ctrlKey && (
+                    e.key === 'c' ||
+                    e.key === 'v' ||
+                    e.key === 'u' ||
+                    e.key === 's' ||
+                    e.key === 'a' ||
+                    e.key === 'x'
+                ) ||
+                (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
+                e.key === 'F12'
+            ) {
+                e.preventDefault();
+                return false;
             }
         });
-    }
+        document.addEventListener('dragstart', e => e.preventDefault());
+        document.addEventListener('drop', e => e.preventDefault());
+        document.addEventListener('selectstart', e => e.preventDefault());
+    };
+    disableProtections();
 
-    // Smooth scroll for anchors
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function (e) {
-            e.preventDefault();
-            document.querySelector(this.getAttribute('href')).scrollIntoView({
-                behavior: 'smooth'
+    // --- Interactive Elements: Ripple Effect ---
+    const createRipple = (event) => {
+        const button = event.currentTarget;
+        const circle = document.createElement('span');
+        const diameter = Math.max(button.clientWidth, button.clientHeight);
+        const radius = diameter / 2;
+        const rect = button.getBoundingClientRect();
+
+        circle.style.width = circle.style.height = `${diameter}px`;
+        circle.style.left = `${event.clientX - rect.left - radius}px`;
+        circle.style.top = `${event.clientY - rect.top - radius}px`;
+        circle.classList.add('ripple');
+
+        const ripple = button.getElementsByClassName('ripple')[0];
+        if (ripple) { ripple.remove(); }
+        button.appendChild(circle);
+
+        setTimeout(() => circle.remove(), 600);
+    };
+
+    document.querySelectorAll('.btn-premium, button').forEach(btn => {
+        btn.addEventListener('click', createRipple);
+    });
+
+    // --- Mobile Menu Toggle ---
+    window.toggleMenu = (show) => {
+        const mobileMenu = document.getElementById('mobile-menu');
+        if (mobileMenu) {
+            if (show) {
+                mobileMenu.classList.remove('hidden');
+                mobileMenu.classList.add('animate-fade-in');
+            } else {
+                mobileMenu.classList.add('hidden');
+            }
+        }
+    };
+
+    // --- Lazy Loading Enhancement ---
+    if ('IntersectionObserver' in window) {
+        const imgObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    img.src = img.src;
+                    observer.unobserve(img);
+                }
             });
         });
+        document.querySelectorAll('img[loading="lazy"]').forEach(img => imgObserver.observe(img));
+    }
+
+    // --- Auto-scroll Rows Pause/Resume ---
+    document.querySelectorAll('.ott-row, .swiper').forEach(row => {
+        row.addEventListener('mouseenter', () => {
+            if (row.swiper && row.swiper.autoplay) row.swiper.autoplay.stop();
+        });
+        row.addEventListener('mouseleave', () => {
+            if (row.swiper && row.swiper.autoplay) row.swiper.autoplay.start();
+        });
     });
 
-    // Glassmorphism hover effect enhancement
-    const cards = document.querySelectorAll('.anime-card');
-    cards.forEach(card => {
-        card.addEventListener('mouseenter', () => {
-            card.style.borderColor = 'rgba(255, 60, 0, 0.5)';
+    // --- Floating Search Button ---
+    const floatingSearch = document.querySelector('.search-btn-floating');
+    if (floatingSearch) {
+        floatingSearch.addEventListener('click', () => {
+            window.location.href = '/search';
         });
-        card.addEventListener('mouseleave', () => {
-            card.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-        });
-    });
+    }
 });
