@@ -47,8 +47,16 @@
                 <div class="flex flex-wrap justify-center lg:justify-start gap-4">
                     {% if anime.trailer %}
                     <a href="{{ anime.trailer }}" target="_blank" class="btn-premium px-8 py-3.5 text-[10px] tracking-[0.15em]">
-                        <i class="fa-solid fa-play mr-2"></i> GET FILES
+                        <i class="fa-solid fa-play mr-2"></i> WATCH TRAILER
                     </a>
+                    {% endif %}
+
+                    {% if anime.custom_buttons %}
+                        {% for btn in anime.custom_buttons %}
+                        <a href="{{ btn.link }}" target="_blank" class="btn-premium px-8 py-3.5 text-[10px] tracking-[0.15em] bg-white/10 hover:bg-red-600 text-white border-white/10">
+                            <i class="fa-solid fa-link mr-2"></i> {{ btn.name }}
+                        </a>
+                        {% endfor %}
                     {% endif %}
                 </div>
             </div>
@@ -133,7 +141,7 @@
                 </div>
                 {% if box.link %}
                 <a href="{{ box.link }}" target="_blank" class="btn-premium px-6 py-3 text-[9px] tracking-widest">
-                    GET FILES <i class="fa-solid fa-arrow-up-right-from-square ml-2"></i>
+                    EXTERNAL LINK <i class="fa-solid fa-arrow-up-right-from-square ml-2"></i>
                 </a>
                 {% endif %}
             </div>
@@ -148,7 +156,7 @@
                         {% for label, url in g_links.items() %}
                         <a href="/dl?url={{ url|urlencode }}" target="_blank"
                            class="px-4 py-3 glass bg-white/5 hover:bg-red-600 rounded-xl font-bold text-[9px] uppercase tracking-widest text-center transition-all border-white/5 hover:border-red-500/40">
-                            GET FILES
+                            {{ label }}
                         </a>
                         {% endfor %}
                     </div>
