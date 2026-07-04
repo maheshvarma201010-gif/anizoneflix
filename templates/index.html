@@ -212,51 +212,51 @@
 <script>
     // Slider Configuration
     new Swiper(".flashSwiper", {
-        slidesPerView: 1,
-        spaceBetween: 16,
+        slidesPerView: 1.2,
+        spaceBetween: 12,
         freeMode: true,
         loop: false,
         breakpoints: {
-            640: { slidesPerView: "auto" }
+            640: { slidesPerView: "auto", spaceBetween: 16 }
         }
     });
 
     new Swiper(".trendingSwiper", {
-        slidesPerView: 1,
+        slidesPerView: 2,
         slidesPerGroup: 1,
-        spaceBetween: 20,
+        spaceBetween: 12,
         pagination: { el: ".swiper-pagination", clickable: true },
         breakpoints: {
-            640: { slidesPerView: 3, slidesPerGroup: 1, spaceBetween: 16 },
-            768: { slidesPerView: 4, slidesPerGroup: 1, spaceBetween: 20 },
-            1024: { slidesPerView: 5, slidesPerGroup: 1, spaceBetween: 24 },
-            1280: { slidesPerView: 6, slidesPerGroup: 1, spaceBetween: 24 }
+            640: { slidesPerView: 3, spaceBetween: 16 },
+            768: { slidesPerView: 4, spaceBetween: 20 },
+            1024: { slidesPerView: 5, spaceBetween: 24 },
+            1280: { slidesPerView: 6, spaceBetween: 24 }
         }
     });
 
     new Swiper(".featuredSwiper", {
-        slidesPerView: 1,
+        slidesPerView: 2,
         slidesPerGroup: 1,
-        spaceBetween: 20,
+        spaceBetween: 12,
         pagination: { el: ".swiper-pagination", clickable: true },
         breakpoints: {
-            640: { slidesPerView: 3, slidesPerGroup: 1, spaceBetween: 16 },
-            768: { slidesPerView: 4, slidesPerGroup: 1, spaceBetween: 20 },
-            1024: { slidesPerView: 5, slidesPerGroup: 1, spaceBetween: 24 },
-            1280: { slidesPerView: 6, slidesPerGroup: 1, spaceBetween: 24 }
+            640: { slidesPerView: 3, spaceBetween: 16 },
+            768: { slidesPerView: 4, spaceBetween: 20 },
+            1024: { slidesPerView: 5, spaceBetween: 24 },
+            1280: { slidesPerView: 6, spaceBetween: 24 }
         }
     });
 
     new Swiper(".recentSwiper", {
-        slidesPerView: 1,
+        slidesPerView: 2,
         slidesPerGroup: 1,
-        spaceBetween: 20,
+        spaceBetween: 12,
         pagination: { el: ".swiper-pagination", clickable: true },
         breakpoints: {
-            640: { slidesPerView: 3, slidesPerGroup: 1, spaceBetween: 16 },
-            768: { slidesPerView: 4, slidesPerGroup: 1, spaceBetween: 20 },
-            1024: { slidesPerView: 5, slidesPerGroup: 1, spaceBetween: 24 },
-            1280: { slidesPerView: 6, slidesPerGroup: 1, spaceBetween: 24 }
+            640: { slidesPerView: 3, spaceBetween: 16 },
+            768: { slidesPerView: 4, spaceBetween: 20 },
+            1024: { slidesPerView: 5, spaceBetween: 24 },
+            1280: { slidesPerView: 6, spaceBetween: 24 }
         }
     });
 
@@ -271,7 +271,7 @@
         document.getElementById('loader').classList.remove('hidden');
 
         try {
-            const resp = await fetch(`/api/anime?skip=${page * 20}&limit=20`);
+            const resp = await fetch(`/api/anime?skip=${page * 18}&limit=18`);
             const res = await resp.json();
 
             if (!res.success || !res.data || res.data.length === 0) {

@@ -138,23 +138,22 @@ body {
 
 /* Cards */
 .anime-card {
-    border-radius: 8px;
-    overflow: visible; /* Prevents clipping of shadows or borders */
+    border-radius: 1rem;
+    overflow: hidden;
     background: var(--bg-card);
     border: 1px solid var(--glass-border);
-    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.3s ease, box-shadow 0.3s ease;
+    transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
     height: 100%;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     position: relative;
 }
 
 .anime-card:hover {
-    transform: translateY(-8px);
+    transform: translateY(-5px);
     border-color: var(--primary);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 0, 0, 0.2);
-    z-index: 10;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(255, 0, 0, 0.1);
 }
 
 .anime-card h3 {
@@ -164,18 +163,18 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     word-break: break-word;
-    font-size: 1rem; /* Increased for better visibility on 1-card layout */
-    line-height: 1.2;
-    min-height: 2.4em;
-    font-weight: 800;
+    font-size: 0.85rem;
+    line-height: 1.3;
+    min-height: 2.6em;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: -0.01em;
+    letter-spacing: 0.02em;
+    color: #fff;
 }
 
-@media (max-width: 640px) {
+@media (min-width: 768px) {
     .anime-card h3 {
-        font-size: 1.1rem; /* Further increased for 1-card layout */
-        min-height: 2.4em;
+        font-size: 0.95rem;
     }
 }
 
@@ -232,20 +231,21 @@ body {
 /* Responsive Grid */
 .responsive-grid {
     display: grid;
-    grid-template-columns: repeat(1, 1fr); /* Force 1 card per row by default (Mobile/Tablet) */
-    gap: 24px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 640px) {
     .responsive-grid {
-        grid-template-columns: repeat(4, 1fr);
-        gap: 20px;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
     }
 }
 
 @media (min-width: 768px) {
     .responsive-grid {
         grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
     }
 }
 
@@ -259,6 +259,7 @@ body {
 @media (min-width: 1280px) {
     .responsive-grid {
         grid-template-columns: repeat(6, 1fr);
+        gap: 24px;
     }
 }
 
