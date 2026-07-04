@@ -26,78 +26,84 @@
         body { 
             background-color: #050505; 
             color: white; 
+            font-family: 'Inter', sans-serif;
         }
 
-        /* ===== IMAGE ORIENTATION FIX ===== */
-        /* Fix for homepage and all images */
-        img {
+        /* ============================================
+           IMAGE HANDLING - FIXED FOR BOTH PORTRAIT & LANDSCAPE
+           ============================================ */
+        
+        /* Preserve original image orientation and aspect ratio */
+        .image-orientation-fix {
             image-orientation: from-image !important;
-        }
-
-        /* Homepage poster images */
-        .homepage-poster,
-        .poster-image,
-        .anime-poster {
-            width: 100% !important;
-            height: auto !important;
-            aspect-ratio: 2/3 !important;
-            object-fit: cover !important;
-            display: block !important;
-            image-orientation: from-image !important;
-        }
-
-        /* Swiper/Carousel images */
-        .swiper-slide img {
-            width: 100% !important;
-            height: auto !important;
-            aspect-ratio: 2/3 !important;
-            object-fit: cover !important;
-            image-orientation: from-image !important;
-        }
-
-        /* Grid images */
-        .grid img,
-        .grid .poster-card img {
-            width: 100% !important;
-            height: auto !important;
-            aspect-ratio: 2/3 !important;
-            object-fit: cover !important;
-            image-orientation: from-image !important;
-        }
-
-        /* Fix for landscape images - keep them proportional */
-        .landscape-fix {
-            width: 100% !important;
-            height: auto !important;
-            aspect-ratio: auto !important;
+            -webkit-image-orientation: from-image !important;
             object-fit: contain !important;
-            image-orientation: from-image !important;
+            width: 100% !important;
+            height: auto !important;
+            display: block !important;
         }
 
-        /* Prevent image distortion */
-        .no-distort {
-            max-width: 100%;
-            height: auto;
-            image-orientation: from-image;
-        }
-
-        /* ===== END IMAGE FIX ===== */
-
-        /* Additional utility classes */
-        .image-container {
+        /* Poster wrapper - flexible container */
+        .poster-wrapper {
             position: relative;
             overflow: hidden;
-            background: #0a0a0a;
+            border-radius: 0.75rem;
+            background: rgba(0, 0, 0, 0.5);
+            min-height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .image-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            image-orientation: from-image;
+        /* Poster images - smaller on mobile, larger on desktop */
+        .poster-wrapper img {
+            max-height: 260px !important;
+            width: auto !important;
+            max-width: 100% !important;
         }
 
-        /* Glass morphism effects */
+        @media (min-width: 768px) {
+            .poster-wrapper img {
+                max-height: 350px !important;
+            }
+        }
+
+        /* Updates section - landscape images */
+        .aspect-video img {
+            image-orientation: from-image !important;
+            -webkit-image-orientation: from-image !important;
+            object-fit: cover !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Anime card images */
+        .anime-card img {
+            image-orientation: from-image !important;
+            -webkit-image-orientation: from-image !important;
+            object-fit: contain !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: 260px !important;
+        }
+
+        @media (min-width: 768px) {
+            .anime-card img {
+                max-height: 350px !important;
+            }
+        }
+
+        /* Swiper slide images */
+        .swiper-slide img {
+            image-orientation: from-image !important;
+            -webkit-image-orientation: from-image !important;
+        }
+
+        /* ============================================
+           COMPONENT STYLES
+           ============================================ */
+
+        /* Glass morphism */
         .glass {
             background: rgba(255, 255, 255, 0.03);
             backdrop-filter: blur(12px);
@@ -112,6 +118,7 @@
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
 
+        /* Premium button */
         .btn-premium {
             background: linear-gradient(135deg, #dc2626, #b91c1c);
             color: white;
@@ -124,6 +131,8 @@
             align-items: center;
             gap: 8px;
             box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3);
+            border: none;
+            cursor: pointer;
         }
 
         .btn-premium:hover {
@@ -151,12 +160,97 @@
             animation: fade-in 0.3s ease-out;
         }
 
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .animate-float {
+            animation: float 2s ease-in-out infinite;
+        }
+
         /* No select */
         .no-select {
             user-select: none;
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
+        }
+
+        /* ============================================
+           RESPONSIVE GRID
+           ============================================ */
+
+        .responsive-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        @media (min-width: 640px) {
+            .responsive-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 16px;
+            }
+        }
+
+        @media (min-width: 768px) {
+            .responsive-grid {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 20px;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .responsive-grid {
+                grid-template-columns: repeat(5, 1fr);
+                gap: 24px;
+            }
+        }
+
+        @media (min-width: 1280px) {
+            .responsive-grid {
+                grid-template-columns: repeat(6, 1fr);
+                gap: 24px;
+            }
+        }
+
+        /* ============================================
+           TEXT UTILITIES
+           ============================================ */
+
+        .truncate {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* ============================================
+           SCROLLBAR STYLING
+           ============================================ */
+
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #050505;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #dc2626;
+            border-radius: 9999px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #b91c1c;
         }
     </style>
     {% block head %}{% endblock %}
@@ -218,7 +312,6 @@
         </div>
     </div>
 
-
     <main class="min-h-screen px-3 md:px-4">
         {% block content %}{% endblock %}
     </main>
@@ -246,15 +339,6 @@
             document.getElementById('join-popup').classList.add('hidden');
             localStorage.setItem('join_popup_dismissed', Date.now());
         }
-        document.addEventListener('DOMContentLoaded', () => {
-            const dismissed = localStorage.getItem('join_popup_dismissed');
-            const now = Date.now();
-            if (!dismissed || (now - dismissed) > 24 * 60 * 60 * 1000) {
-                setTimeout(() => {
-                    document.getElementById('join-popup').classList.remove('hidden');
-                }, 5000);
-            }
-        });
 
         function toggleMenu(show) {
             const menu = document.getElementById('mobile-menu');
@@ -266,6 +350,16 @@
                 document.body.style.overflow = '';
             }
         }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const dismissed = localStorage.getItem('join_popup_dismissed');
+            const now = Date.now();
+            if (!dismissed || (now - dismissed) > 24 * 60 * 60 * 1000) {
+                setTimeout(() => {
+                    document.getElementById('join-popup').classList.remove('hidden');
+                }, 5000);
+            }
+        });
     </script>
 
     <!-- Global Floating Action Buttons -->
@@ -308,4 +402,4 @@
     <script src="/static/js/main.js?v=2.1"></script>
     {% block scripts %}{% endblock %}
 </body>
-</html>
+                                                                                            </html>
