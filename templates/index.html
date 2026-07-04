@@ -14,7 +14,7 @@
     <div class="relative z-20 text-center px-6 max-w-5xl animate-fade-in">
         <div class="flex flex-col items-center justify-center gap-4">
             <a href="/search" class="btn-premium px-10 py-4 text-xs tracking-[0.2em]">
-                <i class="fa-solid fa-search mr-2"></i> GET FILES
+                <i class="fa-solid fa-search mr-2"></i> EXPLORE NOW
             </a>
         </div>
     </div>
@@ -39,7 +39,7 @@
                 <div class="swiper-slide !w-full md:!w-auto">
                     <a href="/anime/{{ anime.slug }}" class="flex items-center gap-4 glass px-6 py-4 rounded-2xl border-white/5 hover:border-red-600/40 transition-all group">
                         <div class="w-24 md:w-40 aspect-video rounded-lg overflow-hidden border border-white/10 shadow-xl bg-black relative flex-shrink-0">
-                            <img src="{{ anime.image }}" class="w-full h-full object-contain transition-transform duration-500" alt="{{ anime.title }}" loading="lazy">
+                            <img src="{{ anime.image }}" class="w-full h-full object-contain transition-transform duration-500 image-fix" alt="{{ anime.title }}" loading="lazy">
                             <div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>
                         </div>
                         <div class="max-w-[120px] md:max-w-[160px]">
@@ -70,7 +70,7 @@
                     <div class="anime-card">
                         <a href="/anime/{{ anime.slug }}" class="group block">
                             <div class="poster-wrapper">
-                                <img src="{{ anime.image }}" alt="{{ anime.title }}" loading="lazy">
+                                <img src="{{ anime.image }}" alt="{{ anime.title }}" loading="lazy" class="homepage-poster">
                                 <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-6">
                                     <div class="btn-premium py-2 text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl mb-3 md:mb-4">Get Files</div>
                                     <div class="flex items-center gap-2 md:gap-4 text-[9px] md:text-[10px] text-gray-400 font-black tracking-widest">
@@ -115,7 +115,7 @@
                     <div class="anime-card">
                         <a href="/anime/{{ anime.slug }}" class="group block">
                             <div class="poster-wrapper">
-                                <img src="{{ anime.image }}" alt="{{ anime.title }}" loading="lazy">
+                                <img src="{{ anime.image }}" alt="{{ anime.title }}" loading="lazy" class="homepage-poster">
                                 <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-6">
                                     <div class="btn-premium py-2 text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl mb-3 md:mb-4">Get Files</div>
                                     <div class="flex items-center gap-2 md:gap-4 text-[9px] md:text-[10px] text-gray-400 font-black tracking-widest">
@@ -160,7 +160,7 @@
                     <div class="anime-card">
                         <a href="/anime/{{ anime.slug }}" class="group block">
                             <div class="poster-wrapper">
-                                <img src="{{ anime.image }}" alt="{{ anime.title }}" loading="lazy">
+                                <img src="{{ anime.image }}" alt="{{ anime.title }}" loading="lazy" class="homepage-poster">
                                 <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-6">
                                     <div class="btn-premium py-2 text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl mb-3 md:mb-4">Get Files</div>
                                 </div>
@@ -283,7 +283,7 @@
                         <div class="anime-card animate-fade-in no-select no-drag">
                             <a href="/anime/${anime.slug}" class="group block">
                                 <div class="poster-wrapper">
-                                    <img src="${anime.image}" alt="${anime.title}" loading="lazy">
+                                    <img src="${anime.image}" alt="${anime.title}" loading="lazy" class="homepage-poster">
                                     <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-6">
                                         <div class="btn-premium py-2 text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl mb-3 md:mb-4">Get Files</div>
                                         <div class="flex items-center gap-2 md:gap-4 text-[9px] md:text-[10px] text-gray-400 font-black tracking-widest">
