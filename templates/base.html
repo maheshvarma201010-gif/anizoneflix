@@ -23,7 +23,141 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet" href="/static/css/style.css?v=2.0">
     <style>
-        body { background-color: #050505; color: white; }
+        body { 
+            background-color: #050505; 
+            color: white; 
+        }
+
+        /* ===== IMAGE ORIENTATION FIX ===== */
+        /* Fix for homepage and all images */
+        img {
+            image-orientation: from-image !important;
+        }
+
+        /* Homepage poster images */
+        .homepage-poster,
+        .poster-image,
+        .anime-poster {
+            width: 100% !important;
+            height: auto !important;
+            aspect-ratio: 2/3 !important;
+            object-fit: cover !important;
+            display: block !important;
+            image-orientation: from-image !important;
+        }
+
+        /* Swiper/Carousel images */
+        .swiper-slide img {
+            width: 100% !important;
+            height: auto !important;
+            aspect-ratio: 2/3 !important;
+            object-fit: cover !important;
+            image-orientation: from-image !important;
+        }
+
+        /* Grid images */
+        .grid img,
+        .grid .poster-card img {
+            width: 100% !important;
+            height: auto !important;
+            aspect-ratio: 2/3 !important;
+            object-fit: cover !important;
+            image-orientation: from-image !important;
+        }
+
+        /* Fix for landscape images - keep them proportional */
+        .landscape-fix {
+            width: 100% !important;
+            height: auto !important;
+            aspect-ratio: auto !important;
+            object-fit: contain !important;
+            image-orientation: from-image !important;
+        }
+
+        /* Prevent image distortion */
+        .no-distort {
+            max-width: 100%;
+            height: auto;
+            image-orientation: from-image;
+        }
+
+        /* ===== END IMAGE FIX ===== */
+
+        /* Additional utility classes */
+        .image-container {
+            position: relative;
+            overflow: hidden;
+            background: #0a0a0a;
+        }
+
+        .image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            image-orientation: from-image;
+        }
+
+        /* Glass morphism effects */
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .navbar-glass {
+            background: rgba(5, 5, 5, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-premium {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+            padding: 10px 24px;
+            border-radius: 9999px;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3);
+        }
+
+        .btn-premium:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 30px rgba(220, 38, 38, 0.5);
+        }
+
+        .btn-premium:active {
+            transform: scale(0.95);
+        }
+
+        /* Animations */
+        @keyframes fade-in {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .animate-fade-in {
+            animation: fade-in 0.3s ease-out;
+        }
+
+        /* No select */
+        .no-select {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
     </style>
     {% block head %}{% endblock %}
 </head>
@@ -121,6 +255,17 @@
                 }, 5000);
             }
         });
+
+        function toggleMenu(show) {
+            const menu = document.getElementById('mobile-menu');
+            if (show) {
+                menu.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            } else {
+                menu.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+        }
     </script>
 
     <!-- Global Floating Action Buttons -->
