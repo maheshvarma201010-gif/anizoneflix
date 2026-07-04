@@ -36,9 +36,9 @@
         <div class="swiper flashSwiper !overflow-visible">
             <div class="swiper-wrapper">
                 {% for anime in recent[:15] %}
-                <div class="swiper-slide !w-auto">
+                <div class="swiper-slide !w-full md:!w-auto">
                     <a href="/anime/{{ anime.slug }}" class="flex items-center gap-4 glass px-6 py-4 rounded-2xl border-white/5 hover:border-red-600/40 transition-all group">
-                        <div class="w-32 md:w-40 aspect-video rounded-lg overflow-hidden border border-white/10 shadow-xl bg-black relative">
+                        <div class="w-24 md:w-40 aspect-video rounded-lg overflow-hidden border border-white/10 shadow-xl bg-black relative flex-shrink-0">
                             <img src="{{ anime.image }}" class="w-full h-full object-contain transition-transform duration-500" alt="{{ anime.title }}" loading="lazy">
                             <div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>
                         </div>
@@ -184,7 +184,7 @@
             <h2 class="text-xl font-black tracking-tighter uppercase">Popular <span class="text-red-600">Categories</span></h2>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {% for cat in categories[:12] %}
             <a href="/search?q={{ cat.name }}" class="glass p-6 rounded-2xl text-center group hover:bg-red-600 transition-all border-white/5 active:scale-95">
                 <i class="fa-solid fa-list text-2xl mb-3 group-hover:scale-110 transition-transform"></i>
@@ -212,16 +212,19 @@
 <script>
     // Slider Configuration
     new Swiper(".flashSwiper", {
-        slidesPerView: "auto",
+        slidesPerView: 1,
         spaceBetween: 16,
         freeMode: true,
         loop: false,
+        breakpoints: {
+            640: { slidesPerView: "auto" }
+        }
     });
 
     new Swiper(".trendingSwiper", {
-        slidesPerView: 2,
+        slidesPerView: 1,
         slidesPerGroup: 1,
-        spaceBetween: 12,
+        spaceBetween: 20,
         pagination: { el: ".swiper-pagination", clickable: true },
         breakpoints: {
             640: { slidesPerView: 3, slidesPerGroup: 1, spaceBetween: 16 },
@@ -232,9 +235,9 @@
     });
 
     new Swiper(".featuredSwiper", {
-        slidesPerView: 2,
+        slidesPerView: 1,
         slidesPerGroup: 1,
-        spaceBetween: 12,
+        spaceBetween: 20,
         pagination: { el: ".swiper-pagination", clickable: true },
         breakpoints: {
             640: { slidesPerView: 3, slidesPerGroup: 1, spaceBetween: 16 },
@@ -245,9 +248,9 @@
     });
 
     new Swiper(".recentSwiper", {
-        slidesPerView: 2,
+        slidesPerView: 1,
         slidesPerGroup: 1,
-        spaceBetween: 12,
+        spaceBetween: 20,
         pagination: { el: ".swiper-pagination", clickable: true },
         breakpoints: {
             640: { slidesPerView: 3, slidesPerGroup: 1, spaceBetween: 16 },
