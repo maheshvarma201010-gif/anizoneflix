@@ -131,7 +131,11 @@ class Database:
     async def add_anime(self, data):
         try:
             if self._anime is None: return None
-            return await self._anime.update_one({"mal_id": data["mal_id"]}, {"$set": data}, upsert=True)
+            return await self._anime.update_one(
+                {"mal_id": data["mal_id"]},
+                {"$set": data, "$currentDate": {"updated_at": True}},
+                upsert=True
+            )
         except Exception as e:
             logger.error(f"Persistence Error (add_anime): {e}")
             return None
@@ -157,7 +161,7 @@ class Database:
     async def get_all_anime(self, limit=20, skip=0):
         try:
             if self._anime is None: return []
-            cursor = self._anime.find().sort("_id", -1).skip(skip).limit(limit)
+            cursor = self._anime.find().sort([("updated_at", -1), ("_id", -1)]).skip(skip).limit(limit)
             docs = await cursor.to_list(length=limit)
             return clean_doc(docs) or []
         except Exception as e:
@@ -262,12 +266,48 @@ class Database:
 
     async def get_schedule(self, day):
         try:
-            if self._schedules is None: return "No data synchronized."
+            if self._schedules is None: return []
             res = await self._schedules.find_one({"day": day})
-            return res.get("content", "No data synchronized.") if res else "No data synchronized."
+            if not res: return []
+
+            content = res.get("content", [])
+            # Convert string to structured list and extract URLs
+            if isinstance(content, str):
+                structured = []
+                for line in content.split("\n"):
+                    line = line.strip()
+                    if not line: continue
+
+                    image_url = None
+                    time_val = "TBA"
+
+                    # Extract URL (more robustly, looking for common image extensions too)
+                    url_match = re.search(r'(https?://[^\s]+\.(?:jpg|jpeg|png|webp|gif|bmp)(?:\?[^\s]*)?)', line, re.I)
+                    if not url_match:
+                        # Fallback to any URL
+                        url_match = re.search(r'(https?://[^\s]+)', line)
+
+                    if url_match:
+                        image_url = url_match.group(0).strip('.,()[]{}')
+                        line = line.replace(url_match.group(0), "").strip()
+
+                    # Extract Time (e.g. "12:00 PM", "(12:00)", "12.00")
+                    time_match = re.search(r'\(?(\d{1,2}[:.]\d{2}\s*(?:AM|PM|am|pm)?)\)?', line)
+                    if time_match:
+                        time_val = time_match.group(1).replace('.', ':')
+                        line = line.replace(time_match.group(0), "").strip()
+
+                    # Clean up remaining name (remove leading dots/numbers if any)
+                    name = re.sub(r'^[\d\.\-\s]+', '', line).strip()
+                    if not name and image_url: name = "Untitled Entry"
+
+                    if name or image_url:
+                        structured.append({"name": name, "time": time_val, "image": image_url})
+                return structured
+            return content
         except Exception as e:
             logger.error(f"Read Error (get_schedule): {e}")
-            return "Intelligence network offline."
+            return []
 
     async def is_admin(self, user_id):
         try:
@@ -316,23 +356,23 @@ class Database:
             to_import = {}
             for name, docs in data.items():
                 coll = collections.get(name)
-                if coll is not None:
+                if coll is not None and isinstance(docs, list):
                     processed_docs = []
-                    if isinstance(docs, list):
-                        for doc in docs:
-                            if isinstance(doc, dict):
-                                if "_id" in doc and isinstance(doc["_id"], str) and len(doc["_id"]) == 24:
-                                    try: doc["_id"] = ObjectId(doc["_id"])
-                                    except: pass
-                                processed_docs.append(doc)
+                    for doc in docs:
+                        if isinstance(doc, dict):
+                            # Handle MongoDB ObjectId if present in string format
+                            if "_id" in doc and isinstance(doc["_id"], str) and len(doc["_id"]) == 24:
+                                try: doc["_id"] = ObjectId(doc["_id"])
+                                except: pass
+                            processed_docs.append(doc)
                     to_import[name] = processed_docs
 
-            # Now perform deletions and insertions
-            for name, processed_docs in to_import.items():
-                coll = collections.get(name)
-                await coll.delete_many({})
-                if processed_docs:
-                    await coll.insert_many(processed_docs)
+            # Now perform deletions and insertions in a transaction-like manner
+            for name, coll in collections.items():
+                if name in to_import:
+                    await coll.delete_many({})
+                    if to_import[name]:
+                        await coll.insert_many(to_import[name])
 
             return True
         except Exception as e:

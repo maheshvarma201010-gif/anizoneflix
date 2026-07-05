@@ -1,31 +1,62 @@
 document.addEventListener('DOMContentLoaded', () => {
     console.log('ANIZONEFLIX Production Suite LIVE');
 
-    // --- Anti-Copy Protection ---
-    const disableProtections = () => {
+    // --- High-Level Anti-Copy & Anti-DevTools Protection ---
+    const hardenProtections = () => {
+        // 1. Disable Right Click
         document.addEventListener('contextmenu', e => e.preventDefault());
+
+        // 2. Disable Key Shortcuts
         document.addEventListener('keydown', e => {
             if (
-                e.ctrlKey && (
-                    e.key === 'c' ||
-                    e.key === 'v' ||
-                    e.key === 'u' ||
-                    e.key === 's' ||
-                    e.key === 'a' ||
-                    e.key === 'x'
-                ) ||
+                // Disable F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U, Ctrl+S, Ctrl+C, Ctrl+V, Ctrl+P
+                e.key === 'F12' ||
                 (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
-                e.key === 'F12'
+                (e.ctrlKey && (e.key === 'u' || e.key === 's' || e.key === 'c' || e.key === 'v' || e.key === 'p' || e.key === 'a' || e.key === 'x'))
             ) {
                 e.preventDefault();
                 return false;
             }
         });
+
+        // 3. Disable Drag & Drop
         document.addEventListener('dragstart', e => e.preventDefault());
         document.addEventListener('drop', e => e.preventDefault());
-        document.addEventListener('selectstart', e => e.preventDefault());
+
+        // 4. Force selection clear (Continuous)
+        setInterval(() => {
+            if (window.getSelection) {
+                window.getSelection().removeAllRanges();
+            } else if (document.selection) {
+                document.selection.empty();
+            }
+        }, 100);
+
+        // 5. Anti-DevTools Debugger Loop (Deterrent)
+        // This makes the browser pause if DevTools is open
+        (function() {
+            try {
+                (function block() {
+                    if (window.devtools && window.devtools.isOpen) {
+                        debugger;
+                    }
+                    setTimeout(block, 1000);
+                })();
+            } catch (e) {}
+        })();
+
+        // 6. Basic Detection for 1DM / Downloader Apps (User Agent / Specific Behaviors)
+        const checkDownloader = () => {
+            const ua = navigator.userAgent.toLowerCase();
+            if (ua.includes('1dm') || ua.includes('idm') || ua.includes('adm') || ua.includes('downloader')) {
+                // Potential downloader detected
+                // We can't easily block them, but we can make it harder by obscuring links
+                document.body.classList.add('downloader-detected');
+            }
+        };
+        checkDownloader();
     };
-    disableProtections();
+    hardenProtections();
 
     // --- Interactive Elements: Ripple Effect ---
     const createRipple = (event) => {
