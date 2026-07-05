@@ -12,23 +12,36 @@
         <p class="text-gray-500 font-bold text-xs max-w-xl mx-auto uppercase tracking-[0.2em] leading-relaxed">Stay updated with the latest anime releases for each day of the week.</p>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
         {% if schedules %}
-            {% for day, content in schedules.items() %}
-            <div class="glass group rounded-3xl overflow-hidden border-white/5 shadow-2xl hover:border-red-600/40 transition-all duration-700 animate-fade-in" style="animation-delay: {{ loop.index0 * 0.1 }}s">
-                <div class="bg-gradient-to-br from-red-600/20 via-transparent to-transparent p-8 border-b border-white/5">
+            {% for day, items in schedules.items() %}
+            <div class="glass group rounded-3xl overflow-hidden border-white/5 shadow-2xl hover:border-red-600/40 transition-all duration-700 animate-fade-in flex flex-col" style="animation-delay: {{ loop.index0 * 0.1 }}s">
+                <div class="bg-gradient-to-br from-red-600/20 via-transparent to-transparent p-6 border-b border-white/5">
                     <h3 class="text-xl font-black tracking-tighter flex items-center uppercase">
                         <i class="fa-solid fa-calendar-day mr-4 text-red-600"></i>
                         {{ day }}
                     </h3>
                 </div>
-                <div class="p-8 min-h-[200px]">
-                    <div class="space-y-4 text-gray-400 font-bold text-[10px] uppercase tracking-widest leading-relaxed">
-                        {% if content and content != "No data synchronized." and content != "No schedule set for this day." %}
-                            {% for line in content.split('\n') if line %}
-                            <div class="flex items-start gap-4 group/line">
-                                <div class="w-1.5 h-1.5 rounded-full bg-red-600 mt-2 group-hover/line:scale-150 group-hover/line:shadow-[0_0_10px_var(--primary)] transition-all"></div>
-                                <span class="flex-1 group-hover/line:text-white transition-colors">{{ line }}</span>
+                <div class="p-4 flex-1">
+                    <div class="space-y-4">
+                        {% if items and items|length > 0 %}
+                            {% for item in items %}
+                            <div class="flex flex-col gap-2 p-3 glass bg-white/5 rounded-2xl hover:bg-white/10 transition-all group/item">
+                                {% if item.image %}
+                                <div class="w-full aspect-video rounded-xl overflow-hidden mb-2 relative">
+                                    <img src="{{ item.image }}" alt="{{ item.name }}" class="w-full h-full object-cover">
+                                    <div class="absolute bottom-2 left-2 px-2 py-1 glass text-[8px] font-bold uppercase tracking-widest text-white">{{ item.time }}</div>
+                                </div>
+                                {% endif %}
+                                <div class="flex items-center justify-between gap-3">
+                                    <div class="flex items-center gap-3">
+                                        {% if not item.image %}
+                                        <div class="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></div>
+                                        <span class="text-[9px] font-black text-red-500 uppercase tracking-widest">{{ item.time }}</span>
+                                        {% endif %}
+                                        <span class="text-[10px] font-bold text-white uppercase tracking-tight line-clamp-2">{{ item.name }}</span>
+                                    </div>
+                                </div>
                             </div>
                             {% endfor %}
                         {% else %}
@@ -44,8 +57,8 @@
         {% else %}
             <div class="col-span-full py-40 text-center glass rounded-[4rem]">
                 <i class="fa-solid fa-triangle-exclamation text-8xl text-red-600 mb-10 opacity-30"></i>
-        <h3 class="text-3xl font-black uppercase grad-text">Schedule Offline</h3>
-        <p class="text-gray-600 mt-6 font-bold uppercase tracking-widest text-xs">UNABLE TO RETRIEVE SCHEDULE DATA.</p>
+                <h3 class="text-3xl font-black uppercase grad-text">Schedule Offline</h3>
+                <p class="text-gray-600 mt-6 font-bold uppercase tracking-widest text-xs">UNABLE TO RETRIEVE SCHEDULE DATA.</p>
             </div>
         {% endif %}
     </div>

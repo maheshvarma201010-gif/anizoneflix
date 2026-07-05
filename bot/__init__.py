@@ -347,11 +347,43 @@ def register_handlers(bot: Client):
         if not await is_authorized(message.from_user.id):
             return await message.reply("🚫 **Access Denied.**")
 
+        args = message.command[1:]
+        if args:
+            time = args[0]
+            image = None
+            if len(args) > 2 and args[-1].startswith("http"):
+                image = args[-1]
+                name = " ".join(args[1:-1])
+            else:
+                name = " ".join(args[1:])
+
+            if not name:
+                return await message.reply("💡 **Usage:** `/schedule {TIME} {NAME} {OPTIONAL_IMAGE_URL}`")
+
+            user_state[message.from_user.id] = {
+                "action": "add_sched_entry",
+                "entry": {"time": time, "name": name, "image": image}
+            }
+
+            days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+            buttons = [[InlineKeyboardButton(days[i], callback_data=f"addsched_{days[i]}"), InlineKeyboardButton(days[i+1], callback_data=f"addsched_{days[i+1]}")] for i in range(0, 6, 2)]
+            buttons.append([InlineKeyboardButton("Sunday", callback_data="addsched_Sunday")])
+            buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")])
+
+            return await message.reply(
+                f"📅 **Adding Entry:**\n\n"
+                f"🕒 **Time:** `{time}`\n"
+                f"🎬 **Name:** `{name}`\n"
+                f"🖼 **Image:** `{'Yes' if image else 'No'}`\n\n"
+                "Select the day to add this entry:",
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
+
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         buttons = [[InlineKeyboardButton(days[i], callback_data=f"edit_sched_{days[i]}"), InlineKeyboardButton(days[i+1], callback_data=f"edit_sched_{days[i+1]}")] for i in range(0, 6, 2)]
         buttons.append([InlineKeyboardButton("Sunday", callback_data="edit_sched_Sunday")])
         buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data="schedule_refresh")])
-        await message.reply("📅 **Airing Schedule**", reply_markup=InlineKeyboardMarkup(buttons))
+        await message.reply("📅 **Airing Schedule Management**\nSelect a day to manually update (overwrites with text):", reply_markup=InlineKeyboardMarkup(buttons))
 
     @bot.on_callback_query(filters.regex("^schedule_refresh$"))
     async def schedule_refresh_cb(client, callback_query):
@@ -438,31 +470,41 @@ def register_handlers(bot: Client):
             if data is None:
                 return await callback_query.message.edit_text("❌ **Export Failed:** Database connection offline.")
 
-            if not any(data.values()):
+            if not data or not any(data.values()):
                 return await callback_query.message.edit_text("❌ **Export Failed:** No records found in the database.")
 
             # Create a ZIP in memory
             zip_buffer = BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
                 for coll_name, docs in data.items():
-                    json_data = json.dumps(docs, indent=4, default=str)
-                    zf.writestr(f"{coll_name}.json", json_data)
+                    if docs:
+                        json_data = json.dumps(docs, indent=4, default=str)
+                        zf.writestr(f"{coll_name}.json", json_data)
 
             zip_buffer.seek(0)
-            zip_buffer.name = "backup.zip"
 
-            await callback_query.message.delete()
-            await client.send_document(
-                chat_id=callback_query.message.chat.id,
-                document=zip_buffer,
-                file_name="backup.zip",
-                caption=(
-                    f"✅ **Backup Generated Successfully**\n\n"
-                    f"🌐 **Website:** {Config.BASE_URL}\n"
-                    f"📦 **Data:** Total collections exported.\n\n"
-                    f"Keep this file secure. You can restore this data anytime using the /save command."
+            # Using a temporary file to ensure Pyrogram handles it correctly
+            with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+                tmp.write(zip_buffer.getvalue())
+                tmp_path = tmp.name
+
+            try:
+                await callback_query.message.delete()
+                await client.send_document(
+                    chat_id=callback_query.message.chat.id,
+                    document=tmp_path,
+                    file_name=f"backup_{Config.DB_NAME}.zip",
+                    caption=(
+                        f"✅ **Backup Generated Successfully**\n\n"
+                        f"🌐 **Website:** {Config.BASE_URL}\n"
+                        f"📦 **Collections:** {', '.join(data.keys())}\n\n"
+                        f"Keep this file secure. You can restore this data anytime using the /save command."
+                    )
                 )
-            )
+            finally:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+
         except Exception as e:
             logger.error(f"Backup Error: {e}")
             await callback_query.message.edit_text(f"❌ **Backup Failed:** `{str(e)}`")
@@ -548,12 +590,53 @@ def register_handlers(bot: Client):
                 await callback_query.answer("❌ Already Deleted", show_alert=True)
         except Exception as e: await callback_query.answer(f"Purge Failed: {e}", show_alert=True)
 
+    @bot.on_callback_query(filters.regex("^addsched_"))
+    async def addsched_cb(client, callback_query):
+        uid = callback_query.from_user.id
+        state = user_state.get(uid)
+        if not state or state.get("action") != "add_sched_entry":
+            return await callback_query.answer("❌ Session Expired", show_alert=True)
+
+        day = callback_query.data.split("addsched_")[-1]
+        entry = state["entry"]
+
+        try:
+            current = await db.get_schedule(day)
+            if not isinstance(current, list):
+                current = []
+
+            current.append(entry)
+            await db.update_schedule(day, current)
+
+            await callback_query.message.edit_text(
+                f"✅ **Entry Added to {day}!**\n\n"
+                f"🕒 {entry['time']} - {entry['name']}"
+            )
+            del user_state[uid]
+        except Exception as e:
+            logger.error(f"Add Sched CB Error: {e}")
+            await callback_query.answer("Failed to update schedule.")
+
     @bot.on_callback_query(filters.regex("^edit_sched_"))
     async def edit_sched_cb(client, callback_query):
         day = callback_query.data.split("edit_sched_")[-1]
         user_state[callback_query.from_user.id] = {"action": "ask_sched_content", "day": day}
         current = await db.get_schedule(day)
-        await callback_query.message.edit_text(f"📅 **Update: {day}**\n\nCurrent:\n`{current}`\n\nFormat: 1. NAME (TIME)\nSend `/skip` to cancel.", reply_markup=None)
+
+        display_text = ""
+        if isinstance(current, list):
+            for item in current:
+                display_text += f"• {item.get('name')} ({item.get('time')})\n"
+        else:
+            display_text = str(current)
+
+        await callback_query.message.edit_text(
+            f"📅 **Manual Override: {day}**\n\n"
+            f"Current:\n`{display_text or 'Empty'}`\n\n"
+            "⚠️ **Note:** Sending text here will convert the schedule to a simple list and remove images.\n"
+            "Send NEW schedule text or `/skip` to cancel.",
+            reply_markup=None
+        )
         await callback_query.answer()
 
     @bot.on_callback_query(filters.regex("^manage_groups_"))

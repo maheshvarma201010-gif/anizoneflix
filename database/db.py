@@ -262,12 +262,23 @@ class Database:
 
     async def get_schedule(self, day):
         try:
-            if self._schedules is None: return "No data synchronized."
+            if self._schedules is None: return []
             res = await self._schedules.find_one({"day": day})
-            return res.get("content", "No data synchronized.") if res else "No data synchronized."
+            if not res: return []
+
+            content = res.get("content", [])
+            # Backward compatibility: convert string to structured list
+            if isinstance(content, str):
+                structured = []
+                for line in content.split("\n"):
+                    if line.strip():
+                        # Simple heuristic: "TITLE (TIME)" or "TIME - TITLE"
+                        structured.append({"name": line.strip(), "time": "TBA", "image": None})
+                return structured
+            return content
         except Exception as e:
             logger.error(f"Read Error (get_schedule): {e}")
-            return "Intelligence network offline."
+            return []
 
     async def is_admin(self, user_id):
         try:
@@ -316,23 +327,23 @@ class Database:
             to_import = {}
             for name, docs in data.items():
                 coll = collections.get(name)
-                if coll is not None:
+                if coll is not None and isinstance(docs, list):
                     processed_docs = []
-                    if isinstance(docs, list):
-                        for doc in docs:
-                            if isinstance(doc, dict):
-                                if "_id" in doc and isinstance(doc["_id"], str) and len(doc["_id"]) == 24:
-                                    try: doc["_id"] = ObjectId(doc["_id"])
-                                    except: pass
-                                processed_docs.append(doc)
+                    for doc in docs:
+                        if isinstance(doc, dict):
+                            # Handle MongoDB ObjectId if present in string format
+                            if "_id" in doc and isinstance(doc["_id"], str) and len(doc["_id"]) == 24:
+                                try: doc["_id"] = ObjectId(doc["_id"])
+                                except: pass
+                            processed_docs.append(doc)
                     to_import[name] = processed_docs
 
-            # Now perform deletions and insertions
-            for name, processed_docs in to_import.items():
-                coll = collections.get(name)
-                await coll.delete_many({})
-                if processed_docs:
-                    await coll.insert_many(processed_docs)
+            # Now perform deletions and insertions in a transaction-like manner
+            for name, coll in collections.items():
+                if name in to_import:
+                    await coll.delete_many({})
+                    if to_import[name]:
+                        await coll.insert_many(to_import[name])
 
             return True
         except Exception as e:
