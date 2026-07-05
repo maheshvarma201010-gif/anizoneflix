@@ -898,7 +898,7 @@ def register_handlers(bot: Client):
         boxes = anime.get("custom_boxes", [])
         boxes.append(new_box)
 
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
         await callback_query.message.edit_text(f"✅ **Box '{state['box_name']}' created successfully (Empty).**")
         del user_state[uid]
 
@@ -914,7 +914,7 @@ def register_handlers(bot: Client):
         if idx < len(boxes):
             name = boxes[idx]['name']
             boxes.pop(idx)
-            await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+            await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
             await callback_query.answer(f"🗑 Box '{name}' Removed", show_alert=True)
             return await manage_boxes_cb(client, callback_query)
 
@@ -928,7 +928,7 @@ def register_handlers(bot: Client):
         anime = await db.get_anime(aid)
         boxes = anime.get("custom_boxes", [])
         boxes[idx], boxes[idx-1] = boxes[idx-1], boxes[idx]
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
         await manage_boxes_cb(client, callback_query)
 
     @bot.on_callback_query(filters.regex("^mvdnbox_"))
@@ -943,7 +943,7 @@ def register_handlers(bot: Client):
         if idx >= len(boxes) - 1: return await callback_query.answer("❌ Error")
 
         boxes[idx], boxes[idx+1] = boxes[idx+1], boxes[idx]
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
         await manage_boxes_cb(client, callback_query)
 
     @bot.on_callback_query(filters.regex("^remboxg_"))
@@ -962,7 +962,7 @@ def register_handlers(bot: Client):
             if g_idx < len(groups):
                 g_name = list(groups.keys())[g_idx]
                 del groups[g_name]
-                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
                 await callback_query.answer(f"🗑 Group '{g_name}' Removed", show_alert=True)
                 return await select_box_cb(client, callback_query)
 
@@ -1079,7 +1079,7 @@ def register_handlers(bot: Client):
             g_name = list(boxes[b_idx]["groups"].keys())[g_idx]
             if g_name in boxes[b_idx]["groups"] and label in boxes[b_idx]["groups"][g_name]:
                 del boxes[b_idx]["groups"][g_name][label]
-                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
                 await callback_query.answer(f"🗑 Button '{label}' Removed")
                 return await select_box_grp_cb(client, callback_query)
 
@@ -1130,7 +1130,7 @@ def register_handlers(bot: Client):
             if await db.ping():
                 anime = await db.get_anime(aid)
                 if not anime: return await callback_query.answer("❌ Not Found")
-                res = await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"category": new_cat}})
+                res = await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"category": new_cat}, "$currentDate": {"updated_at": True}})
                 if res.modified_count:
                     await callback_query.answer(f"🚀 Migrated to {new_cat}", show_alert=True)
                     callback_query.data = f"back_to_edit_{aid}"
@@ -1195,7 +1195,7 @@ def register_handlers(bot: Client):
         else: btns.insert(pos, new_btn)
 
         aid = state["slug"]
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_buttons": btns}})
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_buttons": btns}, "$currentDate": {"updated_at": True}})
         await callback_query.message.edit_text(f"✅ **Button '{state['btn_name']}' synchronized at position {pos if pos != -1 else len(btns)}.**")
         del user_state[uid]
 
@@ -1222,7 +1222,7 @@ def register_handlers(bot: Client):
         else: groups.insert(pos, new_group)
 
         aid = state["slug"]
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": dict(groups)}})
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": dict(groups)}, "$currentDate": {"updated_at": True}})
         await callback_query.message.edit_text(f"✅ **Group '{state['cgrp_name']}' synchronized at position {pos if pos != -1 else len(groups)}.**")
         del user_state[uid]
 
@@ -1253,7 +1253,7 @@ def register_handlers(bot: Client):
 
         groups[g_idx] = (gname, dict(items))
         aid = state["slug"]
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": dict(groups)}})
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": dict(groups)}, "$currentDate": {"updated_at": True}})
         await callback_query.message.edit_text(f"✅ **Button '{state['new_label']}' synchronized in group '{gname}'.**")
         del user_state[uid]
 
@@ -1295,7 +1295,7 @@ def register_handlers(bot: Client):
         del gdata[label]
         groups[g_idx] = (gname, gdata)
 
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": dict(groups)}})
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": dict(groups)}, "$currentDate": {"updated_at": True}})
         await callback_query.answer(f"🗑 Removed {label}")
         await select_group_cb(client, callback_query)
 
@@ -1326,7 +1326,7 @@ def register_handlers(bot: Client):
         items[b_idx], items[b_idx-1] = items[b_idx-1], items[b_idx]
         groups[g_idx] = (gname, dict(items))
 
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": dict(groups)}})
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": dict(groups)}, "$currentDate": {"updated_at": True}})
         await select_group_cb(client, callback_query)
 
     @bot.on_callback_query(filters.regex("^mvdngb_"))
@@ -1346,7 +1346,7 @@ def register_handlers(bot: Client):
         items[b_idx], items[b_idx+1] = items[b_idx+1], items[b_idx]
         groups[g_idx] = (gname, dict(items))
 
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": dict(groups)}})
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": dict(groups)}, "$currentDate": {"updated_at": True}})
         await select_group_cb(client, callback_query)
 
     @bot.on_callback_query(filters.regex("^add_gbtn_start_"))
@@ -1387,7 +1387,7 @@ def register_handlers(bot: Client):
         groups = anime.get("seasons_links", {})
         if gname in groups:
             del groups[gname]
-            await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": groups}})
+            await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": groups}, "$currentDate": {"updated_at": True}})
             await callback_query.answer(f"🗑 Removed {gname}", show_alert=True)
             return await manage_groups_cb(client, callback_query)
         await callback_query.answer("❌ Group already missing")
@@ -1404,7 +1404,7 @@ def register_handlers(bot: Client):
         items = list(groups.items())
         items[idx], items[idx-1] = items[idx-1], items[idx]
         new_groups = dict(items)
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": new_groups}})
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": new_groups}, "$currentDate": {"updated_at": True}})
         await manage_groups_cb(client, callback_query)
 
     @bot.on_callback_query(filters.regex("^mvdng_"))
@@ -1421,7 +1421,7 @@ def register_handlers(bot: Client):
 
         items[idx], items[idx+1] = items[idx+1], items[idx]
         new_groups = dict(items)
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": new_groups}})
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": new_groups}, "$currentDate": {"updated_at": True}})
         await manage_groups_cb(client, callback_query)
 
     @bot.on_callback_query(filters.regex("^mvupb_"))
@@ -1434,7 +1434,7 @@ def register_handlers(bot: Client):
         anime = await db.get_anime(aid)
         btns = anime.get("custom_buttons", [])
         btns[idx], btns[idx-1] = btns[idx-1], btns[idx]
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_buttons": btns}})
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_buttons": btns}, "$currentDate": {"updated_at": True}})
         await manage_btns_cb(client, callback_query)
 
     @bot.on_callback_query(filters.regex("^mvdnb_"))
@@ -1449,7 +1449,7 @@ def register_handlers(bot: Client):
         if idx >= len(btns) - 1: return await callback_query.answer("❌ Error")
 
         btns[idx], btns[idx+1] = btns[idx+1], btns[idx]
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_buttons": btns}})
+        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_buttons": btns}, "$currentDate": {"updated_at": True}})
         await manage_btns_cb(client, callback_query)
 
     @bot.on_callback_query(filters.regex("^rembidx_"))
@@ -1464,7 +1464,7 @@ def register_handlers(bot: Client):
         if idx < len(btns):
             btn_name = btns[idx]['name']
             btns.pop(idx)
-            await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_buttons": btns}})
+            await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_buttons": btns}, "$currentDate": {"updated_at": True}})
             await callback_query.answer(f"🗑 Removed {btn_name}", show_alert=True)
             return await manage_btns_cb(client, callback_query)
         await callback_query.answer("❌ Button missing")
@@ -1517,7 +1517,7 @@ def register_handlers(bot: Client):
         entry = {"mal_id": f"series_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": state["seasons_data"], "custom_buttons": []}
         try:
             if await db.ping():
-                await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
+                await db.anime.update_one({"slug": slug}, {"$set": entry, "$currentDate": {"updated_at": True}}, upsert=True)
                 await callback_query.message.edit_text(text=f"💎 **LIVE:** `{data['title']}`\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
                 del user_state[uid]
             else:
@@ -1534,7 +1534,7 @@ def register_handlers(bot: Client):
         entry = {"mal_id": f"auto_{slug}", "title": data["title"], "slug": slug, "synopsis": data["synopsis"], "score": data["score"], "image": state["image"], "genres": data["genres"], "category": cat, "status": data["status"], "year": data["year"], "trailer": data["trailer"], "studios": data.get("studios", []), "seasons_links": {"1": {"480p": None, "720p": None, "1080p": None}}, "custom_buttons": []}
         try:
             if await db.ping():
-                await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
+                await db.anime.update_one({"slug": slug}, {"$set": entry, "$currentDate": {"updated_at": True}}, upsert=True)
                 await callback_query.message.edit_caption(caption=f"⚡ **Deployment Success!**\nPortal: {Config.BASE_URL}/anime/{slug}", reply_markup=None)
                 del user_state[uid]
             else:
@@ -1616,7 +1616,7 @@ def register_handlers(bot: Client):
                     "seasons_links": {}
                 }
                 if await db.ping():
-                    await db.anime.update_one({"slug": slug}, {"$set": entry}, upsert=True)
+                    await db.anime.update_one({"slug": slug}, {"$set": entry, "$currentDate": {"updated_at": True}}, upsert=True)
                     await message.reply(f"🚀 **Custom Page Published!**\nPortal: {Config.BASE_URL}/anime/{slug}")
                 else:
                     await message.reply("❌ Database Offline")
@@ -1629,7 +1629,7 @@ def register_handlers(bot: Client):
                     groups = anime.get("seasons_links", {})
                     if old_name in groups:
                         groups[new_name] = groups.pop(old_name)
-                        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": groups}})
+                        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": groups}, "$currentDate": {"updated_at": True}})
                         await message.reply(f"✅ **Group Renamed:** `{old_name}` → `{new_name}`")
                     else: await message.reply("❌ Group mismatch.")
                 else: await message.reply("❌ Series not found.")
@@ -1639,7 +1639,7 @@ def register_handlers(bot: Client):
                 aid = state["slug"]
                 new_slug = slugify(new_title)
                 if await db.ping():
-                    res = await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"title": new_title, "slug": new_slug}})
+                    res = await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"title": new_title, "slug": new_slug}, "$currentDate": {"updated_at": True}})
                     if res.modified_count:
                         await message.reply(f"✅ **Identity Synchronized!**\n🏷 New Title: `{new_title}`\n🔗 New URL: {Config.BASE_URL}/anime/{new_slug}")
                     else:
@@ -1673,7 +1673,7 @@ def register_handlers(bot: Client):
                     existing_buttons = state["anime"].get("custom_buttons", [])
                     existing_buttons.extend(state["new_buttons"])
                     if await db.ping():
-                        await db.anime.update_one({"slug": state["slug"]}, {"$set": {"custom_buttons": existing_buttons}})
+                        await db.anime.update_one({"slug": state["slug"]}, {"$set": {"custom_buttons": existing_buttons}, "$currentDate": {"updated_at": True}})
                         await message.reply(f"✅ **Buttons Synchronized!**\nPage: {Config.BASE_URL}/anime/{state['slug']}")
                     else:
                         await message.reply("❌ Database Offline")
@@ -1742,7 +1742,7 @@ def register_handlers(bot: Client):
                     anime = await db.get_anime(aid)
                     boxes = anime.get("custom_boxes", [])
                     boxes.append(new_box)
-                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
                     await message.reply(f"✅ **Box '{state['box_name']}' created successfully (Empty).**")
                     del user_state[uid]
                 else:
@@ -1777,7 +1777,7 @@ def register_handlers(bot: Client):
                     anime = await db.get_anime(aid)
                     boxes = anime.get("custom_boxes", [])
                     boxes.append(new_box)
-                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
                     await message.reply(f"✅ **Box '{state['box_name']}' created with group '{state['temp_grp_name']}'.**")
                     del user_state[uid]
             elif action == "ask_box_cgrp_name":
@@ -1804,7 +1804,7 @@ def register_handlers(bot: Client):
                     anime = await db.get_anime(aid)
                     boxes = anime.get("custom_boxes", [])
                     boxes[b_idx]["groups"][state["temp_grp_name"]] = state["temp_grp_data"]
-                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
                     await message.reply(f"✅ **Group '{state['temp_grp_name']}' added to box '{boxes[b_idx]['name']}'.**")
                     del user_state[uid]
             elif action == "ask_renbox_name":
@@ -1812,7 +1812,7 @@ def register_handlers(bot: Client):
                 anime = await db.get_anime(aid)
                 boxes = anime.get("custom_boxes", [])
                 boxes[idx]["name"] = message.text.strip()
-                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
                 await message.reply("✅ Box Renamed.")
                 del user_state[uid]
             elif action == "ask_edbox_link":
@@ -1820,7 +1820,7 @@ def register_handlers(bot: Client):
                 anime = await db.get_anime(aid)
                 boxes = anime.get("custom_boxes", [])
                 boxes[idx]["link"] = message.text.strip() if message.text != "/skip" else None
-                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
                 await message.reply("✅ Box Link Updated.")
                 del user_state[uid]
             elif action == "ask_box_g_btn_label":
@@ -1832,7 +1832,7 @@ def register_handlers(bot: Client):
                 anime = await db.get_anime(aid)
                 boxes = anime.get("custom_boxes", [])
                 boxes[b_idx]["groups"][g_name][state["temp_btn_label"]] = message.text.strip()
-                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
                 await message.reply(f"✅ Button added to group '{g_name}'.")
                 del user_state[uid]
             elif action == "ask_renbox_g_name":
@@ -1848,7 +1848,7 @@ def register_handlers(bot: Client):
                         if k == old_name: new_groups[new_name] = v
                         else: new_groups[k] = v
                     boxes[idx]["groups"] = new_groups
-                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
                     await message.reply(f"✅ Group Renamed: {old_name} -> {new_name}")
                 del user_state[uid]
             elif action == "ask_ebox_gbtn_label":
@@ -1867,7 +1867,7 @@ def register_handlers(bot: Client):
                     del group[old_label]
                 group[new_label] = new_link
 
-                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}})
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
                 await message.reply("✅ Button Updated.")
                 del user_state[uid]
             elif action == "ask_new_gbtn_label":
@@ -1896,7 +1896,7 @@ def register_handlers(bot: Client):
                 new_link = message.text.strip() if message.text != "/skip" else old_link
                 items[b_idx] = (new_label, new_link)
                 groups[g_idx] = (gname, dict(items))
-                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": dict(groups)}})
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": dict(groups)}, "$currentDate": {"updated_at": True}})
                 await message.reply("✅ Button updated.")
                 del user_state[uid]
             elif action == "ask_sched_content":
@@ -1940,7 +1940,7 @@ def register_handlers(bot: Client):
             elif action == "ask_new_poster":
                 aid = state["slug"]
                 if await db.ping():
-                    res = await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"image": message.text.strip()}})
+                    res = await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"image": message.text.strip()}, "$currentDate": {"updated_at": True}})
                     await message.reply("✅ **Visual Synchronized.**" if res.modified_count else "❌ **Update Failed.**")
                 else:
                     await message.reply("❌ Database Offline")
@@ -1973,7 +1973,7 @@ def register_handlers(bot: Client):
 
                 new_links = dict(current_groups)
                 if await db.ping():
-                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": new_links}})
+                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": new_links}, "$currentDate": {"updated_at": True}})
                     await message.reply(f"💎 **Success!** Group synchronized.")
                 else:
                     await message.reply("❌ Database Offline")
@@ -1989,7 +1989,7 @@ def register_handlers(bot: Client):
                     if idx < len(btns):
                         btns[idx]['name'] = state["new_name"]
                         if message.text != "/skip": btns[idx]['link'] = message.text.strip()
-                        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_buttons": btns}})
+                        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_buttons": btns}, "$currentDate": {"updated_at": True}})
                         await message.reply(f"✅ **Button Updated.**")
                     else: await message.reply("❌ Error.")
                 del user_state[uid]

@@ -131,7 +131,11 @@ class Database:
     async def add_anime(self, data):
         try:
             if self._anime is None: return None
-            return await self._anime.update_one({"mal_id": data["mal_id"]}, {"$set": data}, upsert=True)
+            return await self._anime.update_one(
+                {"mal_id": data["mal_id"]},
+                {"$set": data, "$currentDate": {"updated_at": True}},
+                upsert=True
+            )
         except Exception as e:
             logger.error(f"Persistence Error (add_anime): {e}")
             return None
@@ -157,7 +161,7 @@ class Database:
     async def get_all_anime(self, limit=20, skip=0):
         try:
             if self._anime is None: return []
-            cursor = self._anime.find().sort("_id", -1).skip(skip).limit(limit)
+            cursor = self._anime.find().sort([("updated_at", -1), ("_id", -1)]).skip(skip).limit(limit)
             docs = await cursor.to_list(length=limit)
             return clean_doc(docs) or []
         except Exception as e:

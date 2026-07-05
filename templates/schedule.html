@@ -80,9 +80,16 @@
 {% block scripts %}
 <script>
     function updateCountdowns() {
-        const now = new Date();
+        // Indian Standard Time is UTC + 5:30
+        const getISTDate = () => {
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            return new Date(utc + (3600000 * 5.5));
+        };
+
+        const nowIST = getISTDate();
         const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const currentDayIdx = now.getDay();
+        const currentDayIdx = nowIST.getDay();
 
         document.querySelectorAll('.countdown-container').forEach(container => {
             const dayStr = container.dataset.day;
@@ -101,8 +108,8 @@
                 let daysDiff = targetDayIdx - currentDayIdx;
                 if (daysDiff < 0) daysDiff += 7;
 
-                const targetDate = new Date(now);
-                targetDate.setDate(now.getDate() + daysDiff);
+                const targetDate = new Date(nowIST);
+                targetDate.setDate(nowIST.getDate() + daysDiff);
 
                 // Parse time (handle "12:00 PM", "14:00", etc.)
                 let hours = 0, minutes = 0;
@@ -120,18 +127,19 @@
                 targetDate.setHours(hours, minutes, 0, 0);
 
                 // If target time today has passed, move to next week
-                if (daysDiff === 0 && targetDate < now) {
+                if (daysDiff === 0 && targetDate < nowIST) {
                     targetDate.setDate(targetDate.getDate() + 7);
                 }
 
-                const diff = targetDate - now;
+                const diff = targetDate - nowIST;
 
                 const d = Math.floor(diff / (1000 * 60 * 60 * 24));
                 const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                 const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                 const s = Math.floor((diff % (1000 * 60)) / 1000);
 
-                timerSpan.textContent = `${d}D : ${h}H : ${m}M : ${s}S`;
+                const pad = (num) => String(num).padStart(2, '0');
+                timerSpan.textContent = `${pad(d)}D : ${pad(h)}H : ${pad(m)}M : ${pad(s)}S`;
             } catch (e) {
                 console.error(e);
                 timerSpan.textContent = "Invalid Time";
