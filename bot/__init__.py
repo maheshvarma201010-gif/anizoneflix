@@ -347,15 +347,19 @@ def register_handlers(bot: Client):
         if not await is_authorized(message.from_user.id):
             return await message.reply("🚫 **Access Denied.**")
 
-        args = message.command[1:]
-        if args:
-            time = args[0]
+        args = message.text.split(None, 2)
+        if len(args) > 1:
+            time = args[1]
             image = None
-            if len(args) > 2 and args[-1].startswith("http"):
-                image = args[-1]
-                name = " ".join(args[1:-1])
+            remaining = args[2] if len(args) > 2 else ""
+
+            # Split remaining into name and potential image URL
+            parts = remaining.rsplit(None, 1)
+            if len(parts) > 1 and parts[1].startswith("http"):
+                name = parts[0]
+                image = parts[1]
             else:
-                name = " ".join(args[1:])
+                name = remaining
 
             if not name:
                 return await message.reply("💡 **Usage:** `/schedule {TIME} {NAME} {OPTIONAL_IMAGE_URL}`")

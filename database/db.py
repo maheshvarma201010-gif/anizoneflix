@@ -267,13 +267,38 @@ class Database:
             if not res: return []
 
             content = res.get("content", [])
-            # Backward compatibility: convert string to structured list
+            # Convert string to structured list and extract URLs
             if isinstance(content, str):
                 structured = []
                 for line in content.split("\n"):
-                    if line.strip():
-                        # Simple heuristic: "TITLE (TIME)" or "TIME - TITLE"
-                        structured.append({"name": line.strip(), "time": "TBA", "image": None})
+                    line = line.strip()
+                    if not line: continue
+
+                    image_url = None
+                    time_val = "TBA"
+
+                    # Extract URL (more robustly, looking for common image extensions too)
+                    url_match = re.search(r'(https?://[^\s]+\.(?:jpg|jpeg|png|webp|gif|bmp)(?:\?[^\s]*)?)', line, re.I)
+                    if not url_match:
+                        # Fallback to any URL
+                        url_match = re.search(r'(https?://[^\s]+)', line)
+
+                    if url_match:
+                        image_url = url_match.group(0).strip('.,()[]{}')
+                        line = line.replace(url_match.group(0), "").strip()
+
+                    # Extract Time (e.g. "12:00 PM", "(12:00)", "12.00")
+                    time_match = re.search(r'\(?(\d{1,2}[:.]\d{2}\s*(?:AM|PM|am|pm)?)\)?', line)
+                    if time_match:
+                        time_val = time_match.group(1).replace('.', ':')
+                        line = line.replace(time_match.group(0), "").strip()
+
+                    # Clean up remaining name (remove leading dots/numbers if any)
+                    name = re.sub(r'^[\d\.\-\s]+', '', line).strip()
+                    if not name and image_url: name = "Untitled Entry"
+
+                    if name or image_url:
+                        structured.append({"name": name, "time": time_val, "image": image_url})
                 return structured
             return content
         except Exception as e:
