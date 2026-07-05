@@ -4,26 +4,267 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ site_name }}{% endblock %}</title>
+
+    <!-- Social Media Meta Tags (Page Previews) -->
+    <meta name="description" content="{% block description %}Your ultimate anime destination. Experience a premium OTT-style interface with high-speed updates.{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}{{ site_name }}{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Your ultimate anime destination. Clean and modern experience.{% endblock %}">
+    <meta property="og:image" content="{% block og_image %}{{ logo_url }}{% endblock %}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="{{ site_name }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{% block twitter_title %}{{ site_name }}{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}Your ultimate anime destination.{% endblock %}">
+    <meta name="twitter:image" content="{% block twitter_image %}{{ logo_url }}{% endblock %}">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet" href="/static/css/style.css?v=2.0">
     <style>
-        body { background-color: #050505; color: white; }
+        body { 
+            background-color: #050505; 
+            color: white; 
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* ============================================
+           IMAGE HANDLING - FIXED FOR BOTH PORTRAIT & LANDSCAPE
+           ============================================ */
+        
+        /* Preserve original image orientation and aspect ratio */
+        .image-orientation-fix {
+            image-orientation: from-image !important;
+            -webkit-image-orientation: from-image !important;
+            object-fit: contain !important;
+            width: 100% !important;
+            height: auto !important;
+            display: block !important;
+        }
+
+        /* Poster wrapper - flexible container */
+        .poster-wrapper {
+            position: relative;
+            overflow: hidden;
+            border-radius: 0.75rem;
+            background: rgba(0, 0, 0, 0.5);
+            min-height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Poster images - smaller on mobile, larger on desktop */
+        .poster-wrapper img {
+            max-height: 260px !important;
+            width: auto !important;
+            max-width: 100% !important;
+        }
+
+        @media (min-width: 768px) {
+            .poster-wrapper img {
+                max-height: 350px !important;
+            }
+        }
+
+        /* Updates section - landscape images */
+        .aspect-video img {
+            image-orientation: from-image !important;
+            -webkit-image-orientation: from-image !important;
+            object-fit: cover !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Anime card images */
+        .anime-card img {
+            image-orientation: from-image !important;
+            -webkit-image-orientation: from-image !important;
+            object-fit: contain !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: 260px !important;
+        }
+
+        @media (min-width: 768px) {
+            .anime-card img {
+                max-height: 350px !important;
+            }
+        }
+
+        /* Swiper slide images */
+        .swiper-slide img {
+            image-orientation: from-image !important;
+            -webkit-image-orientation: from-image !important;
+        }
+
+        /* ============================================
+           COMPONENT STYLES
+           ============================================ */
+
+        /* Glass morphism */
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .navbar-glass {
+            background: rgba(5, 5, 5, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Premium button */
+        .btn-premium {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+            padding: 10px 24px;
+            border-radius: 9999px;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3);
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-premium:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 30px rgba(220, 38, 38, 0.5);
+        }
+
+        .btn-premium:active {
+            transform: scale(0.95);
+        }
+
+        /* Animations */
+        @keyframes fade-in {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .animate-fade-in {
+            animation: fade-in 0.3s ease-out;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .animate-float {
+            animation: float 2s ease-in-out infinite;
+        }
+
+        /* No select */
+        .no-select {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        /* ============================================
+           RESPONSIVE GRID
+           ============================================ */
+
+        .responsive-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        @media (min-width: 640px) {
+            .responsive-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 16px;
+            }
+        }
+
+        @media (min-width: 768px) {
+            .responsive-grid {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 20px;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .responsive-grid {
+                grid-template-columns: repeat(5, 1fr);
+                gap: 24px;
+            }
+        }
+
+        @media (min-width: 1280px) {
+            .responsive-grid {
+                grid-template-columns: repeat(6, 1fr);
+                gap: 24px;
+            }
+        }
+
+        /* ============================================
+           TEXT UTILITIES
+           ============================================ */
+
+        .truncate {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* ============================================
+           SCROLLBAR STYLING
+           ============================================ */
+
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #050505;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #dc2626;
+            border-radius: 9999px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #b91c1c;
+        }
     </style>
     {% block head %}{% endblock %}
 </head>
 <body class="selection:bg-red-600/40">
     <!-- Navbar -->
-    <nav class="navbar-glass sticky top-0 z-50 px-4 md:px-8 py-3">
+    <nav class="navbar-glass sticky top-0 z-50 px-3 md:px-8 py-3 md:py-4">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <a href="/" class="flex items-center space-x-2 group">
-                <img src="{{ logo_url }}" class="w-8 h-8 rounded-full border border-white/10" alt="Logo">
-                <span class="text-lg font-black tracking-tighter uppercase">{{ site_name }}</span>
+            <a href="/" class="flex items-center space-x-2 md:space-x-3 group min-w-0">
+                <img src="{{ logo_url }}" class="w-8 h-8 md:w-9 md:h-9 rounded-full border border-white/10 flex-shrink-0" alt="Logo">
+                <span class="text-base md:text-xl font-black tracking-tighter uppercase whitespace-nowrap overflow-hidden text-ellipsis">{{ site_name }}</span>
             </a>
 
-            <div class="hidden md:flex items-center space-x-6 text-[10px] font-bold uppercase tracking-widest">
+            <div class="hidden md:flex items-center space-x-8 text-[10px] font-bold uppercase tracking-widest">
                 <a href="/" class="hover:text-red-600 transition">Home</a>
                 <a href="/az-index" class="hover:text-red-600 transition">Index</a>
                 <a href="/schedule" class="hover:text-red-600 transition">Schedule</a>
@@ -42,39 +283,84 @@
                 </a>
             </div>
 
-            <button class="md:hidden text-2xl" onclick="toggleMenu(true)">
+            <button class="md:hidden text-xl p-2" onclick="toggleMenu(true)">
                 <i class="fa-solid fa-bars-staggered"></i>
             </button>
         </div>
     </nav>
 
     <!-- Mobile Menu -->
-    <div id="mobile-menu" class="hidden fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl p-8">
+    <div id="mobile-menu" class="hidden fixed inset-0 z-[100] bg-black/95 backdrop-blur-2xl p-10">
         <div class="flex justify-end mb-12">
-            <button class="text-3xl" onclick="toggleMenu(false)">
+            <button class="text-4xl text-gray-400 hover:text-white transition-colors" onclick="toggleMenu(false)">
                 <i class="fa-solid fa-times"></i>
             </button>
         </div>
-        <div class="flex flex-col space-y-8 text-2xl font-black uppercase tracking-tighter">
-            <a href="/" onclick="toggleMenu(false)">Home</a>
-            <a href="/az-index" onclick="toggleMenu(false)">Index</a>
-            <a href="/schedule" onclick="toggleMenu(false)">Schedule</a>
-            <a href="/search" onclick="toggleMenu(false)">Search</a>
-            <div class="pt-8 border-t border-white/10">
-                <p class="text-[10px] text-gray-500 mb-6 uppercase tracking-[0.3em]">Archives</p>
-                <div class="grid grid-cols-2 gap-4">
+        <div class="flex flex-col space-y-10 text-3xl font-black uppercase tracking-tighter">
+            <a href="/" onclick="toggleMenu(false)" class="hover:text-red-600 transition-colors">Home</a>
+            <a href="/az-index" onclick="toggleMenu(false)" class="hover:text-red-600 transition-colors">Index</a>
+            <a href="/schedule" onclick="toggleMenu(false)" class="hover:text-red-600 transition-colors">Schedule</a>
+            <a href="/search" onclick="toggleMenu(false)" class="hover:text-red-600 transition-colors">Search</a>
+            <div class="pt-10 border-t border-white/10">
+                <p class="text-[12px] text-gray-500 mb-8 uppercase tracking-[0.4em] font-bold">Archives</p>
+                <div class="grid grid-cols-2 gap-x-6 gap-y-6">
                     {% for cat in categories %}
-                    <a href="/search?q={{ cat.name }}" class="text-lg" onclick="toggleMenu(false)">{{ cat.name }}</a>
+                    <a href="/search?q={{ cat.name }}" class="text-xl font-bold hover:text-red-600 transition-colors" onclick="toggleMenu(false)">{{ cat.name }}</a>
                     {% endfor %}
                 </div>
             </div>
         </div>
     </div>
 
-
-    <main class="min-h-screen">
+    <main class="min-h-screen px-3 md:px-4">
         {% block content %}{% endblock %}
     </main>
+
+    <!-- Join Channel Popup -->
+    <div id="join-popup" class="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm hidden">
+        <div class="glass max-w-sm w-full p-8 rounded-[2.5rem] border-white/10 shadow-[0_0_50px_rgba(255,0,0,0.2)] text-center animate-fade-in relative">
+            <button onclick="closePopup()" class="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors">
+                <i class="fa-solid fa-times"></i>
+            </button>
+            <div class="w-20 h-20 bg-red-600 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-[0_0_30px_rgba(255,0,0,0.4)] rotate-12">
+                <i class="fa-brands fa-telegram text-4xl text-white"></i>
+            </div>
+            <h3 class="text-2xl font-black mb-4 uppercase tracking-tighter">Join Our Community</h3>
+            <p class="text-gray-400 text-xs font-bold uppercase tracking-widest leading-loose mb-10">Get the latest updates, exclusive content, and high-speed files directly on Telegram.</p>
+            <a href="https://t.me/anizoneflix" target="_blank" onclick="closePopup()" class="btn-premium w-full py-5 text-xs tracking-[0.2em] shadow-red-900/40">
+                JOIN CHANNEL NOW
+            </a>
+            <button onclick="closePopup()" class="mt-6 text-[10px] font-black text-gray-600 hover:text-red-600 transition-colors uppercase tracking-[0.3em]">Maybe Later</button>
+        </div>
+    </div>
+
+    <script>
+        function closePopup() {
+            document.getElementById('join-popup').classList.add('hidden');
+            localStorage.setItem('join_popup_dismissed', Date.now());
+        }
+
+        function toggleMenu(show) {
+            const menu = document.getElementById('mobile-menu');
+            if (show) {
+                menu.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            } else {
+                menu.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const dismissed = localStorage.getItem('join_popup_dismissed');
+            const now = Date.now();
+            if (!dismissed || (now - dismissed) > 24 * 60 * 60 * 1000) {
+                setTimeout(() => {
+                    document.getElementById('join-popup').classList.remove('hidden');
+                }, 5000);
+            }
+        });
+    </script>
 
     <!-- Global Floating Action Buttons -->
     <div class="fixed bottom-8 right-8 z-[90] flex flex-col space-y-4">
@@ -116,4 +402,4 @@
     <script src="/static/js/main.js?v=2.1"></script>
     {% block scripts %}{% endblock %}
 </body>
-</html>
+                                                                                            </html>

@@ -1,46 +1,81 @@
 {% extends "base.html" %}
 
+{% block og_image %}{{ trending[0].image if trending else logo_url }}{% endblock %}
+{% block twitter_image %}{{ trending[0].image if trending else logo_url }}{% endblock %}
+
 {% block content %}
 <!-- Premium Hero Section -->
-<header class="relative h-[60vh] md:h-[70vh] flex items-center justify-center overflow-hidden">
+<header class="relative h-[65vh] md:h-[75vh] flex items-center justify-center overflow-hidden">
+
+    <!-- Background -->
     <div class="absolute inset-0 z-0">
-        <div class="absolute inset-0 bg-gradient-to-t from-[#050505] to-transparent z-10"></div>
-        <img src="{{ trending[0].image if trending else logo_url }}" class="w-full h-full object-cover opacity-20" alt="Hero Background">
+
+        <!-- Blurred Fill Background -->
+        <img
+            src="{{ trending[0].image if trending|length > 0 else logo_url }}"
+            alt="Hero Background"
+            class="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-30"
+        >
+
+        <!-- Main Image (No Cropping) -->
+        <img
+            src="{{ trending[0].image if trending|length > 0 else logo_url }}"
+            alt="Hero Background"
+            class="absolute inset-0 w-full h-full object-contain"
+        >
+
+        <!-- Overlay -->
+        <div class="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-[#050505]/20"></div>
+
     </div>
 
-    <div class="relative z-20 text-center px-6 max-w-5xl animate-fade-in">
-        <div class="flex flex-col items-center justify-center gap-4">
-            <a href="/search" class="btn-premium px-10 py-4 text-xs tracking-[0.2em]">
-                <i class="fa-solid fa-search mr-2"></i> GET FILES
-            </a>
-        </div>
+    <!-- Hero Content -->
+    <div class="relative z-20 text-center px-6 max-w-4xl animate-fade-in">
+
+        <h1 class="text-4xl md:text-6xl font-extrabold text-white mb-4 leading-tight">
+            Discover Your Next Favorite Anime
+        </h1>
+
+        <p class="text-gray-300 text-lg md:text-xl mb-8 max-w-2xl mx-auto">
+            Watch the latest anime in Multi Audio, Telugu, Tamil, Hindi, English, Japanese, and more.
+        </p>
+
+        <a href="/search"
+           class="btn-premium inline-flex items-center justify-center px-10 py-4 rounded-xl font-semibold tracking-wider transition-all duration-300 hover:scale-105">
+            <i class="fa-solid fa-magnifying-glass mr-2"></i>
+            Browse Anime
+        </a>
+
     </div>
 
-    <div class="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 animate-float">
-        <i class="fa-solid fa-chevron-down text-gray-500 text-2xl"></i>
+    <!-- Scroll Indicator -->
+    <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 animate-bounce">
+        <i class="fa-solid fa-chevron-down text-gray-400 text-2xl"></i>
     </div>
+
 </header>
 
 <div class="max-w-7xl mx-auto px-4 py-12 space-y-16">
 
     <!-- Updates Section -->
     <section>
-        <div class="flex items-center gap-2 mb-6">
+        <div class="flex items-center gap-2 mb-6 px-2">
             <div class="w-1 h-6 bg-red-600 rounded-full shadow-[0_0_8px_var(--primary-glow)]"></div>
-            <h2 class="text-xl font-black tracking-tighter uppercase">New <span class="text-red-600">Updates</span></h2>
+            <h2 class="text-lg md:text-xl font-black tracking-tighter uppercase">New <span class="text-red-600">Updates</span></h2>
         </div>
 
         <div class="swiper flashSwiper !overflow-visible">
             <div class="swiper-wrapper">
                 {% for anime in recent[:15] %}
-                <div class="swiper-slide !w-auto">
+                <div class="swiper-slide !w-full md:!w-auto">
                     <a href="/anime/{{ anime.slug }}" class="flex items-center gap-4 glass px-6 py-4 rounded-2xl border-white/5 hover:border-red-600/40 transition-all group">
-                        <div class="w-24 aspect-video rounded-lg overflow-hidden border border-white/10 shadow-xl bg-black">
-                            <img src="{{ anime.image }}" class="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" alt="{{ anime.title }}" loading="lazy">
+                        <div class="w-24 md:w-40 aspect-video rounded-lg overflow-hidden border border-white/10 shadow-xl bg-black relative flex-shrink-0">
+                            <img src="{{ anime.image }}" class="w-full h-full object-cover transition-transform duration-500" alt="{{ anime.title }}" loading="lazy">
+                            <div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>
                         </div>
-                        <div>
-                            <span class="block text-[8px] font-bold text-red-600 uppercase tracking-widest mb-1">Updated</span>
-                            <span class="block font-black text-xs uppercase tracking-tight text-white group-hover:text-red-500 transition-colors">{{ anime.title }}</span>
+                        <div class="max-w-[120px] md:max-w-[160px]">
+                            <span class="block text-[8px] font-bold text-red-600 uppercase tracking-widest mb-1">Flash Update</span>
+                            <span class="block font-black text-[10px] md:text-xs uppercase tracking-tight text-white group-hover:text-red-500 transition-colors line-clamp-2 leading-tight">{{ anime.title }}</span>
                         </div>
                     </a>
                 </div>
@@ -51,10 +86,10 @@
 
     <!-- Trending Section -->
     <section id="trending">
-        <div class="flex justify-between items-end mb-6">
+        <div class="flex justify-between items-end mb-6 px-2">
             <div class="flex items-center gap-2">
                 <div class="w-1 h-6 bg-red-600 rounded-full shadow-[0_0_8px_var(--primary-glow)]"></div>
-                <h2 class="text-xl font-black tracking-tighter uppercase">Trending <span class="text-red-600">Now</span></h2>
+                <h2 class="text-lg md:text-xl font-black tracking-tighter uppercase">Trending <span class="text-red-600">Now</span></h2>
             </div>
             <a href="/search" class="text-gray-500 hover:text-red-500 text-[9px] font-bold uppercase tracking-widest transition-all">All Anime <i class="fa-solid fa-arrow-right ml-1"></i></a>
         </div>
@@ -65,12 +100,15 @@
                 <div class="swiper-slide">
                     <div class="anime-card">
                         <a href="/anime/{{ anime.slug }}" class="group block">
-                            <div class="poster-wrapper">
-                                <img src="{{ anime.image }}" alt="{{ anime.title }}" loading="lazy">
-                                <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-6">
-                                    <div class="btn-premium py-2.5 text-[10px] uppercase tracking-widest shadow-2xl mb-4">Get Files</div>
-                                    <div class="flex items-center gap-4 text-[10px] text-gray-400 font-black tracking-widest">
-                                        <span class="text-yellow-500"><i class="fa-solid fa-star mr-2"></i> {{ anime.score or '8.5' }}</span>
+                            <div class="poster-wrapper relative overflow-hidden rounded-xl bg-black/50" style="aspect-ratio: auto !important;">
+                                <img src="{{ anime.image }}" 
+                                     alt="{{ anime.title }}" 
+                                     loading="lazy" 
+                                     class="w-full h-auto max-h-[300px] object-contain image-orientation-fix">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-6">
+                                    <div class="btn-premium py-2 text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl mb-3 md:mb-4">Get Files</div>
+                                    <div class="flex items-center gap-2 md:gap-4 text-[9px] md:text-[10px] text-gray-400 font-black tracking-widest">
+                                        <span class="text-yellow-500"><i class="fa-solid fa-star mr-1"></i> {{ anime.score or '8.5' }}</span>
                                         <span>•</span>
                                         <span>{{ anime.year or '2024' }}</span>
                                     </div>
@@ -79,11 +117,11 @@
                                     <i class="fa-solid fa-star text-yellow-500 mr-2"></i> {{ anime.score or '8.5' }}
                                 </div>
                             </div>
-                                <div class="p-4 bg-gradient-to-b from-transparent to-black/40">
-                                    <h3 class="font-black text-[11px] line-clamp-2 uppercase tracking-tight group-hover:text-red-500 transition-colors leading-tight min-h-[2.5em]">{{ anime.title }}</h3>
-                                    <div class="flex items-center justify-between mt-2">
-                                        <span class="text-[8px] text-gray-500 font-bold uppercase tracking-widest">{{ anime.category }}</span>
-                                        <span class="text-[8px] text-red-600 font-bold uppercase tracking-widest">{{ anime.status }}</span>
+                            <div class="p-3 md:p-4 bg-gradient-to-b from-transparent to-black/40">
+                                <h3 class="text-xs md:text-sm font-bold truncate">{{ anime.title }}</h3>
+                                <div class="flex items-center justify-between mt-2">
+                                    <span class="text-[7px] md:text-[8px] text-gray-500 font-bold uppercase tracking-widest">{{ anime.category }}</span>
+                                    <span class="text-[7px] md:text-[8px] text-red-600 font-bold uppercase tracking-widest">{{ anime.status }}</span>
                                 </div>
                             </div>
                         </a>
@@ -97,10 +135,10 @@
 
     <!-- Recent Section -->
     <section>
-        <div class="flex justify-between items-end mb-6">
+        <div class="flex justify-between items-end mb-6 px-2">
             <div class="flex items-center gap-2">
                 <div class="w-1 h-6 bg-red-600 rounded-full shadow-[0_0_8px_var(--primary-glow)]"></div>
-                <h2 class="text-xl font-black tracking-tighter uppercase">Recent <span class="text-red-600">Releases</span></h2>
+                <h2 class="text-lg md:text-xl font-black tracking-tighter uppercase">Recent <span class="text-red-600">Releases</span></h2>
             </div>
         </div>
 
@@ -110,20 +148,65 @@
                 <div class="swiper-slide">
                     <div class="anime-card">
                         <a href="/anime/{{ anime.slug }}" class="group block">
-                            <div class="poster-wrapper">
-                                <img src="{{ anime.image }}" alt="{{ anime.title }}" loading="lazy">
-                                <div class="absolute top-4 left-4 glass px-3 py-1.5 rounded-xl text-[10px] font-black border-white/10">
-                                    {{ anime.category }}
-                                </div>
-                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <div class="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center shadow-2xl shadow-red-900/50 scale-50 group-hover:scale-100 transition-transform duration-500">
-                                        <i class="fa-solid fa-play text-xl translate-x-1"></i>
+                            <div class="poster-wrapper relative overflow-hidden rounded-xl bg-black/50" style="aspect-ratio: auto !important;">
+                                <img src="{{ anime.image }}" 
+                                     alt="{{ anime.title }}" 
+                                     loading="lazy" 
+                                     class="w-full h-auto max-h-[300px] object-contain image-orientation-fix">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-6">
+                                    <div class="btn-premium py-2 text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl mb-3 md:mb-4">Get Files</div>
+                                    <div class="flex items-center gap-2 md:gap-4 text-[9px] md:text-[10px] text-gray-400 font-black tracking-widest">
+                                        <span class="text-yellow-500"><i class="fa-solid fa-star mr-1"></i> {{ anime.score or '8.5' }}</span>
+                                        <span>•</span>
+                                        <span>{{ anime.year or '2024' }}</span>
                                     </div>
                                 </div>
+                                <div class="absolute top-4 right-4 glass px-3 py-1.5 rounded-xl text-[10px] font-black border-white/10 shadow-2xl">
+                                    <i class="fa-solid fa-star text-yellow-500 mr-2"></i> {{ anime.score or '8.5' }}
+                                </div>
                             </div>
-                            <div class="p-4">
-                                <h3 class="font-black text-[11px] line-clamp-2 uppercase tracking-tight group-hover:text-red-500 transition-colors leading-tight min-h-[2.5em]">{{ anime.title }}</h3>
-                                <p class="text-[8px] text-gray-500 font-bold mt-2 uppercase tracking-widest">{{ anime.year or '2024' }}</p>
+                            <div class="p-3 md:p-4 bg-gradient-to-b from-transparent to-black/40">
+                                <h3 class="text-xs md:text-sm font-bold truncate">{{ anime.title }}</h3>
+                                <div class="flex items-center justify-between mt-2">
+                                    <span class="text-[7px] md:text-[8px] text-gray-500 font-bold uppercase tracking-widest">{{ anime.category }}</span>
+                                    <span class="text-[7px] md:text-[8px] text-red-600 font-bold uppercase tracking-widest">{{ anime.status }}</span>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="swiper-pagination !-bottom-12"></div>
+        </div>
+    </section>
+
+    <!-- Featured Elite Section -->
+    <section>
+        <div class="flex justify-between items-end mb-6 px-2">
+            <div class="flex items-center gap-2">
+                <div class="w-1 h-6 bg-red-600 rounded-full shadow-[0_0_8px_var(--primary-glow)]"></div>
+                <h2 class="text-lg md:text-xl font-black tracking-tighter uppercase">Elite <span class="text-red-600">Featured</span></h2>
+            </div>
+        </div>
+
+        <div class="swiper featuredSwiper">
+            <div class="swiper-wrapper">
+                {% for anime in trending[5:15] if anime %}
+                <div class="swiper-slide">
+                    <div class="anime-card">
+                        <a href="/anime/{{ anime.slug }}" class="group block">
+                            <div class="poster-wrapper relative overflow-hidden rounded-xl bg-black/50" style="aspect-ratio: auto !important;">
+                                <img src="{{ anime.image }}" 
+                                     alt="{{ anime.title }}" 
+                                     loading="lazy" 
+                                     class="w-full h-auto max-h-[300px] object-contain image-orientation-fix">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-6">
+                                    <div class="btn-premium py-2 text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl mb-3 md:mb-4">Get Files</div>
+                                </div>
+                            </div>
+                            <div class="p-3 md:p-4 bg-gradient-to-b from-transparent to-black/40 text-center">
+                                <h3 class="text-xs md:text-sm font-bold truncate">{{ anime.title }}</h3>
                             </div>
                         </a>
                     </div>
@@ -138,7 +221,7 @@
     <section>
         <div class="flex items-center gap-2 mb-6">
             <div class="w-1 h-6 bg-red-600 rounded-full shadow-[0_0_8px_var(--primary-glow)]"></div>
-            <h2 class="text-xl font-black tracking-tighter uppercase">Categories</h2>
+            <h2 class="text-xl font-black tracking-tighter uppercase">Popular <span class="text-red-600">Categories</span></h2>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -159,7 +242,7 @@
     <p class="mt-4 text-[10px] font-black uppercase tracking-[0.5em] text-gray-600">Loading more...</p>
 </div>
 
-<div id="animeContainer" class="max-w-7xl mx-auto px-4 pb-40 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+<div id="animeContainer" class="max-w-7xl mx-auto px-4 pb-40 responsive-grid">
     <!-- Infinite scroll content will be injected here -->
 </div>
 
@@ -169,33 +252,51 @@
 <script>
     // Slider Configuration
     new Swiper(".flashSwiper", {
-        slidesPerView: "auto",
-        spaceBetween: 20,
+        slidesPerView: 1.2,
+        spaceBetween: 12,
         freeMode: true,
         loop: false,
+        breakpoints: {
+            640: { slidesPerView: "auto", spaceBetween: 16 }
+        }
     });
 
     new Swiper(".trendingSwiper", {
-        slidesPerView: 1.4,
-        spaceBetween: 20,
+        slidesPerView: 2,
+        slidesPerGroup: 1,
+        spaceBetween: 12,
         pagination: { el: ".swiper-pagination", clickable: true },
         breakpoints: {
-            640: { slidesPerView: 2.4 },
-            768: { slidesPerView: 3.4 },
-            1024: { slidesPerView: 4.4 },
-            1280: { slidesPerView: 5.4 }
+            640: { slidesPerView: 3, spaceBetween: 16 },
+            768: { slidesPerView: 4, spaceBetween: 20 },
+            1024: { slidesPerView: 5, spaceBetween: 24 },
+            1280: { slidesPerView: 6, spaceBetween: 24 }
+        }
+    });
+
+    new Swiper(".featuredSwiper", {
+        slidesPerView: 2,
+        slidesPerGroup: 1,
+        spaceBetween: 12,
+        pagination: { el: ".swiper-pagination", clickable: true },
+        breakpoints: {
+            640: { slidesPerView: 3, spaceBetween: 16 },
+            768: { slidesPerView: 4, spaceBetween: 20 },
+            1024: { slidesPerView: 5, spaceBetween: 24 },
+            1280: { slidesPerView: 6, spaceBetween: 24 }
         }
     });
 
     new Swiper(".recentSwiper", {
-        slidesPerView: 1.4,
-        spaceBetween: 20,
+        slidesPerView: 2,
+        slidesPerGroup: 1,
+        spaceBetween: 12,
         pagination: { el: ".swiper-pagination", clickable: true },
         breakpoints: {
-            640: { slidesPerView: 2.4 },
-            768: { slidesPerView: 3.4 },
-            1024: { slidesPerView: 4.4 },
-            1280: { slidesPerView: 5.4 }
+            640: { slidesPerView: 3, spaceBetween: 16 },
+            768: { slidesPerView: 4, spaceBetween: 20 },
+            1024: { slidesPerView: 5, spaceBetween: 24 },
+            1280: { slidesPerView: 6, spaceBetween: 24 }
         }
     });
 
@@ -210,7 +311,7 @@
         document.getElementById('loader').classList.remove('hidden');
 
         try {
-            const resp = await fetch(`/api/anime?skip=${page * 20}&limit=20`);
+            const resp = await fetch(`/api/anime?skip=${page * 18}&limit=18`);
             const res = await resp.json();
 
             if (!res.success || !res.data || res.data.length === 0) {
@@ -221,17 +322,26 @@
                     const html = `
                         <div class="anime-card animate-fade-in no-select no-drag">
                             <a href="/anime/${anime.slug}" class="group block">
-                                <div class="poster-wrapper">
-                                    <img src="${anime.image}" alt="${anime.title}" loading="lazy">
-                                    <div class="absolute top-3 left-3 glass px-2.5 py-1 rounded-lg text-[8px] font-black border-white/5">
-                                        ${anime.category || 'ANIME'}
+                                <div class="poster-wrapper relative overflow-hidden rounded-xl bg-black/50" style="aspect-ratio: auto !important;">
+                                    <img src="${anime.image}" alt="${anime.title}" loading="lazy" class="w-full h-auto max-h-[300px] object-contain image-orientation-fix">
+                                    <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-6">
+                                        <div class="btn-premium py-2 text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl mb-3 md:mb-4">Get Files</div>
+                                        <div class="flex items-center gap-2 md:gap-4 text-[9px] md:text-[10px] text-gray-400 font-black tracking-widest">
+                                            <span class="text-yellow-500"><i class="fa-solid fa-star mr-1"></i> ${anime.score || '8.5'}</span>
+                                            <span>•</span>
+                                            <span>${anime.year || '2024'}</span>
+                                        </div>
                                     </div>
-                                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
-                                        <div class="btn-premium w-full py-2 text-[8px] uppercase tracking-widest">Get Files</div>
+                                    <div class="absolute top-3 right-3 md:top-4 md:right-4 glass px-2 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black border-white/10 shadow-2xl">
+                                        <i class="fa-solid fa-star text-yellow-500 mr-1"></i> ${anime.score || '8.5'}
                                     </div>
                                 </div>
-                                <div class="p-4">
-                                    <h3 class="font-black text-[11px] line-clamp-2 uppercase tracking-tight group-hover:text-red-500 transition-colors">${anime.title}</h3>
+                                <div class="p-3 md:p-4 bg-gradient-to-b from-transparent to-black/40">
+                                    <h3 class="text-xs md:text-sm font-bold truncate">${anime.title}</h3>
+                                    <div class="flex items-center justify-between mt-2">
+                                        <span class="text-[7px] md:text-[8px] text-gray-500 font-bold uppercase tracking-widest">${anime.category || 'ANIME'}</span>
+                                        <span class="text-[7px] md:text-[8px] text-red-600 font-bold uppercase tracking-widest">${anime.status || 'RELEASED'}</span>
+                                    </div>
                                 </div>
                             </a>
                         </div>
