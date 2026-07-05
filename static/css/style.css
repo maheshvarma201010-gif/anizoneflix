@@ -102,6 +102,21 @@ html, body {
     border-color: rgba(220, 38, 38, 0.6) !important;
 }
 
+@keyframes rgb-text {
+    0% { color: #ff0000; text-shadow: 0 0 10px rgba(255,0,0,0.5); }
+    20% { color: #ffff00; text-shadow: 0 0 10px rgba(255,255,0,0.5); }
+    40% { color: #00ff00; text-shadow: 0 0 10px rgba(0,255,0,0.5); }
+    60% { color: #00ffff; text-shadow: 0 0 10px rgba(0,255,255,0.5); }
+    80% { color: #0000ff; text-shadow: 0 0 10px rgba(0,0,255,0.5); }
+    100% { color: #ff00ff; text-shadow: 0 0 10px rgba(255,0,255,0.5); }
+}
+
+.rgb-glow {
+    animation: rgb-text 5s linear infinite;
+    font-weight: 900 !important;
+    font-family: 'Courier New', monospace; /* Monospaced for consistent timer alignment */
+}
+
 /* Buttons */
 .btn-premium {
     position: relative;

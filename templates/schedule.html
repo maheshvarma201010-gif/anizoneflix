@@ -35,13 +35,18 @@
                                     <div class="absolute bottom-2 left-2 px-2 py-1 glass text-[8px] font-bold uppercase tracking-widest text-white backdrop-blur-md border border-white/10">{{ item.time }}</div>
                                 </div>
                                 {% endif %}
-                                <div class="flex items-center justify-between gap-3">
+                                <div class="flex flex-col gap-2">
                                     <div class="flex items-center gap-3">
                                         <div class="fallback-time {% if item.image %}hidden{% else %}flex{% endif %} items-center gap-3">
                                             <div class="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></div>
                                             <span class="text-[9px] font-black text-red-500 uppercase tracking-widest">{{ item.time }}</span>
                                         </div>
                                         <span class="text-[10px] font-bold text-white uppercase tracking-tight line-clamp-2">{{ item.name }}</span>
+                                    </div>
+                                    <div class="countdown-container flex items-center gap-2 px-2 py-1 rounded-lg bg-white/5 border border-white/5"
+                                         data-day="{{ day }}" data-time="{{ item.time }}">
+                                        <i class="fa-regular fa-clock text-[8px] text-gray-500"></i>
+                                        <span class="rgb-glow text-[9px] tracking-tighter uppercase font-black countdown-timer">Calculating...</span>
                                     </div>
                                 </div>
                             </div>
@@ -70,4 +75,71 @@
         <p class="text-gray-600 max-w-3xl mx-auto text-[10px] font-bold uppercase tracking-[0.2em] leading-relaxed">Schedules are subject to change based on official broadcast delays. We update our data daily to ensure accuracy.</p>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function updateCountdowns() {
+        const now = new Date();
+        const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const currentDayIdx = now.getDay();
+
+        document.querySelectorAll('.countdown-container').forEach(container => {
+            const dayStr = container.dataset.day;
+            const timeStr = container.dataset.time;
+            const timerSpan = container.querySelector('.countdown-timer');
+
+            if (!timeStr || timeStr === "TBA") {
+                timerSpan.textContent = "Time TBA";
+                return;
+            }
+
+            try {
+                const targetDayIdx = daysOfWeek.indexOf(dayStr);
+                if (targetDayIdx === -1) return;
+
+                let daysDiff = targetDayIdx - currentDayIdx;
+                if (daysDiff < 0) daysDiff += 7;
+
+                const targetDate = new Date(now);
+                targetDate.setDate(now.getDate() + daysDiff);
+
+                // Parse time (handle "12:00 PM", "14:00", etc.)
+                let hours = 0, minutes = 0;
+                const timeMatch = timeStr.match(/(\d{1,2})[:.](\d{2})\s*(AM|PM)?/i);
+                if (timeMatch) {
+                    hours = parseInt(timeMatch[1]);
+                    minutes = parseInt(timeMatch[2]);
+                    const ampm = timeMatch[3];
+                    if (ampm) {
+                        if (ampm.toUpperCase() === "PM" && hours < 12) hours += 12;
+                        if (ampm.toUpperCase() === "AM" && hours === 12) hours = 0;
+                    }
+                }
+
+                targetDate.setHours(hours, minutes, 0, 0);
+
+                // If target time today has passed, move to next week
+                if (daysDiff === 0 && targetDate < now) {
+                    targetDate.setDate(targetDate.getDate() + 7);
+                }
+
+                const diff = targetDate - now;
+
+                const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+                timerSpan.textContent = `${d}D : ${h}H : ${m}M : ${s}S`;
+            } catch (e) {
+                console.error(e);
+                timerSpan.textContent = "Invalid Time";
+            }
+        });
+    }
+
+    setInterval(updateCountdowns, 1000);
+    document.addEventListener('DOMContentLoaded', updateCountdowns);
+</script>
 {% endblock %}
