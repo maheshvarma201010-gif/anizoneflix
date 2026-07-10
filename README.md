@@ -46,6 +46,7 @@ The bot serves as the central command center for the entire platform:
 - **`/save`**: Data management interface for instant **Backup** (ZIP export) and **Restore** (ZIP import).
 - **`/manual`**: Create custom pages with unlimited direct-access buttons.
 - **`/edit <url>`**: Manage content groups, poster art, and series metadata in real-time.
+- **`/category_page <url>`**: List available categories and migrate the target page to any other category seamlessly.
 - **`/schedule`**: Centralized management of airing schedules across the network.
 - **`/categories`**: Full management of genres and tags.
 
