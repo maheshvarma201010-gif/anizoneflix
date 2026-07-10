@@ -55,6 +55,7 @@ async def set_commands(client):
         BotCommand("categories", "Manage Genres/Tags"),
         BotCommand("schedule", "Manage Airing Schedule"),
         BotCommand("del", "Permanent Archive Erasure"),
+        BotCommand("category_page", "Migrate Page Category"),
         BotCommand("save", "Backup & Restore Data"),
         BotCommand("cancel", "Abort Active Process"),
         BotCommand("ping", "System Latency Check")
@@ -454,6 +455,48 @@ def register_handlers(bot: Client):
             reply_markup=InlineKeyboardMarkup(buttons)
         )
 
+    @bot.on_message(filters.command("category_page"))
+    async def category_page_handler(client, message):
+        if not message.from_user: return
+        if not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Access Denied.** This zone is for authorized administrators only.")
+
+        query = " ".join(message.command[1:]).strip()
+        if not query and message.reply_to_message:
+            query = (message.reply_to_message.text or message.reply_to_message.caption or "").strip()
+
+        slug = extract_slug(query)
+        if not slug:
+            return await message.reply("💡 **Usage:** `/category_page <url>` (or reply to a link)")
+
+        try:
+            anime = await db.get_anime(slug)
+            if not anime:
+                results = await db.search_anime_db(query)
+                if results: anime = results[0]
+
+            if not anime: return await message.reply(f"❌ **Not Found:** `{slug}`")
+            aid = str(anime["_id"])
+            current_cat = anime.get("category", "N/A")
+
+            cats = await db.get_all_categories()
+            buttons = []
+            for c in cats:
+                name = c['name']
+                label = f"✅ {name}" if name == current_cat else name
+                buttons.append([InlineKeyboardButton(label, callback_data=f"move_cat_{aid}:::{name}")])
+
+            buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")])
+            await message.reply(
+                f"📂 **Move Category: {anime['title']}**\n\n"
+                f"Current Category: `{current_cat}`\n\n"
+                "Select the destination category to move this page:",
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
+        except Exception as e:
+            logger.error(f"Category Page Cmd Error: {e}")
+            await message.reply("❌ **Intelligence Feed Offline.**")
+
     @bot.on_message(filters.command("cancel"))
     async def cancel_handler(client, message):
         if message.from_user:
@@ -461,6 +504,41 @@ def register_handlers(bot: Client):
         await message.reply("✨ **Action Cancelled.** standby.")
 
     # --- CALLBACK HANDLERS ---
+
+    @bot.on_callback_query(filters.regex("^move_cat_"))
+    async def move_cat_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        data = callback_query.data.split("move_cat_")[-1]
+        aid, new_cat = data.split(":::")
+
+        try:
+            if await db.ping():
+                anime = await db.get_anime(aid)
+                if not anime: return await callback_query.answer("❌ Not Found", show_alert=True)
+                res = await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"category": new_cat}, "$currentDate": {"updated_at": True}})
+                if res.modified_count:
+                    await callback_query.answer(f"🚀 Moved to {new_cat}", show_alert=True)
+                    await callback_query.message.edit_text(
+                        f"✅ **Category Updated Successfully!**\n\n"
+                        f"🎬 **Anime:** `{anime['title']}`\n"
+                        f"📂 **Moved To:** `{new_cat}`",
+                        reply_markup=None
+                    )
+                else:
+                    await callback_query.answer("⚠️ Category remains unchanged.", show_alert=True)
+                    await callback_query.message.edit_text(
+                        f"⚠️ **Category Unchanged**\n\n"
+                        f"🎬 **Anime:** `{anime['title']}`\n"
+                        f"📂 **Category:** `{new_cat}`",
+                        reply_markup=None
+                    )
+            else:
+                await callback_query.answer("❌ Database Offline", show_alert=True)
+        except Exception as e:
+            logger.error(f"Move Cat Callback Error: {e}")
+            await callback_query.answer(f"❌ Error: {e}", show_alert=True)
 
     @bot.on_callback_query(filters.regex("^backup_data$"))
     async def backup_data_cb(client, callback_query):
@@ -1543,7 +1621,7 @@ def register_handlers(bot: Client):
 
     # --- INTERACTION HANDLER (GROUP 1) ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page"]), group=1)
     async def interaction_handler(client, message):
         if not message.from_user: return
         uid = message.from_user.id
