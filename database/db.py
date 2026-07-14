@@ -95,6 +95,10 @@ class Database:
     def schedules(self):
         return self._schedules if self._schedules is not None else self.MockCollection("schedules")
 
+    @property
+    def added_bots(self):
+        return self._db.added_bots if self._db is not None else self.MockCollection("added_bots")
+
     class MockCollection:
         """Emergency layer to prevent system crashes if Atlas is unreachable"""
         def __init__(self, name):
@@ -173,10 +177,62 @@ class Database:
             if self._anime is None: return []
             safe_query = re.escape(query)
             cursor = self._anime.find({"title": {"$regex": safe_query, "$options": "i"}})
-            docs = await cursor.to_list(length=20)
+            docs = await cursor.to_list(length=10000)
             return clean_doc(docs) or []
         except Exception as e:
             logger.error(f"Read Error (search_anime_db): {e}")
+            return []
+
+    async def search_anime_intelligent(self, raw_query: str, limit: int = 50):
+        try:
+            if self._anime is None: return []
+            q = raw_query.lower().strip()
+            # Remove punctuation except spaces
+            q = re.sub(r'[^\w\s]', '', q, flags=re.UNICODE)
+            q = re.sub(r'\s+', ' ', q).strip()
+
+            if not q:
+                return []
+
+            # Perform a single consolidated MongoDB query using $or to fetch all potential candidates
+            # This avoids multiple roundtrips and optimizes database scanning.
+            words = q.split()
+            word_regex = ".*".join([re.escape(w) for w in words]) if words else ""
+
+            or_conditions = [
+                {"title": {"$regex": f"^{re.escape(raw_query)}$", "$options": "i"}},
+                {"title": {"$regex": f"^{re.escape(raw_query)}", "$options": "i"}},
+                {"title": {"$regex": re.escape(raw_query), "$options": "i"}}
+            ]
+            if word_regex:
+                or_conditions.append({"title": {"$regex": word_regex, "$options": "i"}})
+
+            cursor = self._anime.find({"$or": or_conditions})
+            docs = await cursor.to_list(length=200)
+            docs = clean_doc(docs) or []
+
+            # Now, perform high-speed, in-memory python sorting for maximum relevance and no latency
+            scored_docs = []
+            for doc in docs:
+                title = doc.get("title", "").lower().strip()
+                score = 0
+                if title == q:
+                    score = 100
+                elif title.startswith(q):
+                    score = 80
+                elif f" {q} " in f" {title} ":
+                    score = 60
+                elif q in title:
+                    score = 40
+                else:
+                    score = 20
+                scored_docs.append((score, doc))
+
+            # Sort by score descending
+            scored_docs.sort(key=lambda x: x[0], reverse=True)
+            return [doc for _, doc in scored_docs][:limit]
+        except Exception as e:
+            logger.error(f"Read Error (search_anime_intelligent): {e}")
             return []
 
     async def get_anime(self, identifier):

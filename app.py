@@ -52,6 +52,10 @@ async def lifespan(app: FastAPI):
         await bot.start()
         await set_commands(bot)
 
+        # Dynamic load added bots
+        from bot.bot_manager import added_bot_manager
+        asyncio.create_task(added_bot_manager.start_all())
+
         me = await bot.get_me()
         logger.info(f"Production Suite LIVE -> @{me.username}")
     except Exception as e:
@@ -63,6 +67,8 @@ async def lifespan(app: FastAPI):
     # SHUTDOWN
     logger.info("Production Engine shutting down...")
     try:
+        from bot.bot_manager import added_bot_manager
+        await added_bot_manager.stop_all()
         if bot.is_connected:
             await bot.stop()
         await anime_api.close()
@@ -134,8 +140,8 @@ async def index(request: Request):
         return Response(status_code=200 if is_healthy else 503)
 
     try:
-        trending = await db.get_all_anime(limit=10)
-        recent = await db.get_all_anime(limit=20)
+        trending = await db.get_all_anime(limit=100000)
+        recent = await db.get_all_anime(limit=100000)
         categories = await db.get_all_categories()
 
         return templates.TemplateResponse(request=request, name="index.html", context={
@@ -200,7 +206,7 @@ async def anime_detail(request: Request, slug: str):
         return templates.TemplateResponse(request=request, name="404.html", context={"error": "Database error."}, status_code=500)
 
 @app.get("/api/anime")
-async def get_anime_api(skip: int = 0, limit: int = 20):
+async def get_anime_api(skip: int = 0, limit: int = 100000):
     try:
         data = await db.get_all_anime(limit=limit, skip=skip)
         return safe_api_response(True, data)
@@ -208,20 +214,22 @@ async def get_anime_api(skip: int = 0, limit: int = 20):
         return safe_api_response(False, None, str(e))
 
 @app.get("/search")
-async def search_web(request: Request, q: str = ""):
+async def search_web(request: Request, q: str = "", skip: int = 0, limit: int = 100000):
     try:
         results = []
         if q:
             if await db.ping():
+                # No limit / Unlimited dynamic search logic
                 results = await db.anime.find({"$or": [
                     {"title": {"$regex": q, "$options": "i"}},
                     {"category": q}
-                ]}).sort("_id", -1).to_list(length=50)
+                ]}).sort("_id", -1).skip(skip).to_list(length=limit)
                 results = clean_doc(results)
             else:
                 results = []
         else:
-            results = await db.get_all_anime(limit=50)
+            # Unlimited list logic
+            results = await db.get_all_anime(limit=limit, skip=skip)
 
         categories = await db.get_all_categories()
         return templates.TemplateResponse(request=request, name="search.html", context={
