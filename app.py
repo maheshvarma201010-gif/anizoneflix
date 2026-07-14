@@ -52,6 +52,10 @@ async def lifespan(app: FastAPI):
         await bot.start()
         await set_commands(bot)
 
+        # Dynamic load added bots
+        from bot.bot_manager import added_bot_manager
+        asyncio.create_task(added_bot_manager.start_all())
+
         me = await bot.get_me()
         logger.info(f"Production Suite LIVE -> @{me.username}")
     except Exception as e:
@@ -63,6 +67,8 @@ async def lifespan(app: FastAPI):
     # SHUTDOWN
     logger.info("Production Engine shutting down...")
     try:
+        from bot.bot_manager import added_bot_manager
+        await added_bot_manager.stop_all()
         if bot.is_connected:
             await bot.stop()
         await anime_api.close()
@@ -82,8 +88,24 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+def button_link_rewrite(url: str) -> str:
+    """
+    Safely rewrites any website page link (/anime/{slug}) in buttons
+    to point to the current Base URL.
+    Excludes Telegram (t.me) and other external links.
+    """
+    if not url:
+        return ""
+    import re
+    if "/anime/" in url and not any(ext in url for ext in ["t.me", "telegram.me", "telegram.dog"]):
+        slug_match = re.search(r'/anime/([a-zA-Z0-9-]+)', url)
+        if slug_match:
+            slug = slug_match.group(1)
+            return f"{Config.BASE_URL}/anime/{slug}"
+    return url
+
 @app.middleware("http")
-async def add_security_headers(request: Request, call_next):
+async def add_security_headers_and_rewrite_links(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -100,11 +122,42 @@ async def add_security_headers(request: Request, call_next):
     # Optimization: Cache static assets
     if request.url.path.startswith("/static"):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+
     return response
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+def t_me_to_telegram_me(url: str) -> str:
+    """
+    Safely replaces t.me with telegram.me in any given URL.
+    """
+    if not url:
+        return ""
+    import re
+    return re.sub(r'\bt\.me\b', 'telegram.me', url)
+
+# Override templates.TemplateResponse to automatically rewrite all t.me links to telegram.me in HTML output
+_original_template_response = templates.TemplateResponse
+
+def custom_template_response(*args, **kwargs):
+    response = _original_template_response(*args, **kwargs)
+    if hasattr(response, "body"):
+        import re
+        html = response.body.decode("utf-8", errors="ignore")
+        # Replace t.me and urlencoded t%2Eme with telegram.me and telegram%2Eme globally
+        html = re.sub(r'\bt\.me\b', 'telegram.me', html)
+        html = re.sub(r't%2[eE]me\b', 'telegram%2Eme', html)
+        encoded = html.encode("utf-8")
+        response._body = encoded
+        response.headers["content-length"] = str(len(encoded))
+    return response
+
+templates.TemplateResponse = custom_template_response
+
 templates.env.filters["slugify"] = slugify
+templates.env.filters["button_link_rewrite"] = button_link_rewrite
+templates.env.filters["t_me_to_telegram_me"] = t_me_to_telegram_me
 
 # --- CUSTOM RESPONSES ---
 
@@ -134,7 +187,7 @@ async def index(request: Request):
         return Response(status_code=200 if is_healthy else 503)
 
     try:
-        trending = await db.get_all_anime(limit=10)
+        trending = await db.get_all_anime(limit=15)
         recent = await db.get_all_anime(limit=20)
         categories = await db.get_all_categories()
 
@@ -200,28 +253,48 @@ async def anime_detail(request: Request, slug: str):
         return templates.TemplateResponse(request=request, name="404.html", context={"error": "Database error."}, status_code=500)
 
 @app.get("/api/anime")
-async def get_anime_api(skip: int = 0, limit: int = 20):
+async def get_anime_api(skip: int = 0, limit: int = 100000):
     try:
         data = await db.get_all_anime(limit=limit, skip=skip)
         return safe_api_response(True, data)
     except Exception as e:
         return safe_api_response(False, None, str(e))
 
-@app.get("/search")
-async def search_web(request: Request, q: str = ""):
+@app.get("/api/search")
+async def get_search_api(q: str = "", skip: int = 0, limit: int = 24):
     try:
-        results = []
         if q:
             if await db.ping():
                 results = await db.anime.find({"$or": [
                     {"title": {"$regex": q, "$options": "i"}},
                     {"category": q}
-                ]}).sort("_id", -1).to_list(length=50)
+                ]}).sort("_id", -1).skip(skip).to_list(length=limit)
+                return safe_api_response(True, clean_doc(results))
+            else:
+                return safe_api_response(True, [])
+        else:
+            data = await db.get_all_anime(limit=limit, skip=skip)
+            return safe_api_response(True, data)
+    except Exception as e:
+        return safe_api_response(False, None, str(e))
+
+@app.get("/search")
+async def search_web(request: Request, q: str = "", skip: int = 0, limit: int = 100000):
+    try:
+        results = []
+        if q:
+            if await db.ping():
+                # No limit / Unlimited dynamic search logic
+                results = await db.anime.find({"$or": [
+                    {"title": {"$regex": q, "$options": "i"}},
+                    {"category": q}
+                ]}).sort("_id", -1).skip(skip).to_list(length=limit)
                 results = clean_doc(results)
             else:
                 results = []
         else:
-            results = await db.get_all_anime(limit=50)
+            # Unlimited list logic
+            results = await db.get_all_anime(limit=limit, skip=skip)
 
         categories = await db.get_all_categories()
         return templates.TemplateResponse(request=request, name="search.html", context={
@@ -258,6 +331,16 @@ async def verify_check(request: Request, token: str):
 async def download_redirect(request: Request, url: str):
     if not url: return RedirectResponse(url="/")
 
+    import re
+    # Automatically adjust details page links from old base domains to the current running BASE_URL
+    if "/anime/" in url and not any(ext in url for ext in ["t.me", "telegram.me", "telegram.dog"]):
+        slug_match = re.search(r'/anime/([a-zA-Z0-9-]+)', url)
+        if slug_match:
+            url = f"{Config.BASE_URL}/anime/{slug_match.group(1)}"
+
+    # Automatically transform t.me to telegram.me in the target redirect URL
+    url = re.sub(r'\bt\.me\b', 'telegram.me', url)
+
     # 1. Referer Check
     if not Protect.check_referer(request):
         return RedirectResponse(url="/")
@@ -268,6 +351,8 @@ async def download_redirect(request: Request, url: str):
 
     # 3. Shortlink Generation
     final_url = await Protect.get_shortlink(url)
+    # Ensure final URL also replaces t.me with telegram.me in case shortlink generators preserve or modify it
+    final_url = re.sub(r'\bt\.me\b', 'telegram.me', final_url)
     return RedirectResponse(url=final_url)
 
 @app.get("/az-index")

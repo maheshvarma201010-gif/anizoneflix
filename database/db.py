@@ -95,6 +95,10 @@ class Database:
     def schedules(self):
         return self._schedules if self._schedules is not None else self.MockCollection("schedules")
 
+    @property
+    def added_bots(self):
+        return self._db.added_bots if self._db is not None else self.MockCollection("added_bots")
+
     class MockCollection:
         """Emergency layer to prevent system crashes if Atlas is unreachable"""
         def __init__(self, name):
@@ -173,10 +177,105 @@ class Database:
             if self._anime is None: return []
             safe_query = re.escape(query)
             cursor = self._anime.find({"title": {"$regex": safe_query, "$options": "i"}})
-            docs = await cursor.to_list(length=20)
+            docs = await cursor.to_list(length=10000)
             return clean_doc(docs) or []
         except Exception as e:
             logger.error(f"Read Error (search_anime_db): {e}")
+            return []
+
+    async def search_anime_intelligent(self, raw_query: str, limit: int = 50):
+        try:
+            if self._anime is None: return []
+            q = raw_query.lower().strip()
+            # Remove punctuation except spaces
+            q = re.sub(r'[^\w\s]', '', q, flags=re.UNICODE)
+            q = re.sub(r'\s+', ' ', q).strip()
+
+            if not q:
+                return []
+
+            words = q.split()
+            if not words:
+                return []
+
+            # For very short queries (less than 3 characters, e.g., "hi", "no"), strictly restrict matches
+            # to exact match or whole word bounds to prevent false substring matches (like "hi" in "shinchan").
+            if len(q) < 3:
+                or_conditions = [
+                    {"title": {"$regex": f"^{re.escape(raw_query)}$", "$options": "i"}},
+                    {"title": {"$regex": f"\\b{re.escape(raw_query)}\\b", "$options": "i"}}
+                ]
+                cursor = self._anime.find({"$or": or_conditions})
+                docs = await cursor.to_list(length=100)
+                docs = clean_doc(docs) or []
+
+                scored_docs = []
+                for doc in docs:
+                    title = doc.get("title", "").lower().strip()
+                    score = 0
+                    if title == q:
+                        score = 100
+                    elif f" {q} " in f" {title} ":
+                        score = 80
+                    else:
+                        score = 50
+                    scored_docs.append((score, doc))
+                scored_docs.sort(key=lambda x: x[0], reverse=True)
+                return [doc for _, doc in scored_docs][:limit]
+
+            # Multi-word queries: build progressive query list for fallbacks
+            # "naruto Telugu season 1" -> ["naruto", "naruto telugu", "naruto telugu season", "naruto telugu season 1"]
+            query_variations = []
+            for i in range(1, len(words) + 1):
+                query_variations.append(" ".join(words[:i]))
+
+            # We try search matching from shortest word to longest or longest to shortest depending on relevance.
+            # Usually we check the longest first, but user requested:
+            # "If user sends like naruto Telugu season 1 bot search for first word if not found with first and second words if not found first,second and third word at once"
+            # Thus, we execute progressive fallbacks in this order:
+            # 1. First word only: "naruto"
+            # 2. First + Second: "naruto telugu"
+            # 3. First + Second + Third: "naruto telugu season"
+            # 4. Full query: "naruto telugu season 1"
+
+            for variation in query_variations:
+                word_regex = ".*".join([re.escape(w) for w in variation.split()])
+                or_conditions = [
+                    {"title": {"$regex": f"^{re.escape(variation)}$", "$options": "i"}},
+                    {"title": {"$regex": f"^{re.escape(variation)}", "$options": "i"}},
+                    {"title": {"$regex": re.escape(variation), "$options": "i"}}
+                ]
+                if word_regex:
+                    or_conditions.append({"title": {"$regex": word_regex, "$options": "i"}})
+
+                cursor = self._anime.find({"$or": or_conditions})
+                docs = await cursor.to_list(length=100)
+                docs = clean_doc(docs) or []
+
+                if docs:
+                    # Found matches with this variation! Apply in-memory ranking
+                    scored_docs = []
+                    for doc in docs:
+                        title = doc.get("title", "").lower().strip()
+                        score = 0
+                        if title == variation:
+                            score = 100
+                        elif title.startswith(variation):
+                            score = 80
+                        elif f" {variation} " in f" {title} ":
+                            score = 60
+                        elif variation in title:
+                            score = 40
+                        else:
+                            score = 20
+                        scored_docs.append((score, doc))
+
+                    scored_docs.sort(key=lambda x: x[0], reverse=True)
+                    return [doc for _, doc in scored_docs][:limit]
+
+            return []
+        except Exception as e:
+            logger.error(f"Read Error (search_anime_intelligent): {e}")
             return []
 
     async def get_anime(self, identifier):

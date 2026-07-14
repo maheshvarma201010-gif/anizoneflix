@@ -79,6 +79,10 @@ def extract_slug(text):
 def register_handlers(bot: Client):
     logger.info("Initializing Hardened Intelligence Suite Handlers...")
 
+    # --- ADDBOT PLUGIN HANDLER ---
+    from bot.plugins.addbot import addbot_command_handler
+    bot.add_handler(MessageHandler(addbot_command_handler, filters.command("addbot") & filters.private))
+
     # --- DEBUG LOGGER (GROUP -3) ---
     @bot.on_message(filters.all, group=-3)
     async def debug_logger(client, message):
@@ -1621,7 +1625,7 @@ def register_handlers(bot: Client):
 
     # --- INTERACTION HANDLER (GROUP 1) ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page", "addbot"]), group=1)
     async def interaction_handler(client, message):
         if not message.from_user: return
         uid = message.from_user.id
@@ -1633,7 +1637,98 @@ def register_handlers(bot: Client):
 
         action = state.get("action", "")
         try:
-            if action == "ask_search_query":
+            if action == "addbot_await_group":
+                # Safely resolve group/chat username or numeric ID or invite links
+                group_input = message.text.strip()
+
+                # Safely parse and resolve Telegram invite link to its username/ID representation
+                if "t.me/+" in group_input or "joinchat" in group_input:
+                    await message.reply("⚠️ **Direct Invite Links cannot be resolved via getChat directly.** Please send the exact **Group Username** (e.g. `@mygroup`) or **Numeric Group ID** (e.g. `-100...`):")
+                    return
+
+                if "t.me/" in group_input:
+                    group_input = "@" + group_input.split("t.me/")[-1].split("/")[0]
+
+                await message.reply("⏳ **Resolving and verifying group properties...**")
+
+                # Verify that group/username is valid
+                from bot.bot_manager import added_bot_manager
+                import httpx
+
+                # Check permissions and bot existence inside the group
+                # We can perform a dynamic check using Telegram Bot API directly or via a transient Client
+                tg_bot_api_url = f"https://api.telegram.org/bot{state['token']}"
+                try:
+                    async with httpx.AsyncClient(timeout=15.0) as http_client:
+                        # 1. Resolve Chat to get exact Chat ID
+                        chat_res = await http_client.get(f"{tg_bot_api_url}/getChat", params={"chat_id": group_input})
+                        if chat_res.status_code != 200:
+                            await message.reply(f"❌ **Chat Not Found:** Telegram cannot find or access `{group_input}`. Make sure the bot is already added to the chat.")
+                            return
+
+                        chat_data = chat_res.json().get("result", {})
+                        resolved_group_id = chat_data.get("id")
+                        resolved_title = chat_data.get("title") or chat_data.get("username")
+
+                        # 2. Check if Bot is an Administrator in the chat
+                        member_res = await http_client.get(f"{tg_bot_api_url}/getChatMember", params={"chat_id": resolved_group_id, "user_id": state["bot_info"]["id"]})
+                        if member_res.status_code != 200:
+                            await message.reply("❌ **Bot is not in the group.** Please add the bot as an administrator first.")
+                            return
+
+                        member_data = member_res.json().get("result", {})
+                        status = member_data.get("status")
+                        if status not in ["administrator", "creator"]:
+                            await message.reply("❌ **Bot is in the group but is NOT an Administrator.** Please grant admin privileges.")
+                            return
+
+                        # 3. Check Required Admin Permissions
+                        # Required: Read Messages (can_be_edited / implicit), Send Messages, Delete Messages
+                        # Pyrogram / Bot API specific permissions:
+                        can_post = member_data.get("can_post_messages", True)
+                        can_delete = member_data.get("can_delete_messages", False)
+
+                        missing_perms = []
+                        if not can_delete:
+                            missing_perms.append("Delete Messages")
+
+                        if missing_perms:
+                            await message.reply(
+                                f"⚠️ **Warning: Missing Admin Permissions:**\n\n"
+                                f"• {', '.join(missing_perms)}\n\n"
+                                f"Please grant these permissions to @{state['bot_info']['username']} in the group for optimal performance."
+                            )
+
+                        # Save Bot configuration into added_bots collection
+                        await db.added_bots.update_one(
+                            {"token": state["token"]},
+                            {"$set": {
+                                "token": state["token"],
+                                "group_id": resolved_group_id,
+                                "group_title": resolved_title,
+                                "bot_info": state["bot_info"]
+                            }},
+                            upsert=True
+                        )
+
+                        # Dynamic Boot/Start the newly added bot
+                        started = await added_bot_manager.start_bot(state["token"], resolved_group_id, state["bot_info"])
+                        if started:
+                            await message.reply(
+                                f"🎉 **Success! Bot Configuration Activated.**\n\n"
+                                f"🤖 **Bot:** @{state['bot_info']['username']}\n"
+                                f"👥 **Configured Chat:** `{resolved_title}` ({resolved_group_id})\n"
+                                f"⚡ **Status:** Active & Scanning group query inputs 24/7."
+                            )
+                        else:
+                            await message.reply("⚠️ **Configuration saved, but the bot client failed to boot.** Ensure API keys are active.")
+
+                        del user_state[uid]
+                except Exception as e:
+                    logger.error(f"Error during addbot validation flow: {e}")
+                    await message.reply(f"❌ **An unexpected error occurred during validation:** {e}")
+                return
+            elif action == "ask_search_query":
                 return await search_handler(client, message, is_retry=True)
             elif action == "ask_manual_title":
                 user_state[uid].update({"title": message.text.strip(), "action": "ask_manual_synopsis"})
