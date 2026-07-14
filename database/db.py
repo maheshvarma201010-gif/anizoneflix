@@ -194,43 +194,61 @@ class Database:
             if not q:
                 return []
 
-            # Perform a single consolidated MongoDB query using $or to fetch all potential candidates
-            # This avoids multiple roundtrips and optimizes database scanning.
             words = q.split()
-            word_regex = ".*".join([re.escape(w) for w in words]) if words else ""
+            if not words:
+                return []
 
-            or_conditions = [
-                {"title": {"$regex": f"^{re.escape(raw_query)}$", "$options": "i"}},
-                {"title": {"$regex": f"^{re.escape(raw_query)}", "$options": "i"}},
-                {"title": {"$regex": re.escape(raw_query), "$options": "i"}}
-            ]
-            if word_regex:
-                or_conditions.append({"title": {"$regex": word_regex, "$options": "i"}})
+            # Multi-word queries: build progressive query list for fallbacks
+            # "naruto Telugu season 1" -> ["naruto", "naruto telugu", "naruto telugu season", "naruto telugu season 1"]
+            query_variations = []
+            for i in range(1, len(words) + 1):
+                query_variations.append(" ".join(words[:i]))
 
-            cursor = self._anime.find({"$or": or_conditions})
-            docs = await cursor.to_list(length=200)
-            docs = clean_doc(docs) or []
+            # We try search matching from shortest word to longest or longest to shortest depending on relevance.
+            # Usually we check the longest first, but user requested:
+            # "If user sends like naruto Telugu season 1 bot search for first word if not found with first and second words if not found first,second and third word at once"
+            # Thus, we execute progressive fallbacks in this order:
+            # 1. First word only: "naruto"
+            # 2. First + Second: "naruto telugu"
+            # 3. First + Second + Third: "naruto telugu season"
+            # 4. Full query: "naruto telugu season 1"
 
-            # Now, perform high-speed, in-memory python sorting for maximum relevance and no latency
-            scored_docs = []
-            for doc in docs:
-                title = doc.get("title", "").lower().strip()
-                score = 0
-                if title == q:
-                    score = 100
-                elif title.startswith(q):
-                    score = 80
-                elif f" {q} " in f" {title} ":
-                    score = 60
-                elif q in title:
-                    score = 40
-                else:
-                    score = 20
-                scored_docs.append((score, doc))
+            for variation in query_variations:
+                word_regex = ".*".join([re.escape(w) for w in variation.split()])
+                or_conditions = [
+                    {"title": {"$regex": f"^{re.escape(variation)}$", "$options": "i"}},
+                    {"title": {"$regex": f"^{re.escape(variation)}", "$options": "i"}},
+                    {"title": {"$regex": re.escape(variation), "$options": "i"}}
+                ]
+                if word_regex:
+                    or_conditions.append({"title": {"$regex": word_regex, "$options": "i"}})
 
-            # Sort by score descending
-            scored_docs.sort(key=lambda x: x[0], reverse=True)
-            return [doc for _, doc in scored_docs][:limit]
+                cursor = self._anime.find({"$or": or_conditions})
+                docs = await cursor.to_list(length=100)
+                docs = clean_doc(docs) or []
+
+                if docs:
+                    # Found matches with this variation! Apply in-memory ranking
+                    scored_docs = []
+                    for doc in docs:
+                        title = doc.get("title", "").lower().strip()
+                        score = 0
+                        if title == variation:
+                            score = 100
+                        elif title.startswith(variation):
+                            score = 80
+                        elif f" {variation} " in f" {title} ":
+                            score = 60
+                        elif variation in title:
+                            score = 40
+                        else:
+                            score = 20
+                        scored_docs.append((score, doc))
+
+                    scored_docs.sort(key=lambda x: x[0], reverse=True)
+                    return [doc for _, doc in scored_docs][:limit]
+
+            return []
         except Exception as e:
             logger.error(f"Read Error (search_anime_intelligent): {e}")
             return []
