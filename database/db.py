@@ -198,6 +198,31 @@ class Database:
             if not words:
                 return []
 
+            # For very short queries (less than 3 characters, e.g., "hi", "no"), strictly restrict matches
+            # to exact match or whole word bounds to prevent false substring matches (like "hi" in "shinchan").
+            if len(q) < 3:
+                or_conditions = [
+                    {"title": {"$regex": f"^{re.escape(raw_query)}$", "$options": "i"}},
+                    {"title": {"$regex": f"\\b{re.escape(raw_query)}\\b", "$options": "i"}}
+                ]
+                cursor = self._anime.find({"$or": or_conditions})
+                docs = await cursor.to_list(length=100)
+                docs = clean_doc(docs) or []
+
+                scored_docs = []
+                for doc in docs:
+                    title = doc.get("title", "").lower().strip()
+                    score = 0
+                    if title == q:
+                        score = 100
+                    elif f" {q} " in f" {title} ":
+                        score = 80
+                    else:
+                        score = 50
+                    scored_docs.append((score, doc))
+                scored_docs.sort(key=lambda x: x[0], reverse=True)
+                return [doc for _, doc in scored_docs][:limit]
+
             # Multi-word queries: build progressive query list for fallbacks
             # "naruto Telugu season 1" -> ["naruto", "naruto telugu", "naruto telugu season", "naruto telugu season 1"]
             query_variations = []
