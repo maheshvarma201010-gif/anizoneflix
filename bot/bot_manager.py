@@ -13,6 +13,80 @@ logger = logging.getLogger("ANIZONEFLIX_BOT_MANAGER")
 search_cache = {}
 MAX_CACHE_SIZE = 1000
 
+def extract_candidate_queries(text: str) -> list:
+    """
+    Extracts high-probability anime title search candidates from a text.
+    Handles lines, split segments, and a sliding window of phrases.
+    """
+    if not text:
+        return []
+
+    import re
+    candidates = []
+    seen = set()
+
+    # Common stop words to ignore as standalone queries
+    stop_words = {
+        "the", "and", "but", "for", "with", "this", "that", "from", "your", "what",
+        "some", "here", "there", "their", "them", "then", "also", "very", "good",
+        "well", "will", "would", "could", "should", "want", "like", "love", "much",
+        "many", "more", "most", "about", "above", "after", "again", "against", "all",
+        "any", "are", "aren", "because", "been", "before", "being", "below", "between",
+        "both", "cannot", "did", "didn", "does", "doesn", "doing", "don", "down", "during"
+    }
+
+    # 1. Parse line-by-line
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
+    for line in lines:
+        if len(line) < 100:
+            val = line.strip()
+            if val and val.lower() not in stop_words and len(val) >= 3:
+                if val.lower() not in seen:
+                    candidates.append(val)
+                    seen.add(val.lower())
+
+        # 2. Split line by delimiters (comma, semicolon, colon)
+        segments = re.split(r'[,;:]', line)
+        for seg in segments:
+            seg_val = seg.strip()
+            if seg_val and len(seg_val) < 60 and seg_val.lower() not in stop_words and len(seg_val) >= 3:
+                if seg_val.lower() not in seen:
+                    candidates.append(seg_val)
+                    seen.add(seg_val.lower())
+
+    # 3. Sliding window over words (up to 4 words)
+    # This is extremely effective for extracting names embedded inside paragraphs
+    words = [w.strip() for w in re.split(r'\s+', text) if w.strip()]
+    num_words = len(words)
+
+    # We restrict sliding window on extremely large texts to capitalized phrases to avoid combinatorial explosion
+    use_capitalized_only = num_words > 150
+
+    for window_size in range(1, 5): # 1 to 4 words
+        for i in range(num_words - window_size + 1):
+            phrase_words = words[i:i + window_size]
+
+            # Skip if we are focusing on capitalized phrases and none of the words start with a capital letter
+            if use_capitalized_only:
+                if not any(w[0].isupper() for w in phrase_words if w and w[0].isalpha()):
+                    continue
+
+            # Join and clean punctuation
+            phrase = " ".join(phrase_words)
+            phrase_clean = re.sub(r'[^\w\s]', '', phrase).strip()
+
+            if len(phrase_clean) >= 3 and phrase_clean.lower() not in stop_words:
+                # Do not allow purely numeric candidates
+                if not phrase_clean.isdigit():
+                    if phrase_clean.lower() not in seen:
+                        candidates.append(phrase_clean)
+                        seen.add(phrase_clean.lower())
+                        # Hard cap candidates to prevent database overload
+                        if len(candidates) >= 100:
+                            return candidates
+
+    return candidates
+
 def clean_search_query(q: str) -> str:
     """Standardized clean search query preserving Unicode, lowercasing, stripping, removing punctuation."""
     q = q.lower().strip()
@@ -153,8 +227,27 @@ class AddedBotManager:
                 return
 
             try:
-                # Intelligent Relevance-Sorted matching
-                results = await db.search_anime_intelligent(query, limit=50)
+                is_long_text = len(query.split()) > 4
+                results = []
+                seen_results = set()
+
+                if is_long_text:
+                    # Multi-way candidate matching for extremely large texts / paragraphs
+                    candidates = extract_candidate_queries(query)
+                    for candidate in candidates:
+                        matches = await db.search_anime_intelligent(candidate, limit=2)
+                        for m in matches:
+                            mid = str(m["_id"])
+                            if mid not in seen_results:
+                                results.append(m)
+                                seen_results.add(mid)
+                                if len(results) >= 15:
+                                    break
+                        if len(results) >= 15:
+                            break
+                else:
+                    results = await db.search_anime_intelligent(query, limit=50)
+
                 if not results:
                     return
 
@@ -175,8 +268,8 @@ class AddedBotManager:
                     search_cache.pop(old_key, None)
 
                 search_cache[session_id] = {
-                    "results": results,
-                    "query": query,
+                    "results": results[:15],
+                    "query": query[:40] + "..." if len(query) > 40 else query,
                     "user_id": message.from_user.id if message.from_user else 0
                 }
 
