@@ -57,11 +57,229 @@ async def set_commands(client):
         BotCommand("del", "Permanent Archive Erasure"),
         BotCommand("category_page", "Migrate Page Category"),
         BotCommand("save", "Backup & Restore Data"),
+        BotCommand("addbot", "Add a new dynamic bot with Auto Group Search"),
         BotCommand("cancel", "Abort Active Process"),
         BotCommand("ping", "System Latency Check")
     ]
     await client.set_bot_commands(commands)
     logger.info("Bot commands synchronized.")
+
+import re
+
+# Cache for dynamic inline search & pagination
+global_search_cache = {}
+global_search_cache_keys = []
+
+def add_to_search_cache(key, value):
+    global_search_cache[key] = value
+    global_search_cache_keys.append(key)
+    if len(global_search_cache_keys) > 1000:
+        oldest = global_search_cache_keys.pop(0)
+        global_search_cache.pop(oldest, None)
+
+async def send_search_page(client: Client, message: Message, cache_key: str, page: int):
+    cache_data = global_search_cache.get(cache_key)
+    if not cache_data:
+        return
+
+    user_id = cache_data["user_id"]
+    results = cache_data["results"]
+    page_size = 5
+
+    start_idx = page * page_size
+    end_idx = start_idx + page_size
+    page_items = results[start_idx:end_idx]
+
+    buttons = []
+    for anime in page_items:
+        title = anime["title"]
+        if len(title) > 30:
+            title = title[:27] + "..."
+
+        aid = str(anime["_id"])
+        # Format: s_{user_id}_{aid}
+        callback_data = f"s_{user_id}_{aid}"
+
+        if len(aid) != 24:
+            callback_data = f"sl_{user_id}_{anime['slug'][:25]}"
+
+        buttons.append([InlineKeyboardButton(title, callback_data=callback_data)])
+
+    nav_row = []
+    if page > 0:
+        nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"sp_{user_id}_{page-1}_{cache_key}"))
+    if end_idx < len(results):
+        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"sp_{user_id}_{page+1}_{cache_key}"))
+
+    if nav_row:
+        buttons.append(nav_row)
+
+    reply_markup = InlineKeyboardMarkup(buttons)
+    text = "🎯 **Choose a matching title:**"
+
+    try:
+        if hasattr(message, "edit_text"):
+            await message.edit_text(text, reply_markup=reply_markup)
+        else:
+            await message.reply(text, reply_markup=reply_markup)
+    except Exception as e:
+        logger.error(f"Error sending/editing search page: {e}")
+
+async def handle_smart_search_in_group(client: Client, message: Message, query: str):
+    try:
+        user_id = message.from_user.id if message.from_user else 0
+        if not user_id:
+            return
+
+        results = await db.search_anime_smart(query)
+        if not results:
+            # Remain completely silent if no match
+            return
+
+        if len(results) == 1:
+            anime = results[0]
+            url = f"{Config.BASE_URL}/anime/{anime['slug']}"
+            await message.reply(url, disable_web_page_preview=False)
+            return
+
+        import uuid
+        cache_key = str(uuid.uuid4())[:8]
+        add_to_search_cache(cache_key, {
+            "user_id": user_id,
+            "query": query,
+            "results": results
+        })
+
+        await send_search_page(client, message, cache_key, page=0)
+    except Exception as e:
+        logger.error(f"Error in handle_smart_search_in_group: {e}")
+
+async def handle_search_callback(client: Client, cb: CallbackQuery):
+    try:
+        data = cb.data
+        if not data:
+            return
+
+        if data.startswith("s_") or data.startswith("sl_"):
+            parts = data.split("_")
+            if len(parts) < 3:
+                await cb.answer("❌ Invalid callback data.")
+                return
+
+            prefix = parts[0]
+            allowed_user_id = int(parts[1])
+            identifier = "_".join(parts[2:])
+
+            if cb.from_user.id != allowed_user_id:
+                await cb.answer("🔒 This menu belongs to another user.", show_alert=True)
+                return
+
+            await cb.answer("⚡ Fetching Page...")
+
+            anime = await db.get_anime(identifier)
+            if anime:
+                url = f"{Config.BASE_URL}/anime/{anime['slug']}"
+                await cb.message.edit_text(url, disable_web_page_preview=False)
+            else:
+                await cb.message.edit_text("❌ Content not found in archive.", reply_markup=None)
+
+        elif data.startswith("sp_"):
+            parts = data.split("_")
+            if len(parts) < 4:
+                await cb.answer("❌ Invalid callback data.")
+                return
+
+            allowed_user_id = int(parts[1])
+            page = int(parts[2])
+            cache_key = parts[3]
+
+            if cb.from_user.id != allowed_user_id:
+                await cb.answer("🔒 This menu belongs to another user.", show_alert=True)
+                return
+
+            await cb.answer()
+            await send_search_page(client, cb.message, cache_key, page)
+
+    except Exception as e:
+        logger.error(f"Error in handle_search_callback: {e}")
+        try:
+            await cb.answer("❌ Error handling callback.")
+        except:
+            pass
+
+class MultiBotManager:
+    def __init__(self):
+        self.clients = {}
+
+    async def start_all_bots(self):
+        logger.info("Initializing dynamic bots from database...")
+        try:
+            bots_data = await db.get_all_bots()
+            for b in bots_data:
+                token = b["token"]
+                group_id = b["group_id"]
+                try:
+                    await self.add_and_start_bot(token, group_id)
+                except Exception as e:
+                    logger.error(f"Failed to start dynamic bot: {e}")
+        except Exception as e:
+            logger.error(f"Error loading dynamic bots: {e}")
+
+    async def add_and_start_bot(self, token: str, group_id: int):
+        try:
+            if token in self.clients:
+                try:
+                    await self.clients[token].stop()
+                except:
+                    pass
+                del self.clients[token]
+
+            loop = asyncio.get_running_loop()
+
+            # Setup dynamic Pyrogram Client
+            bot_id = token.split(':')[0]
+            client = Client(
+                f"dyn_bot_{bot_id}",
+                api_id=Config.API_ID,
+                api_hash=Config.API_HASH,
+                bot_token=token,
+                in_memory=True
+            )
+            client.loop = loop
+            if hasattr(client, "dispatcher"):
+                client.dispatcher.loop = loop
+
+            @client.on_message(filters.chat(group_id) & filters.text & ~filters.regex(r"^/") & ~filters.service)
+            async def group_search_handler(bot_client, message: Message):
+                # Ignore messages from bots or commands/stickers/etc.
+                if message.from_user and message.from_user.is_bot:
+                    return
+                query = message.text.strip()
+                if not query:
+                    return
+                await handle_smart_search_in_group(bot_client, message, query)
+
+            @client.on_callback_query()
+            async def search_callback_handler(bot_client, cb: CallbackQuery):
+                await handle_search_callback(bot_client, cb)
+
+            await client.start()
+            self.clients[token] = client
+            logger.info(f"Dynamic bot @{(await client.get_me()).username} successfully started.")
+        except Exception as e:
+            logger.error(f"Failed to instantiate/start bot client: {e}")
+            raise e
+
+    async def stop_all_bots(self):
+        logger.info("Stopping all dynamic bots...")
+        for token, client in list(self.clients.items()):
+            try:
+                await client.stop()
+            except Exception as e:
+                logger.error(f"Error stopping bot: {e}")
+        self.clients.clear()
+
+multibot_manager = MultiBotManager()
 
 def extract_slug(text):
     """Bulletproof slug extraction from any URL or raw text"""
@@ -496,6 +714,181 @@ def register_handlers(bot: Client):
         except Exception as e:
             logger.error(f"Category Page Cmd Error: {e}")
             await message.reply("❌ **Intelligence Feed Offline.**")
+
+    async def process_bot_token(client, message, token: str):
+        if not re.match(r"^\d+:[A-Za-z0-9_-]+$", token):
+            return await message.reply("❌ **Invalid Token Format.** Please send a valid Telegram bot token.")
+
+        status_msg = await message.reply("🔍 **Verifying Bot Token...**")
+
+        try:
+            # Instantiate a temporary Pyrogram Client to test the token
+            temp_client = Client(
+                f"temp_bot_check_{message.from_user.id}",
+                api_id=Config.API_ID,
+                api_hash=Config.API_HASH,
+                bot_token=token,
+                in_memory=True
+            )
+            await temp_client.start()
+            bot_me = await temp_client.get_me()
+            await temp_client.stop()
+
+            user_state[message.from_user.id] = {
+                "action": "ask_group_id",
+                "bot_token": token,
+                "bot_username": bot_me.username,
+                "bot_name": bot_me.first_name
+            }
+
+            await status_msg.edit(
+                f"✅ **Token Verified Successfully!**\n"
+                f"🤖 **Bot:** {bot_me.first_name} (@{bot_me.username})\n\n"
+                f"📥 **Step 2:** Please send the **Auto Group ID**, Username, or Invite Link where this bot is present:"
+            )
+        except Exception as e:
+            logger.error(f"Bot validation error: {e}")
+            await status_msg.edit(f"❌ **Token Verification Failed:** {str(e)}\n\nPlease ensure the token is correct.")
+
+    async def process_group_id(client, message, group_input: str, state: dict):
+        status_msg = await message.reply("🔄 **Resolving Group and Verifying Permissions...**")
+        token = state["bot_token"]
+
+        target_bot = Client(
+            f"target_bot_{state['bot_username']}",
+            api_id=Config.API_ID,
+            api_hash=Config.API_HASH,
+            bot_token=token,
+            in_memory=True
+        )
+
+        try:
+            await target_bot.start()
+
+            chat_id = None
+            chat = None
+
+            # Resolve Input
+            if group_input.startswith("-") and group_input.replace("-", "").isdigit():
+                chat_id = int(group_input)
+            elif group_input.startswith("@") or not group_input.startswith("http"):
+                username = group_input if group_input.startswith("@") else f"@{group_input}"
+                try:
+                    chat = await target_bot.get_chat(username)
+                    chat_id = chat.id
+                except Exception as e:
+                    logger.error(f"Failed to get chat by username: {e}")
+            else:
+                match = re.search(r"t\.me/(?:\+|joinchat/)?([A-Za-z0-9_-]+)", group_input)
+                if match:
+                    invite_hash = match.group(1)
+                    if "joinchat" in group_input or "+" in group_input:
+                        try:
+                            chat = await target_bot.join_chat(group_input)
+                            chat_id = chat.id
+                        except Exception as e:
+                            logger.error(f"Failed to join chat via invite link: {e}")
+                    else:
+                        try:
+                            chat = await target_bot.get_chat(invite_hash)
+                            chat_id = chat.id
+                        except Exception as e:
+                            logger.error(f"Failed to get chat by invite username: {e}")
+
+            if not chat_id:
+                await target_bot.stop()
+                return await status_msg.edit(
+                    f"❌ **Resolution Failed:** Could not resolve chat from `{group_input}`.\n\n"
+                    f"Please make sure the bot is already added to the group first, or provide a valid numeric Group ID."
+                )
+
+            try:
+                chat = await target_bot.get_chat(chat_id)
+            except Exception as e:
+                await target_bot.stop()
+                return await status_msg.edit(
+                    f"❌ **Chat Access Failed:** {str(e)}\n\n"
+                    f"Is the bot actually inside the group? Please add the bot to the group first!"
+                )
+
+            try:
+                member = await target_bot.get_chat_member(chat_id, "me")
+            except Exception as e:
+                await target_bot.stop()
+                return await status_msg.edit(
+                    f"❌ **Failed to retrieve membership status:** {str(e)}\n\n"
+                    f"Please verify if the bot is in the group."
+                )
+
+            is_admin = member.status in [enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.OWNER]
+            if not is_admin:
+                await target_bot.stop()
+                return await status_msg.edit(
+                    f"❌ **Administrator Privileges Required!**\n\n"
+                    f"The bot is inside `{chat.title}`, but it is NOT an administrator.\n"
+                    f"Please promote the bot to Administrator in the group and try again."
+                )
+
+            privileges = member.privileges
+            missing_permissions = []
+
+            if not privileges or not privileges.can_delete_messages:
+                missing_permissions.append("Delete Messages")
+            if not privileges or not privileges.can_pin_messages:
+                missing_permissions.append("Pin Messages (Optional)")
+            if not privileges or not privileges.can_manage_topics:
+                if chat.is_forum:
+                    missing_permissions.append("Manage Topics (Optional)")
+
+            permissions_report = "✅ All required permissions are set."
+            if missing_permissions:
+                permissions_report = f"⚠️ **Missing Permissions:**\n" + "\n".join([f"• {p}" for p in missing_permissions])
+
+            permissions_dict = {
+                "can_delete_messages": privileges.can_delete_messages if privileges else False,
+                "can_pin_messages": privileges.can_pin_messages if privileges else False,
+                "can_manage_topics": privileges.can_manage_topics if privileges else False,
+            }
+
+            await db.add_bot(token, chat_id, permissions_dict)
+            await multibot_manager.add_and_start_bot(token, chat_id)
+
+            await status_msg.edit(
+                f"🎉 **Bot Successfully Configured!**\n\n"
+                f"🤖 **Bot:** {state['bot_name']} (@{state['bot_username']})\n"
+                f"👥 **Group:** {chat.title} (`{chat_id}`)\n\n"
+                f"{permissions_report}\n\n"
+                f"The bot is now active and will automatically handle Smart Title Search in this group!"
+            )
+
+            del user_state[message.from_user.id]
+
+        except Exception as e:
+            logger.error(f"Group processing error: {e}")
+            await status_msg.edit(f"❌ **Verification Error:** {str(e)}")
+        finally:
+            try:
+                await target_bot.stop()
+            except:
+                pass
+
+    @bot.on_message(filters.command("addbot"))
+    async def addbot_handler(client, message):
+        if not message.from_user: return
+        if not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Access Denied.** Only authorized administrators can add bots.")
+
+        token = ""
+        if len(message.command) > 1:
+            token = message.command[1].strip()
+        elif message.reply_to_message:
+            token = (message.reply_to_message.text or "").strip()
+
+        if not token:
+            user_state[message.from_user.id] = {"action": "ask_bot_token"}
+            return await message.reply("🤖 **Add Dynamic Bot**\n\nPlease send the **Bot Token** from @BotFather:")
+
+        await process_bot_token(client, message, token)
 
     @bot.on_message(filters.command("cancel"))
     async def cancel_handler(client, message):
@@ -1621,7 +2014,7 @@ def register_handlers(bot: Client):
 
     # --- INTERACTION HANDLER (GROUP 1) ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page", "addbot"]), group=1)
     async def interaction_handler(client, message):
         if not message.from_user: return
         uid = message.from_user.id
@@ -1633,7 +2026,13 @@ def register_handlers(bot: Client):
 
         action = state.get("action", "")
         try:
-            if action == "ask_search_query":
+            if action == "ask_bot_token":
+                token = message.text.strip()
+                return await process_bot_token(client, message, token)
+            elif action == "ask_group_id":
+                group_input = message.text.strip()
+                return await process_group_id(client, message, group_input, state)
+            elif action == "ask_search_query":
                 return await search_handler(client, message, is_retry=True)
             elif action == "ask_manual_title":
                 user_state[uid].update({"title": message.text.strip(), "action": "ask_manual_synopsis"})
