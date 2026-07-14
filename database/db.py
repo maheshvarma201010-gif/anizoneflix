@@ -26,6 +26,14 @@ def clean_doc(doc):
         return new_doc
     return doc
 
+def normalize_text(text: str) -> str:
+    if not text:
+        return ""
+    text = text.lower()
+    text = re.sub(r'[^\w\s\u0c00-\u0c7f\u0900-\u097f\u0b80-\u0bff\u3040-\u30ff\u4e00-\u9faf]', ' ', text)
+    text = " ".join(text.split())
+    return text
+
 class Database:
     def __init__(self):
         self.client = None
@@ -35,6 +43,7 @@ class Database:
         self._users = None
         self._categories = None
         self._schedules = None
+        self._bots = None
 
     async def connect(self):
         """Initialize connection with absolute persistence focus and retries"""
@@ -65,6 +74,7 @@ class Database:
                 self._users = self._db.users
                 self._categories = self._db.categories
                 self._schedules = self._db.schedules
+                self._bots = self._db.bots
 
                 logger.info(f"Database Persistence Verified: {Config.DB_NAME} is active.")
                 return
@@ -94,6 +104,10 @@ class Database:
     @property
     def schedules(self):
         return self._schedules if self._schedules is not None else self.MockCollection("schedules")
+
+    @property
+    def bots(self):
+        return self._bots if self._bots is not None else self.MockCollection("bots")
 
     class MockCollection:
         """Emergency layer to prevent system crashes if Atlas is unreachable"""
@@ -173,10 +187,64 @@ class Database:
             if self._anime is None: return []
             safe_query = re.escape(query)
             cursor = self._anime.find({"title": {"$regex": safe_query, "$options": "i"}})
-            docs = await cursor.to_list(length=20)
+            docs = await cursor.to_list(length=100)
             return clean_doc(docs) or []
         except Exception as e:
             logger.error(f"Read Error (search_anime_db): {e}")
+            return []
+
+    async def search_anime_smart(self, query: str):
+        """Intelligent case-insensitive, punctuation-ignored, relevance-sorted search across English, Telugu, Hindi, Tamil, Japanese"""
+        try:
+            if self._anime is None: return []
+            normalized_query = normalize_text(query)
+            if not normalized_query:
+                return []
+
+            words = [re.escape(w) for w in normalized_query.split() if w]
+            if not words:
+                return []
+
+            or_conditions = []
+            for word in words:
+                or_conditions.append({"title": {"$regex": word, "$options": "i"}})
+                or_conditions.append({"genres": {"$regex": word, "$options": "i"}})
+                or_conditions.append({"category": {"$regex": word, "$options": "i"}})
+
+            cursor = self._anime.find({"$or": or_conditions})
+            docs = await cursor.to_list(length=100)
+
+            results = []
+            for doc in docs:
+                title = doc.get("title", "")
+                norm_title = normalize_text(title)
+
+                score = 0
+                if norm_title == normalized_query:
+                    score = 100
+                elif norm_title.startswith(normalized_query):
+                    score = 80
+                elif norm_title.endswith(normalized_query):
+                    score = 60
+                elif normalized_query in norm_title:
+                    score = 40
+                else:
+                    matched_words = 0
+                    title_words = norm_title.split()
+                    for w in normalized_query.split():
+                        if any(w in tw for tw in title_words):
+                            matched_words += 1
+                    if matched_words > 0:
+                        score = 20 + matched_words
+
+                if score > 0:
+                    results.append((score, doc))
+
+            results.sort(key=lambda x: (-x[0], x[1].get("title", "").lower()))
+            sorted_docs = [clean_doc(r[1]) for r in results]
+            return sorted_docs
+        except Exception as e:
+            logger.error(f"Error in search_anime_smart: {e}")
             return []
 
     async def get_anime(self, identifier):
@@ -185,14 +253,12 @@ class Database:
         try:
             if self._anime is None: return None
 
-            # Try ObjectId lookup first if it looks like one
             if isinstance(identifier, str) and len(identifier) == 24:
                 try:
                     doc = await self._anime.find_one({"_id": ObjectId(identifier)})
                     if doc: return clean_doc(doc)
                 except: pass
 
-            # Fallback to slug
             doc = await self._anime.find_one({"slug": identifier})
             return clean_doc(doc)
         except Exception as e:
@@ -271,7 +337,6 @@ class Database:
             if not res: return []
 
             content = res.get("content", [])
-            # Convert string to structured list and extract URLs
             if isinstance(content, str):
                 structured = []
                 for line in content.split("\n"):
@@ -281,23 +346,19 @@ class Database:
                     image_url = None
                     time_val = "TBA"
 
-                    # Extract URL (more robustly, looking for common image extensions too)
                     url_match = re.search(r'(https?://[^\s]+\.(?:jpg|jpeg|png|webp|gif|bmp)(?:\?[^\s]*)?)', line, re.I)
                     if not url_match:
-                        # Fallback to any URL
                         url_match = re.search(r'(https?://[^\s]+)', line)
 
                     if url_match:
                         image_url = url_match.group(0).strip('.,()[]{}')
                         line = line.replace(url_match.group(0), "").strip()
 
-                    # Extract Time (e.g. "12:00 PM", "(12:00)", "12.00")
                     time_match = re.search(r'\(?(\d{1,2}[:.]\d{2}\s*(?:AM|PM|am|pm)?)\)?', line)
                     if time_match:
                         time_val = time_match.group(1).replace('.', ':')
                         line = line.replace(time_match.group(0), "").strip()
 
-                    # Clean up remaining name (remove leading dots/numbers if any)
                     name = re.sub(r'^[\d\.\-\s]+', '', line).strip()
                     if not name and image_url: name = "Untitled Entry"
 
@@ -316,6 +377,38 @@ class Database:
             return user is not None
         except: return False
 
+    # --- Added Bots CRUD ---
+
+    async def add_bot(self, token, group_id, permissions=None):
+        try:
+            if self._bots is None: return None
+            return await self._bots.update_one(
+                {"token": token},
+                {"$set": {"token": token, "group_id": group_id, "permissions": permissions or {}}, "$currentDate": {"updated_at": True}},
+                upsert=True
+            )
+        except Exception as e:
+            logger.error(f"Persistence Error (add_bot): {e}")
+            return None
+
+    async def get_all_bots(self):
+        try:
+            if self._bots is None: return []
+            cursor = self._bots.find()
+            docs = await cursor.to_list(length=1000)
+            return clean_doc(docs) or []
+        except Exception as e:
+            logger.error(f"Read Error (get_all_bots): {e}")
+            return []
+
+    async def remove_bot(self, token):
+        try:
+            if self._bots is None: return None
+            return await self._bots.delete_one({"token": token})
+        except Exception as e:
+            logger.error(f"Persistence Error (remove_bot): {e}")
+            return None
+
     async def export_data(self):
         try:
             if self._db is None: return None
@@ -325,7 +418,8 @@ class Database:
                 "episodes": self._episodes,
                 "users": self._users,
                 "categories": self._categories,
-                "schedules": self._schedules
+                "schedules": self._schedules,
+                "bots": self._bots
             }
             total_found = 0
             for name, coll in collections.items():
@@ -335,7 +429,7 @@ class Database:
                     total_found += len(docs)
 
             if total_found == 0:
-                return {} # Return empty dict to indicate connected but empty
+                return {}
             return data
         except Exception as e:
             logger.error(f"Export Error: {e}")
@@ -349,10 +443,10 @@ class Database:
                 "episodes": self._episodes,
                 "users": self._users,
                 "categories": self._categories,
-                "schedules": self._schedules
+                "schedules": self._schedules,
+                "bots": self._bots
             }
 
-            # Prepare data and validate before deleting
             to_import = {}
             for name, docs in data.items():
                 coll = collections.get(name)
@@ -360,14 +454,12 @@ class Database:
                     processed_docs = []
                     for doc in docs:
                         if isinstance(doc, dict):
-                            # Handle MongoDB ObjectId if present in string format
                             if "_id" in doc and isinstance(doc["_id"], str) and len(doc["_id"]) == 24:
                                 try: doc["_id"] = ObjectId(doc["_id"])
                                 except: pass
                             processed_docs.append(doc)
                     to_import[name] = processed_docs
 
-            # Now perform deletions and insertions in a transaction-like manner
             for name, coll in collections.items():
                 if name in to_import:
                     await coll.delete_many({})

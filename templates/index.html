@@ -407,6 +407,17 @@
     let loading = false;
     let hasMore = true;
 
+    // Set of slugs to prevent duplicates
+    const loadedSlugs = new Set();
+
+    // Pre-populate with trending and recent slide slugs so they are not duplicated
+    {% for anime in trending if anime %}
+        loadedSlugs.add("{{ anime.slug }}");
+    {% endfor %}
+    {% for anime in recent if anime %}
+        loadedSlugs.add("{{ anime.slug }}");
+    {% endfor %}
+
     const loadMore = async () => {
         if (loading || !hasMore) return;
         loading = true;
@@ -420,7 +431,15 @@
                 hasMore = false;
             } else {
                 const container = document.getElementById('animeContainer');
+                let insertedCount = 0;
                 res.data.forEach(anime => {
+                    // Prevent duplicates
+                    if (loadedSlugs.has(anime.slug)) {
+                        return;
+                    }
+                    loadedSlugs.add(anime.slug);
+                    insertedCount++;
+
                     const html = `
                         <div class="anime-card group animate-fade-in">
                             <a href="/anime/${anime.slug}" class="block">
@@ -451,6 +470,12 @@
                     container.insertAdjacentHTML('beforeend', html);
                 });
                 page++;
+
+                // If we retrieved results but all of them were filtered as duplicates, load more immediately
+                if (insertedCount === 0 && res.data.length > 0) {
+                    loading = false;
+                    await loadMore();
+                }
             }
         } catch (e) {
             console.error('Error loading more anime:', e);

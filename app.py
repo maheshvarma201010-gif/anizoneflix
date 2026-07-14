@@ -52,6 +52,9 @@ async def lifespan(app: FastAPI):
         await bot.start()
         await set_commands(bot)
 
+        from bot import multibot_manager
+        await multibot_manager.start_all_bots()
+
         me = await bot.get_me()
         logger.info(f"Production Suite LIVE -> @{me.username}")
     except Exception as e:
@@ -63,6 +66,8 @@ async def lifespan(app: FastAPI):
     # SHUTDOWN
     logger.info("Production Engine shutting down...")
     try:
+        from bot import multibot_manager
+        await multibot_manager.stop_all_bots()
         if bot.is_connected:
             await bot.stop()
         await anime_api.close()
@@ -322,7 +327,7 @@ async def admin_login(request: Request, token: str = None):
 
 @app.get("/admin/dashboard")
 async def admin_dashboard(request: Request, admin=Depends(get_current_admin)):
-    posts = await db.get_all_anime(limit=100)
+    posts = await db.get_all_anime(limit=100000)
     return templates.TemplateResponse(request=request, name="admin_dashboard.html", context={
         "posts": posts or [], "logo_url": Config.LOGO_URL, "site_name": "ANIZONEFLIX"
     })
