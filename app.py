@@ -127,8 +127,36 @@ async def add_security_headers_and_rewrite_links(request: Request, call_next):
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+def t_me_to_telegram_me(url: str) -> str:
+    """
+    Safely replaces t.me with telegram.me in any given URL.
+    """
+    if not url:
+        return ""
+    import re
+    return re.sub(r'\bt\.me\b', 'telegram.me', url)
+
+# Override templates.TemplateResponse to automatically rewrite all t.me links to telegram.me in HTML output
+_original_template_response = templates.TemplateResponse
+
+def custom_template_response(*args, **kwargs):
+    response = _original_template_response(*args, **kwargs)
+    if hasattr(response, "body"):
+        import re
+        html = response.body.decode("utf-8", errors="ignore")
+        # Replace t.me with telegram.me globally
+        html = re.sub(r'([:/])t\.me\b', r'\1telegram.me', html)
+        encoded = html.encode("utf-8")
+        response._body = encoded
+        response.headers["content-length"] = str(len(encoded))
+    return response
+
+templates.TemplateResponse = custom_template_response
+
 templates.env.filters["slugify"] = slugify
 templates.env.filters["button_link_rewrite"] = button_link_rewrite
+templates.env.filters["t_me_to_telegram_me"] = t_me_to_telegram_me
 
 # --- CUSTOM RESPONSES ---
 
@@ -158,8 +186,8 @@ async def index(request: Request):
         return Response(status_code=200 if is_healthy else 503)
 
     try:
-        trending = await db.get_all_anime(limit=100000)
-        recent = await db.get_all_anime(limit=100000)
+        trending = await db.get_all_anime(limit=15)
+        recent = await db.get_all_anime(limit=20)
         categories = await db.get_all_categories()
 
         return templates.TemplateResponse(request=request, name="index.html", context={
@@ -228,6 +256,24 @@ async def get_anime_api(skip: int = 0, limit: int = 100000):
     try:
         data = await db.get_all_anime(limit=limit, skip=skip)
         return safe_api_response(True, data)
+    except Exception as e:
+        return safe_api_response(False, None, str(e))
+
+@app.get("/api/search")
+async def get_search_api(q: str = "", skip: int = 0, limit: int = 24):
+    try:
+        if q:
+            if await db.ping():
+                results = await db.anime.find({"$or": [
+                    {"title": {"$regex": q, "$options": "i"}},
+                    {"category": q}
+                ]}).sort("_id", -1).skip(skip).to_list(length=limit)
+                return safe_api_response(True, clean_doc(results))
+            else:
+                return safe_api_response(True, [])
+        else:
+            data = await db.get_all_anime(limit=limit, skip=skip)
+            return safe_api_response(True, data)
     except Exception as e:
         return safe_api_response(False, None, str(e))
 

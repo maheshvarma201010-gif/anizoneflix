@@ -77,7 +77,7 @@
             const q = new URLSearchParams(window.location.search).get('q') || '';
 
             try {
-                const resp = await fetch(`/api/anime?skip=${searchPage * 24}&limit=24`);
+                const resp = await fetch(`/api/search?q=${encodeURIComponent(q)}&skip=${searchPage * 24}&limit=24`);
                 const res = await resp.json();
 
                 if (!res.success || !res.data || res.data.length === 0) {
@@ -86,14 +86,6 @@
                     const container = document.getElementById('searchResultsContainer');
                     res.data.forEach(anime => {
                         if (loadedSearchSlugs.has(anime.slug)) return;
-
-                        // If there is an active search query, filter client-side to ensure matches
-                        if (q) {
-                            const isTitleMatch = anime.title.toLowerCase().includes(q.toLowerCase());
-                            const isCategoryMatch = anime.category && anime.category.toLowerCase().includes(q.toLowerCase());
-                            if (!isTitleMatch && !isCategoryMatch) return;
-                        }
-
                         loadedSearchSlugs.add(anime.slug);
 
                         const html = `
