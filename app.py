@@ -88,27 +88,21 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-def rewrite_domains_to_current(html_content: str, current_base_url: str) -> str:
+def button_link_rewrite(url: str) -> str:
     """
-    Scans HTML and rewrites any hyperlink domain pointing to an anime detail page (excluding t.me)
-    to match the current BASE_URL.
-    E.g. https://olddomain.com/anime/some-slug -> https://current-base.com/anime/some-slug
+    Safely rewrites any website page link (/anime/{slug}) in buttons
+    to point to the current Base URL.
+    Excludes Telegram (t.me) and other external links.
     """
-    if not html_content or not current_base_url:
-        return html_content
-
+    if not url:
+        return ""
     import re
-    # Regex looks for any href attribute containing /anime/{slug}
-    # E.g. href="https://old-domain.com/anime/naruto" or href="http://example.com/anime/bleach"
-    # Do not match if the domain is t.me or telegram.me
-    pattern = r'href=["\'](?:https?://(?!t\.me|telegram\.me|telegram\.dog)[a-zA-Z0-9.-]+)?/anime/([a-zA-Z0-9-]+)["\']'
-
-    # We replace the matched href with the current base_url and correct slug
-    def replacer(match):
-        slug = match.group(1)
-        return f'href="{current_base_url}/anime/{slug}"'
-
-    return re.sub(pattern, replacer, html_content)
+    if "/anime/" in url and not any(ext in url for ext in ["t.me", "telegram.me", "telegram.dog"]):
+        slug_match = re.search(r'/anime/([a-zA-Z0-9-]+)', url)
+        if slug_match:
+            slug = slug_match.group(1)
+            return f"{Config.BASE_URL}/anime/{slug}"
+    return url
 
 @app.middleware("http")
 async def add_security_headers_and_rewrite_links(request: Request, call_next):
@@ -129,35 +123,12 @@ async def add_security_headers_and_rewrite_links(request: Request, call_next):
     if request.url.path.startswith("/static"):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
 
-    # Intercept HTML responses and apply absolute domain rewriting to current base url
-    content_type = response.headers.get("content-type", "")
-    if "text/html" in content_type:
-        import re
-        # Gather body chunks and decode
-        body = b""
-        async for chunk in response.body_iterator:
-            body += chunk
-
-        decoded_html = body.decode("utf-8", errors="ignore")
-        modified_html = rewrite_domains_to_current(decoded_html, Config.BASE_URL)
-        encoded_html = modified_html.encode("utf-8")
-
-        # Recreate Response with modified HTML
-        new_response = Response(
-            content=encoded_html,
-            status_code=response.status_code,
-            headers=dict(response.headers),
-            media_type="text/html"
-        )
-        # Recalculate Content-Length
-        new_response.headers["content-length"] = str(len(encoded_html))
-        return new_response
-
     return response
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 templates.env.filters["slugify"] = slugify
+templates.env.filters["button_link_rewrite"] = button_link_rewrite
 
 # --- CUSTOM RESPONSES ---
 

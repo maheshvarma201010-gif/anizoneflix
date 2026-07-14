@@ -53,7 +53,7 @@
 
                     {% if anime.custom_buttons %}
                         {% for btn in anime.custom_buttons %}
-                        <a href="{{ btn.link }}" target="_blank" class="btn-premium px-8 py-3.5 text-[10px] tracking-[0.15em] bg-white/10 hover:bg-red-600 text-white border-white/10">
+                        <a href="{{ btn.link|button_link_rewrite }}" target="_blank" class="btn-premium px-8 py-3.5 text-[10px] tracking-[0.15em] bg-white/10 hover:bg-red-600 text-white border-white/10">
                             <i class="fa-solid fa-link mr-2"></i> {{ btn.name }}
                         </a>
                         {% endfor %}
@@ -140,7 +140,7 @@
                     <h3 class="text-3xl font-black tracking-tighter uppercase">{{ box.name }}</h3>
                 </div>
                 {% if box.link %}
-                <a href="{{ box.link }}" target="_blank" class="btn-premium px-6 py-3 text-[9px] tracking-widest">
+                <a href="{{ box.link|button_link_rewrite }}" target="_blank" class="btn-premium px-6 py-3 text-[9px] tracking-widest">
                     EXTERNAL LINK <i class="fa-solid fa-arrow-up-right-from-square ml-2"></i>
                 </a>
                 {% endif %}
