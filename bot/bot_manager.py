@@ -20,6 +20,14 @@ def clean_search_query(q: str) -> str:
     q = re.sub(r'\s+', ' ', q).strip()
     return q
 
+async def auto_delete_after_delay(message, delay: int = 20):
+    """Background task to automatically delete a sent message after a delay."""
+    await asyncio.sleep(delay)
+    try:
+        await message.delete()
+    except Exception as e:
+        logger.debug(f"Auto-delete failed (already deleted or permissions missing): {e}")
+
 async def send_search_results_page(client: Client, message, session_id: str, page: int = 0):
     cache = search_cache.get(session_id)
     if not cache:
@@ -64,9 +72,11 @@ async def send_search_results_page(client: Client, message, session_id: str, pag
 
     try:
         if isinstance(message, CallbackQuery):
-            await message.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+            res_msg = await message.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
         else:
-            await message.reply(text, reply_markup=InlineKeyboardMarkup(buttons))
+            res_msg = await message.reply(text, reply_markup=InlineKeyboardMarkup(buttons))
+            # Auto delete list option after 20 seconds
+            asyncio.create_task(auto_delete_after_delay(res_msg, 20))
     except Exception as e:
         logger.error(f"Error sending search results page: {e}")
 
@@ -150,7 +160,9 @@ class AddedBotManager:
 
                 if len(results) == 1:
                     anime = results[0]
-                    await message.reply(f"{Config.BASE_URL}/anime/{anime['slug']}")
+                    sent_msg = await message.reply(f"{Config.BASE_URL}/anime/{anime['slug']}")
+                    # Setup background task to delete sent link message after 20 seconds
+                    asyncio.create_task(auto_delete_after_delay(sent_msg, 20))
                     return
 
                 # Multiple matches
@@ -200,10 +212,12 @@ class AddedBotManager:
                     # Direct lookup using _id / ID
                     anime = await db.get_anime(aid)
                     if anime:
-                        await callback_query.message.edit_text(
+                        res_msg = await callback_query.message.edit_text(
                             f"{Config.BASE_URL}/anime/{anime['slug']}",
                             reply_markup=None
                         )
+                        # Auto delete selected link message after 20 seconds
+                        asyncio.create_task(auto_delete_after_delay(res_msg, 20))
                     else:
                         await callback_query.answer("❌ Title not found in database.", show_alert=True)
                 except Exception as e:

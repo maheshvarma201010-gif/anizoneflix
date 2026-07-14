@@ -88,8 +88,30 @@ app.add_middleware(
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+def rewrite_domains_to_current(html_content: str, current_base_url: str) -> str:
+    """
+    Scans HTML and rewrites any hyperlink domain pointing to an anime detail page (excluding t.me)
+    to match the current BASE_URL.
+    E.g. https://olddomain.com/anime/some-slug -> https://current-base.com/anime/some-slug
+    """
+    if not html_content or not current_base_url:
+        return html_content
+
+    import re
+    # Regex looks for any href attribute containing /anime/{slug}
+    # E.g. href="https://old-domain.com/anime/naruto" or href="http://example.com/anime/bleach"
+    # Do not match if the domain is t.me or telegram.me
+    pattern = r'href=["\'](?:https?://(?!t\.me|telegram\.me|telegram\.dog)[a-zA-Z0-9.-]+)?/anime/([a-zA-Z0-9-]+)["\']'
+
+    # We replace the matched href with the current base_url and correct slug
+    def replacer(match):
+        slug = match.group(1)
+        return f'href="{current_base_url}/anime/{slug}"'
+
+    return re.sub(pattern, replacer, html_content)
+
 @app.middleware("http")
-async def add_security_headers(request: Request, call_next):
+async def add_security_headers_and_rewrite_links(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -106,6 +128,31 @@ async def add_security_headers(request: Request, call_next):
     # Optimization: Cache static assets
     if request.url.path.startswith("/static"):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+
+    # Intercept HTML responses and apply absolute domain rewriting to current base url
+    content_type = response.headers.get("content-type", "")
+    if "text/html" in content_type:
+        import re
+        # Gather body chunks and decode
+        body = b""
+        async for chunk in response.body_iterator:
+            body += chunk
+
+        decoded_html = body.decode("utf-8", errors="ignore")
+        modified_html = rewrite_domains_to_current(decoded_html, Config.BASE_URL)
+        encoded_html = modified_html.encode("utf-8")
+
+        # Recreate Response with modified HTML
+        new_response = Response(
+            content=encoded_html,
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            media_type="text/html"
+        )
+        # Recalculate Content-Length
+        new_response.headers["content-length"] = str(len(encoded_html))
+        return new_response
+
     return response
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
