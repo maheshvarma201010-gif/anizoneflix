@@ -331,8 +331,14 @@ async def verify_check(request: Request, token: str):
 async def download_redirect(request: Request, url: str):
     if not url: return RedirectResponse(url="/")
 
-    # Automatically transform t.me to telegram.me in the target redirect URL
     import re
+    # Automatically adjust details page links from old base domains to the current running BASE_URL
+    if "/anime/" in url and not any(ext in url for ext in ["t.me", "telegram.me", "telegram.dog"]):
+        slug_match = re.search(r'/anime/([a-zA-Z0-9-]+)', url)
+        if slug_match:
+            url = f"{Config.BASE_URL}/anime/{slug_match.group(1)}"
+
+    # Automatically transform t.me to telegram.me in the target redirect URL
     url = re.sub(r'\bt\.me\b', 'telegram.me', url)
 
     # 1. Referer Check
