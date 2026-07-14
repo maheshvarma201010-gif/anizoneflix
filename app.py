@@ -145,8 +145,9 @@ def custom_template_response(*args, **kwargs):
     if hasattr(response, "body"):
         import re
         html = response.body.decode("utf-8", errors="ignore")
-        # Replace t.me with telegram.me globally
-        html = re.sub(r'([:/])t\.me\b', r'\1telegram.me', html)
+        # Replace t.me and urlencoded t%2Eme with telegram.me and telegram%2Eme globally
+        html = re.sub(r'\bt\.me\b', 'telegram.me', html)
+        html = re.sub(r't%2[eE]me\b', 'telegram%2Eme', html)
         encoded = html.encode("utf-8")
         response._body = encoded
         response.headers["content-length"] = str(len(encoded))
@@ -330,6 +331,10 @@ async def verify_check(request: Request, token: str):
 async def download_redirect(request: Request, url: str):
     if not url: return RedirectResponse(url="/")
 
+    # Automatically transform t.me to telegram.me in the target redirect URL
+    import re
+    url = re.sub(r'\bt\.me\b', 'telegram.me', url)
+
     # 1. Referer Check
     if not Protect.check_referer(request):
         return RedirectResponse(url="/")
@@ -340,6 +345,8 @@ async def download_redirect(request: Request, url: str):
 
     # 3. Shortlink Generation
     final_url = await Protect.get_shortlink(url)
+    # Ensure final URL also replaces t.me with telegram.me in case shortlink generators preserve or modify it
+    final_url = re.sub(r'\bt\.me\b', 'telegram.me', final_url)
     return RedirectResponse(url=final_url)
 
 @app.get("/az-index")
