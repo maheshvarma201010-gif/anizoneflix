@@ -25,6 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 4. Force selection clear (Continuous)
         setInterval(() => {
+            const active = document.activeElement;
+            if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.hasAttribute('contenteditable'))) {
+                return;
+            }
             if (window.getSelection) {
                 window.getSelection().removeAllRanges();
             } else if (document.selection) {
