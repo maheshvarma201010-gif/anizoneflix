@@ -380,11 +380,50 @@
         });
     </script>
 
+    <!-- Premium Floating Search Button -->
+    <div class="search-btn-floating" onclick="openSearchOverlay()" title="Search Anime">
+        <i class="fa-solid fa-magnifying-glass"></i>
+    </div>
+
     <!-- Global Floating Action Buttons -->
     <div class="fixed bottom-8 right-8 z-[90] flex flex-col space-y-4">
         <button onclick="window.location.reload()" class="w-12 h-12 glass rounded-2xl flex items-center justify-center hover:bg-red-600 transition-all active:scale-90" title="Refresh">
             <i class="fa-solid fa-arrows-rotate"></i>
         </button>
+    </div>
+
+    <!-- Premium Search Overlay -->
+    <div id="search-overlay" class="hidden fixed inset-0 z-[200] bg-black/95 backdrop-blur-2xl overflow-y-auto px-4 py-8 md:p-12">
+        <div class="max-w-7xl mx-auto relative">
+            <!-- Close Button -->
+            <button onclick="closeSearchOverlay()" class="absolute top-0 right-0 text-4xl text-gray-400 hover:text-white transition-colors cursor-pointer z-50 p-2" title="Close Search">
+                <i class="fa-solid fa-times"></i>
+            </button>
+
+            <!-- Search Input Area -->
+            <div class="max-w-2xl mx-auto pt-12 pb-10 text-center">
+                <h2 class="text-3xl md:text-5xl font-black mb-6 uppercase tracking-tighter text-white">
+                    Search <span class="text-red-600">Anime</span>
+                </h2>
+                <div class="relative group">
+                    <input type="text" id="overlay-search-input" placeholder="Search title or category..."
+                           class="w-full h-16 glass bg-white/[0.03] border-white/10 rounded-2xl px-8 pr-20 text-lg font-bold text-white focus:ring-2 focus:ring-red-600/20 outline-none transition-all group-hover:bg-white/[0.05] group-hover:border-red-600/40 shadow-2xl">
+                    <button id="overlay-search-clear" onclick="clearSearchInput()" class="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 bg-white/5 hover:bg-white/10 rounded-xl transition-all flex items-center justify-center text-gray-400 hover:text-white hidden" title="Clear Search">
+                        <i class="fa-solid fa-times text-lg"></i>
+                    </button>
+                </div>
+                <p id="overlay-search-status" class="mt-4 text-gray-500 font-bold text-xs uppercase tracking-[0.3em] hidden"></p>
+            </div>
+
+            <!-- Loader -->
+            <div id="overlay-search-loader" class="hidden py-12 text-center">
+                <div class="inline-block w-12 h-12 border-4 border-red-600/20 border-t-red-600 rounded-full animate-spin"></div>
+                <p class="mt-4 text-[10px] font-black uppercase tracking-[0.5em] text-gray-600">Searching...</p>
+            </div>
+
+            <!-- Results Grid -->
+            <div id="overlay-results-container" class="responsive-grid gap-3 md:gap-6"></div>
+        </div>
     </div>
 
     <!-- Footer -->

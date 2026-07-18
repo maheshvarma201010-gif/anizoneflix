@@ -125,8 +125,212 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Floating Search Button ---
     const floatingSearch = document.querySelector('.search-btn-floating');
     if (floatingSearch) {
-        floatingSearch.addEventListener('click', () => {
-            window.location.href = '/search';
+        floatingSearch.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (typeof window.openSearchOverlay === 'function') {
+                window.openSearchOverlay();
+            }
         });
     }
+
+    // ==========================================
+    // INSTANT SEARCH OVERLAY MODULE
+    // ==========================================
+    let searchDebounceTimeout = null;
+
+    const openSearchOverlay = (query = "") => {
+        const overlay = document.getElementById('search-overlay');
+        const input = document.getElementById('overlay-search-input');
+        const clearBtn = document.getElementById('overlay-search-clear');
+
+        if (overlay && input) {
+            overlay.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            input.focus();
+            if (query) {
+                input.value = query;
+                if (clearBtn) clearBtn.classList.remove('hidden');
+                performOverlaySearch(query);
+            } else {
+                if (!input.value) {
+                    const resultsContainer = document.getElementById('overlay-results-container');
+                    const searchStatus = document.getElementById('overlay-search-status');
+                    if (resultsContainer) resultsContainer.innerHTML = '';
+                    if (searchStatus) searchStatus.classList.add('hidden');
+                    if (clearBtn) clearBtn.classList.add('hidden');
+                }
+            }
+        }
+    };
+
+    const closeSearchOverlay = () => {
+        const overlay = document.getElementById('search-overlay');
+        if (overlay) {
+            overlay.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+    };
+
+    const clearSearchInput = () => {
+        const input = document.getElementById('overlay-search-input');
+        const container = document.getElementById('overlay-results-container');
+        const status = document.getElementById('overlay-search-status');
+        const clearBtn = document.getElementById('overlay-search-clear');
+        if (input) input.value = '';
+        if (container) container.innerHTML = '';
+        if (status) {
+            status.textContent = '';
+            status.classList.add('hidden');
+        }
+        if (clearBtn) clearBtn.classList.add('hidden');
+    };
+
+    const performOverlaySearch = async (q) => {
+        const container = document.getElementById('overlay-results-container');
+        const status = document.getElementById('overlay-search-status');
+        const loader = document.getElementById('overlay-search-loader');
+
+        if (!container || !status || !loader) return;
+
+        loader.classList.remove('hidden');
+        status.classList.add('hidden');
+
+        try {
+            const response = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=48`);
+            const res = await response.json();
+
+            if (res.success && res.data && res.data.length > 0) {
+                status.textContent = `Found ${res.data.length} titles`;
+                status.classList.remove('hidden');
+
+                let html = '';
+                res.data.forEach(anime => {
+                    html += `
+                        <div class="anime-card group animate-fade-in no-select no-drag">
+                            <a href="/anime/${anime.slug}" class="block">
+                                <div class="poster-wrapper relative overflow-hidden rounded-xl bg-black/50 shadow-xl">
+                                    <img src="${anime.image}" alt="${anime.title}" loading="lazy" class="w-full h-auto max-h-[320px] object-contain transition-transform duration-700 group-hover:scale-105">
+                                    <div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-6">
+                                        <div class="btn-premium py-2.5 text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl mb-3 md:mb-4 text-center">Watch Now</div>
+                                        <div class="flex items-center gap-3 md:gap-4 text-[9px] md:text-[10px] text-gray-300 font-black tracking-widest">
+                                            <span class="text-yellow-500"><i class="fa-solid fa-star mr-1"></i> ${anime.score || '8.5'}</span>
+                                            <span>•</span>
+                                            <span>${anime.year || '2024'}</span>
+                                        </div>
+                                    </div>
+                                    <div class="absolute top-3 right-3 glass px-3 py-1.5 rounded-xl text-[10px] font-black border-white/10 shadow-2xl backdrop-blur-sm">
+                                        <i class="fa-solid fa-star text-yellow-500 mr-1.5"></i> ${anime.score || '8.5'}
+                                    </div>
+                                </div>
+                                <div class="p-3 md:p-4 bg-gradient-to-b from-transparent to-black/20">
+                                    <h3 class="text-xs md:text-sm font-bold truncate text-white group-hover:text-red-500 transition-colors">${anime.title}</h3>
+                                    <div class="flex items-center justify-between mt-2">
+                                        <span class="text-[7px] md:text-[8px] text-gray-400 font-bold uppercase tracking-widest">${anime.category || 'Anime'}</span>
+                                        <span class="text-[7px] md:text-[8px] text-red-600 font-bold uppercase tracking-widest">${anime.status || 'Released'}</span>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            } else {
+                status.textContent = 'No Results Found';
+                status.classList.remove('hidden');
+                container.innerHTML = `
+                    <div class="col-span-full py-20 text-center">
+                        <i class="fa-solid fa-magnifying-glass text-5xl text-gray-800 mb-6"></i>
+                        <h4 class="text-xl font-bold text-gray-500 uppercase tracking-tighter">No Matching Titles</h4>
+                    </div>
+                `;
+            }
+        } catch (e) {
+            console.error('Error during live search:', e);
+            status.textContent = 'Search failed';
+            status.classList.remove('hidden');
+        } finally {
+            loader.classList.add('hidden');
+        }
+    };
+
+    // Export functions globally
+    window.openSearchOverlay = openSearchOverlay;
+    window.closeSearchOverlay = closeSearchOverlay;
+    window.clearSearchInput = clearSearchInput;
+
+    // Register event listeners
+    const overlayInput = document.getElementById('overlay-search-input');
+    if (overlayInput) {
+        overlayInput.addEventListener('input', (e) => {
+            const val = e.target.value.trim();
+            const clearBtn = document.getElementById('overlay-search-clear');
+
+            if (clearBtn) {
+                if (val) {
+                    clearBtn.classList.remove('hidden');
+                } else {
+                    clearBtn.classList.add('hidden');
+                }
+            }
+
+            if (searchDebounceTimeout) {
+                clearTimeout(searchDebounceTimeout);
+            }
+
+            if (!val) {
+                const resultsContainer = document.getElementById('overlay-results-container');
+                const searchStatus = document.getElementById('overlay-search-status');
+                if (resultsContainer) resultsContainer.innerHTML = '';
+                if (searchStatus) searchStatus.classList.add('hidden');
+                return;
+            }
+
+            searchDebounceTimeout = setTimeout(() => {
+                performOverlaySearch(val);
+            }, 150);
+        });
+    }
+
+    // Escape key to close search overlay
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeSearchOverlay();
+        }
+    });
+
+    // Close on overlay background click
+    const searchOverlay = document.getElementById('search-overlay');
+    if (searchOverlay) {
+        searchOverlay.addEventListener('click', (e) => {
+            if (e.target === searchOverlay) {
+                closeSearchOverlay();
+            }
+        });
+    }
+
+    // Global intercept search links
+    document.addEventListener('click', (e) => {
+        const link = e.target.closest('a');
+        if (link) {
+            const href = link.getAttribute('href');
+            if (href) {
+                if (href === '/search') {
+                    e.preventDefault();
+                    openSearchOverlay();
+                    // Close mobile menu if open
+                    if (typeof window.toggleMenu === 'function') {
+                        window.toggleMenu(false);
+                    }
+                } else if (href.startsWith('/search?q=')) {
+                    e.preventDefault();
+                    const query = decodeURIComponent(href.split('/search?q=')[1]);
+                    openSearchOverlay(query);
+                    // Close mobile menu if open
+                    if (typeof window.toggleMenu === 'function') {
+                        window.toggleMenu(false);
+                    }
+                }
+            }
+        }
+    });
 });
