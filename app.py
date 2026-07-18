@@ -159,6 +159,119 @@ templates.env.filters["slugify"] = slugify
 templates.env.filters["button_link_rewrite"] = button_link_rewrite
 templates.env.filters["t_me_to_telegram_me"] = t_me_to_telegram_me
 
+import re
+
+def normalize_search_text(text: str) -> str:
+    if not text:
+        return ""
+    # Lowercase and remove all non-alphanumeric characters
+    return re.sub(r'[^a-zA-Z0-9]', '', text.lower())
+
+def get_anime_search_terms(anime: dict):
+    terms = []
+    # 1. Title
+    title = anime.get("title", "")
+    terms.append(("title", title, normalize_search_text(title)))
+
+    # 2. Alternate Titles / Acronyms / Synonyms
+    words = [w for w in re.split(r'[^a-zA-Z0-9]', title.lower()) if w]
+    if len(words) > 1:
+        acronym = "".join([w[0] for w in words])
+        terms.append(("acronym", acronym, acronym)) # e.g. "aot" for "attack on titan"
+
+    # Standard acronyms expansion lookup
+    acronym_map = {
+        "aot": "attackontitan",
+        "fmab": "fullmetalalchemistbrotherhood",
+        "op": "onepiece",
+        "ds": "demonslayer",
+        "jjk": "jujutsukaisen",
+        "mha": "myheroacademia",
+        "sao": "swordartonline",
+        "dbz": "dragonballz",
+        "hxh": "hunterxhunter"
+    }
+
+    norm_title = normalize_search_text(title)
+    for ac, full in acronym_map.items():
+        if full == norm_title:
+            terms.append(("acronym", ac, ac))
+
+    # 3. Category
+    cat = anime.get("category", "")
+    terms.append(("category", cat, normalize_search_text(cat)))
+
+    # 4. Genres
+    genres = anime.get("genres", [])
+    if isinstance(genres, list):
+        for g in genres:
+            terms.append(("genre", g, normalize_search_text(g)))
+
+    # 5. Language / Audio
+    languages_map = {
+        "telugu": "tel",
+        "tamil": "tam",
+        "hindi": "hin",
+        "english": "eng",
+        "japanese": "jap",
+        "malayalam": "mal",
+        "kannada": "kan",
+        "bengali": "ben"
+    }
+    title_lower = title.lower()
+    for lang, abbrev in languages_map.items():
+        if lang in title_lower or abbrev in title_lower:
+            terms.append(("language", lang, normalize_search_text(lang)))
+            terms.append(("language", abbrev, normalize_search_text(abbrev)))
+    if "multi audio" in title_lower or "multi-audio" in title_lower:
+        terms.append(("language", "multi audio", normalize_search_text("multi audio")))
+
+    # 6. Season
+    seasons_links = anime.get("seasons_links", {})
+    if isinstance(seasons_links, dict):
+        for s in seasons_links.keys():
+            terms.append(("season", s, normalize_search_text(s)))
+
+    season_match = re.search(r'season\s*\d+', title_lower)
+    if season_match:
+        s_val = season_match.group(0)
+        terms.append(("season", s_val, normalize_search_text(s_val)))
+
+    return terms
+
+def calculate_search_score(anime: dict, q: str, norm_q: str) -> int:
+    terms = get_anime_search_terms(anime)
+    max_score = 0
+
+    for term_type, raw_val, norm_val in terms:
+        score = 0
+        if norm_val == norm_q:
+            if term_type == "title":
+                score = 100
+            elif term_type == "acronym":
+                score = 95
+            elif term_type == "category":
+                score = 85
+            else:
+                score = 80
+        elif norm_val.startswith(norm_q):
+            if term_type == "title":
+                score = 75
+            else:
+                score = 65
+        elif norm_q in norm_val:
+            if term_type == "title":
+                score = 50
+            else:
+                score = 40
+        elif norm_val in norm_q:
+            score = 25
+
+        if score > max_score:
+            max_score = score
+
+    return max_score
+
 # --- CUSTOM RESPONSES ---
 
 def safe_api_response(success=True, data=None, message=""):
@@ -265,17 +378,37 @@ async def get_search_api(q: str = "", skip: int = 0, limit: int = 24):
     try:
         if q:
             if await db.ping():
-                results = await db.anime.find({"$or": [
-                    {"title": {"$regex": q, "$options": "i"}},
-                    {"category": q}
-                ]}).sort("_id", -1).skip(skip).to_list(length=limit)
-                return safe_api_response(True, clean_doc(results))
+                cursor = db.anime.find()
+                all_anime = await cursor.to_list(length=10000)
+                all_anime = clean_doc(all_anime)
+
+                norm_q = normalize_search_text(q)
+                if not norm_q:
+                    return safe_api_response(True, all_anime[skip:skip+limit])
+
+                scored_results = []
+                seen_slugs = set()
+                for anime in all_anime:
+                    slug = anime.get("slug")
+                    if not slug or slug in seen_slugs:
+                        continue
+                    score = calculate_search_score(anime, q, norm_q)
+                    if score > 0:
+                        seen_slugs.add(slug)
+                        scored_results.append((score, anime))
+
+                # Sort by score descending, then by title length, then by _id descending
+                scored_results.sort(key=lambda x: (-x[0], len(x[1].get("title", "")), x[1].get("_id", "")), reverse=False)
+
+                final_results = [item[1] for item in scored_results]
+                return safe_api_response(True, final_results[skip:skip+limit])
             else:
                 return safe_api_response(True, [])
         else:
             data = await db.get_all_anime(limit=limit, skip=skip)
             return safe_api_response(True, data)
     except Exception as e:
+        logger.error(f"Search API Error: {e}")
         return safe_api_response(False, None, str(e))
 
 @app.get("/search")
@@ -284,16 +417,29 @@ async def search_web(request: Request, q: str = "", skip: int = 0, limit: int = 
         results = []
         if q:
             if await db.ping():
-                # No limit / Unlimited dynamic search logic
-                results = await db.anime.find({"$or": [
-                    {"title": {"$regex": q, "$options": "i"}},
-                    {"category": q}
-                ]}).sort("_id", -1).skip(skip).to_list(length=limit)
-                results = clean_doc(results)
+                cursor = db.anime.find()
+                all_anime = await cursor.to_list(length=10000)
+                all_anime = clean_doc(all_anime)
+
+                norm_q = normalize_search_text(q)
+                if not norm_q:
+                    results = all_anime[skip:skip+limit]
+                else:
+                    scored_results = []
+                    seen_slugs = set()
+                    for anime in all_anime:
+                        slug = anime.get("slug")
+                        if not slug or slug in seen_slugs:
+                            continue
+                        score = calculate_search_score(anime, q, norm_q)
+                        if score > 0:
+                            seen_slugs.add(slug)
+                            scored_results.append((score, anime))
+                    scored_results.sort(key=lambda x: (-x[0], len(x[1].get("title", "")), x[1].get("_id", "")), reverse=False)
+                    results = [item[1] for item in scored_results][skip:skip+limit]
             else:
                 results = []
         else:
-            # Unlimited list logic
             results = await db.get_all_anime(limit=limit, skip=skip)
 
         categories = await db.get_all_categories()
