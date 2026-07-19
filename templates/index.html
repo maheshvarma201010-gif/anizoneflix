@@ -66,8 +66,20 @@
                 </a>
             </div>
 
+            <!-- Prominent Search Bar -->
+            <div class="mt-8 max-w-md cursor-pointer" onclick="openSearchOverlay()">
+                <div class="relative group">
+                    <div class="w-full h-14 glass bg-white/[0.03] border border-white/10 rounded-2xl px-6 flex items-center justify-between text-gray-400 group-hover:bg-white/[0.05] group-hover:border-red-600/40 shadow-2xl transition-all">
+                        <span class="font-medium text-sm">Search title, genre, language...</span>
+                        <div class="w-9 h-9 bg-red-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-red-950/50 group-hover:bg-red-700 transition-colors">
+                            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {% if recent %}
-            <div class="mt-10 animate-fade-in-up" style="animation-delay: 0.3s">
+            <div class="mt-8 animate-fade-in-up" style="animation-delay: 0.3s">
                 <div class="flex items-center gap-4 glass-premium p-4 rounded-2xl border border-red-600/20 max-w-sm">
                     <div class="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center flex-shrink-0 animate-pulse">
                         <i class="fa-solid fa-bolt-lightning text-white"></i>
