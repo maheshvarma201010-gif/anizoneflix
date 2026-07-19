@@ -13,13 +13,20 @@ const openSearchOverlay = (query = "") => {
         overlay.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
 
-        // Immediate focus with small timeout to ensure virtual keyboards pop up instantly
-        setTimeout(() => {
-            input.focus();
+        // Synchronous focus call is REQUIRED in the same event frame to show the mobile keyboard!
+        input.focus();
+        try {
             const val = input.value;
             input.value = '';
             input.value = val;
-        }, 50);
+        } catch (e) {}
+
+        // Fallback deferred focus to ensure focus sticks if browser took a frame to paint
+        setTimeout(() => {
+            try {
+                input.focus();
+            } catch (e) {}
+        }, 30);
 
         if (query) {
             input.value = query;
