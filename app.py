@@ -414,45 +414,20 @@ async def get_search_api(q: str = "", skip: int = 0, limit: int = 24):
 @app.get("/search")
 async def search_web(request: Request, q: str = "", skip: int = 0, limit: int = 100000):
     try:
-        results = []
-        if q:
-            if await db.ping():
-                cursor = db.anime.find()
-                all_anime = await cursor.to_list(length=10000)
-                all_anime = clean_doc(all_anime)
-
-                norm_q = normalize_search_text(q)
-                if not norm_q:
-                    results = all_anime[skip:skip+limit]
-                else:
-                    scored_results = []
-                    seen_slugs = set()
-                    for anime in all_anime:
-                        slug = anime.get("slug")
-                        if not slug or slug in seen_slugs:
-                            continue
-                        score = calculate_search_score(anime, q, norm_q)
-                        if score > 0:
-                            seen_slugs.add(slug)
-                            scored_results.append((score, anime))
-                    scored_results.sort(key=lambda x: (-x[0], len(x[1].get("title", "")), x[1].get("_id", "")), reverse=False)
-                    results = [item[1] for item in scored_results][skip:skip+limit]
-            else:
-                results = []
-        else:
-            results = await db.get_all_anime(limit=limit, skip=skip)
-
+        trending = await db.get_all_anime(limit=15)
+        recent = await db.get_all_anime(limit=20)
         categories = await db.get_all_categories()
-        return templates.TemplateResponse(request=request, name="search.html", context={
-            "results": results or [],
-            "query": q,
+
+        return templates.TemplateResponse(request=request, name="index.html", context={
+            "trending": trending or [],
+            "recent": recent or [],
             "categories": categories or [],
             "logo_url": Config.LOGO_URL,
             "site_name": "ANIZONEFLIX"
         })
     except Exception as e:
-        logger.error(f"Search error: {e}")
-        return templates.TemplateResponse(request=request, name="search.html", context={"results": [], "query": q, "categories": []})
+        logger.error(f"Search web index error: {e}")
+        return RedirectResponse(url="/")
 
 @app.get("/verify")
 async def verify_page(request: Request):

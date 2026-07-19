@@ -425,4 +425,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }, { passive: false });
+
+    // Auto-open overlay search on deep links or manual /search path navigations
+    const checkDeepLinkSearch = () => {
+        const path = window.location.pathname;
+        const params = new URLSearchParams(window.location.search);
+        const query = params.get('q');
+
+        if (path === '/search' || path === '/search/') {
+            openSearchOverlay(query || "");
+        } else if (query) {
+            openSearchOverlay(query);
+        }
+    };
+    checkDeepLinkSearch();
 });
