@@ -215,18 +215,15 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('dragstart', e => e.preventDefault());
         document.addEventListener('drop', e => e.preventDefault());
 
-        // 4. Force selection clear (Continuous)
-        setInterval(() => {
+        // 4. Prevent text selection on non-input elements (Clean & Keyboard Safe)
+        document.addEventListener('selectstart', e => {
             const active = document.activeElement;
-            if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.hasAttribute('contenteditable'))) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.hasAttribute('contenteditable') ||
+                (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.hasAttribute('contenteditable')))) {
                 return;
             }
-            if (window.getSelection) {
-                window.getSelection().removeAllRanges();
-            } else if (document.selection) {
-                document.selection.empty();
-            }
-        }, 100);
+            e.preventDefault();
+        });
 
         // 5. Anti-DevTools Debugger Loop (Deterrent)
         // This makes the browser pause if DevTools is open
@@ -323,6 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (floatingSearch) {
         const triggerSearch = (e) => {
             e.preventDefault();
+            e.stopPropagation();
             if (typeof window.openSearchOverlay === 'function') {
                 window.openSearchOverlay();
             }
@@ -396,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Global intercept search links
+    // Global intercept search links (Snappy click & touchstart handlers for mobile)
     const handleSearchInterception = (e) => {
         const link = e.target.closest('a');
         if (link) {
@@ -404,6 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (href) {
                 if (href === '/search') {
                     e.preventDefault();
+                    e.stopPropagation();
                     openSearchOverlay();
                     // Close mobile menu if open
                     if (typeof window.toggleMenu === 'function') {
@@ -411,6 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else if (href.startsWith('/search?q=')) {
                     e.preventDefault();
+                    e.stopPropagation();
                     const query = decodeURIComponent(href.split('/search?q=')[1]);
                     openSearchOverlay(query);
                     // Close mobile menu if open
@@ -428,6 +428,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (link) {
             const href = link.getAttribute('href');
             if (href && (href === '/search' || href.startsWith('/search?q='))) {
+                e.preventDefault();
+                e.stopPropagation();
                 handleSearchInterception(e);
             }
         }
