@@ -11,6 +11,7 @@ import logging
 import traceback
 import asyncio
 import sys
+import re
 from bot import bot, set_commands, register_handlers
 from utils.auth import get_current_admin, verify_token
 from utils.utils import slugify
@@ -49,15 +50,18 @@ async def lifespan(app: FastAPI):
         loop.set_exception_handler(loop_exception_handler)
 
         register_handlers(bot)
-        await bot.start()
-        await set_commands(bot)
+        try:
+            await bot.start()
+            await set_commands(bot)
 
-        # Dynamic load added bots
-        from bot.bot_manager import added_bot_manager
-        asyncio.create_task(added_bot_manager.start_all())
+            # Dynamic load added bots
+            from bot.bot_manager import added_bot_manager
+            asyncio.create_task(added_bot_manager.start_all())
 
-        me = await bot.get_me()
-        logger.info(f"Production Suite LIVE -> @{me.username}")
+            me = await bot.get_me()
+            logger.info(f"Production Suite LIVE -> @{me.username}")
+        except Exception as bot_err:
+            logger.error(f"Pyrogram Bot Startup Failed (Continuing Web Engine): {bot_err}")
     except Exception as e:
         logger.critical(f"STARTUP FAILURE: {e}")
         logger.error(traceback.format_exc())
@@ -264,10 +268,17 @@ async def get_anime_api(skip: int = 0, limit: int = 100000):
 async def get_search_api(q: str = "", skip: int = 0, limit: int = 24):
     try:
         if q:
+            words = q.strip().split()
+            if not words:
+                return safe_api_response(True, [])
+
+            regex_pattern = ".*".join([re.escape(w) for w in words])
+            category_pattern = f"^{re.escape(q.strip())}$"
+
             if await db.ping():
                 results = await db.anime.find({"$or": [
-                    {"title": {"$regex": q, "$options": "i"}},
-                    {"category": q}
+                    {"title": {"$regex": regex_pattern, "$options": "i"}},
+                    {"category": {"$regex": category_pattern, "$options": "i"}}
                 ]}).sort("_id", -1).skip(skip).to_list(length=limit)
                 return safe_api_response(True, clean_doc(results))
             else:
@@ -283,15 +294,19 @@ async def search_web(request: Request, q: str = "", skip: int = 0, limit: int = 
     try:
         results = []
         if q:
-            if await db.ping():
-                # No limit / Unlimited dynamic search logic
-                results = await db.anime.find({"$or": [
-                    {"title": {"$regex": q, "$options": "i"}},
-                    {"category": q}
-                ]}).sort("_id", -1).skip(skip).to_list(length=limit)
-                results = clean_doc(results)
-            else:
-                results = []
+            words = q.strip().split()
+            if words:
+                regex_pattern = ".*".join([re.escape(w) for w in words])
+                category_pattern = f"^{re.escape(q.strip())}$"
+
+                if await db.ping():
+                    results = await db.anime.find({"$or": [
+                        {"title": {"$regex": regex_pattern, "$options": "i"}},
+                        {"category": {"$regex": category_pattern, "$options": "i"}}
+                    ]}).sort("_id", -1).skip(skip).to_list(length=limit)
+                    results = clean_doc(results)
+                else:
+                    results = []
         else:
             # Unlimited list logic
             results = await db.get_all_anime(limit=limit, skip=skip)
