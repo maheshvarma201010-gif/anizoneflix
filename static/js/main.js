@@ -23,14 +23,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('dragstart', e => e.preventDefault());
         document.addEventListener('drop', e => e.preventDefault());
 
-        // 4. Force selection clear (Continuous)
-        setInterval(() => {
-            if (window.getSelection) {
-                window.getSelection().removeAllRanges();
-            } else if (document.selection) {
-                document.selection.empty();
+        // 4. Force selection clear (Event-based, ignoring input/textarea/contenteditable targets to prevent keyboards from collapsing)
+        document.addEventListener('selectstart', e => {
+            const tag = e.target.tagName ? e.target.tagName.toLowerCase() : '';
+            if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) {
+                return;
             }
-        }, 100);
+            e.preventDefault();
+        });
 
         // 5. Anti-DevTools Debugger Loop (Deterrent)
         // This makes the browser pause if DevTools is open

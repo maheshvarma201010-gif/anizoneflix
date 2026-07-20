@@ -265,9 +265,17 @@ async def get_search_api(q: str = "", skip: int = 0, limit: int = 24):
     try:
         if q:
             if await db.ping():
+                import re
+                clean_q = re.sub(r'\s+', ' ', q.strip())
+                words = clean_q.split()
+                if words:
+                    regex_pattern = ".*".join([re.escape(w) for w in words])
+                else:
+                    regex_pattern = re.escape(q)
+
                 results = await db.anime.find({"$or": [
-                    {"title": {"$regex": q, "$options": "i"}},
-                    {"category": q}
+                    {"title": {"$regex": regex_pattern, "$options": "i"}},
+                    {"category": {"$regex": regex_pattern, "$options": "i"}}
                 ]}).sort("_id", -1).skip(skip).to_list(length=limit)
                 return safe_api_response(True, clean_doc(results))
             else:
@@ -284,10 +292,18 @@ async def search_web(request: Request, q: str = "", skip: int = 0, limit: int = 
         results = []
         if q:
             if await db.ping():
+                import re
+                clean_q = re.sub(r'\s+', ' ', q.strip())
+                words = clean_q.split()
+                if words:
+                    regex_pattern = ".*".join([re.escape(w) for w in words])
+                else:
+                    regex_pattern = re.escape(q)
+
                 # No limit / Unlimited dynamic search logic
                 results = await db.anime.find({"$or": [
-                    {"title": {"$regex": q, "$options": "i"}},
-                    {"category": q}
+                    {"title": {"$regex": regex_pattern, "$options": "i"}},
+                    {"category": {"$regex": regex_pattern, "$options": "i"}}
                 ]}).sort("_id", -1).skip(skip).to_list(length=limit)
                 results = clean_doc(results)
             else:
