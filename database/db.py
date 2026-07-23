@@ -94,8 +94,6 @@ class Database:
 
     async def _seed_mock_data_if_empty(self):
         try:
-            # Force refresh seed data to load beautiful new public static images
-            await self._media.delete_many({})
             count = await self._media.count_documents({})
             if count == 0:
                 logger.info("Seeding beautiful mock data...")
