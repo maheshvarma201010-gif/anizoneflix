@@ -23,7 +23,7 @@ logger = logging.getLogger("MZ_APP")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # STARTUP
-    logger.info("ANIZONEFLIX Platform Engine starting...")
+    logger.info("MoviesZoneFlix Platform Engine starting...")
     try:
         await db.connect()
         loop = asyncio.get_running_loop()
@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
 
 # --- APP INITIALIZATION ---
 
-app = FastAPI(title="ANIZONEFLIX", lifespan=lifespan)
+app = FastAPI(title="MoviesZoneFlix", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -77,7 +77,7 @@ templates.env.filters["slugify"] = slugify
 templates.env.globals["tmdb_key"] = Config.TMDB_API_KEY
 templates.env.globals["omdb_key"] = Config.OMDB_API_KEY
 templates.env.globals["trakt_key"] = Config.TRAKT_CLIENT_ID
-templates.env.globals["site_name"] = "ANIZONEFLIX"
+templates.env.globals["site_name"] = "MoviesZoneFlix"
 templates.env.globals["logo_url"] = Config.LOGO_URL
 
 # --- CUSTOM RESPONSES ---

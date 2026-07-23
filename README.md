@@ -1,6 +1,6 @@
-# 💎 ANIZONEFLIX — Premium Entertainment & Media Management Hub 🎥
+# 💎 MoviesZoneFlix — Premium Entertainment & Media Management Hub 🎥
 
-Welcome to **ANIZONEFLIX**, the ultimate high-performance streaming info portal, metadata aggregator, and Telegram bot suite. Built for speed, elegance, and extreme visual fidelity across all devices.
+Welcome to **MoviesZoneFlix**, the ultimate high-performance streaming info portal, metadata aggregator, and Telegram bot suite. Built for speed, elegance, and extreme visual fidelity across all devices.
 
 ---
 
