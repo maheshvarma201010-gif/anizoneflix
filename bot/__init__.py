@@ -95,15 +95,61 @@ def register_handlers(bot: Client):
         if not await is_authorized(message.from_user.id): return
         query = " ".join(message.command[1:])
         if not query: return await message.reply("Usage: `/search <name>`")
-        msg = await message.reply("🔍 Searching TMDB...")
+        msg = await message.reply("🔍 Searching Configured APIs...")
         try:
-            results = await media_api.search_tmdb(query)
-            if not results: return await msg.edit("😔 No matches found.")
+            results = []
+
+            # 1. TMDB Search
+            if Config.TMDB_API_KEY:
+                try:
+                    tmdb_res = await media_api.search_tmdb(query)
+                    for r in tmdb_res[:4]:
+                        r["source"] = "TMDb"
+                        results.append(r)
+                except Exception as e:
+                    logger.error(f"TMDb Search failed: {e}")
+
+            # 2. TVmaze Search
+            try:
+                tvmaze_res = await media_api.search_tvmaze(query)
+                for r in tvmaze_res[:3]:
+                    r["source"] = "TVmaze"
+                    results.append(r)
+            except Exception as e:
+                logger.error(f"TVmaze Search failed: {e}")
+
+            # 3. OMDb Search
+            if Config.OMDB_API_KEY:
+                try:
+                    omdb_data = await media_api.get_omdb_metadata(query)
+                    if omdb_data and omdb_data.get("Response") == "True":
+                        results.append({
+                            "id": omdb_data.get("imdbID"),
+                            "title": omdb_data.get("Title"),
+                            "type": "movie" if omdb_data.get("Type") == "movie" else "tv",
+                            "year": omdb_data.get("Year")[:4] if omdb_data.get("Year") else "0000",
+                            "source": "OMDb"
+                        })
+                except Exception as e:
+                    logger.error(f"OMDb Search failed: {e}")
+
+            if not results: return await msg.edit("😔 No matches found on any configured APIs.")
+
             text = "🎯 **Select Media to Import:**\n\n"
             buttons = []
-            for i, res in enumerate(results[:8], 1):
-                text += f"**{i}.** {res['title']} ({res['year']}) `[{res['type'].upper()}]`\n"
-                buttons.append([InlineKeyboardButton(f"Import {i}", callback_data=f"add_{res['type']}_{res['id']}")])
+            for i, res in enumerate(results[:10], 1):
+                text += f"**{i}.** {res['title']} ({res['year']}) `[{res['type'].upper()}]` • _via {res['source']}_\n"
+
+                # Determine callback
+                if res["source"] == "TMDb":
+                    cb_data = f"add_tmdb_{res['type']}_{res['id']}"
+                elif res["source"] == "TVmaze":
+                    cb_data = f"add_tvmaze_tv_{res['id']}"
+                elif res["source"] == "OMDb":
+                    cb_data = f"add_omdb_{res['type']}_{res['id']}"
+
+                buttons.append([InlineKeyboardButton(f"Import {i} ({res['source']})", callback_data=cb_data)])
+
             await msg.edit(text, reply_markup=InlineKeyboardMarkup(buttons))
         except Exception as e: await msg.edit(f"❌ Error: {e}")
 
@@ -277,24 +323,102 @@ def register_handlers(bot: Client):
         data = cb.data
         uid = cb.from_user.id
 
-        if data.startswith("add_"):
-            _, m_type, m_id = data.split("_")
-            await cb.message.edit_text("⏳ Importing metadata...")
+        if data.startswith("add_") and not (data.startswith("add_tmdb_") or data.startswith("add_tvmaze_") or data.startswith("add_omdb_")):
+            parts = data.split("_")
+            m_type = parts[1]
+            m_id = parts[2]
+            data = f"add_tmdb_{m_type}_{m_id}"
+
+        if data.startswith("add_tmdb_"):
+            parts = data.split("_")
+            m_type = parts[2]
+            m_id = parts[3]
+            await cb.message.edit_text("⏳ Importing from TMDb...")
             try:
                 details = await media_api.get_tmdb_details(m_type, m_id)
-                if not details: return await cb.message.edit_text("❌ Failed.")
+                if not details: return await cb.message.edit_text("❌ Failed to fetch TMDb details.")
                 title = details.get("title") or details.get("name")
                 slug = slugify(title)
+
+                director = "N/A"
+                cast = []
+                score = details.get("vote_average", 0)
+                if Config.OMDB_API_KEY:
+                    try:
+                        omdb_data = await media_api.get_omdb_metadata(title, (details.get("release_date") or details.get("first_air_date") or "0000")[:4])
+                        if omdb_data and omdb_data.get("Response") == "True":
+                            director = omdb_data.get("Director", "N/A")
+                            cast = [c.strip() for c in omdb_data.get("Actors", "").split(",") if c.strip()]
+                            try:
+                                score = float(omdb_data.get("imdbRating", score))
+                            except: pass
+                    except: pass
+
                 await db.add_media({
-                    "id": str(m_id), "tmdb_id": int(m_id), "title": title, "slug": slug,
+                    "id": f"tmdb_{m_id}", "tmdb_id": int(m_id), "title": title, "slug": slug,
                     "type": "movie" if m_type == "movie" else "tv",
-                    "image": f"https://image.tmdb.org/t/p/w500{details.get('poster_path')}",
-                    "backdrop": f"https://image.tmdb.org/t/p/original{details.get('backdrop_path')}",
-                    "synopsis": details.get("overview"), "score": details.get("vote_average", 0),
+                    "image": f"https://image.tmdb.org/t/p/w500{details.get('poster_path')}" if details.get('poster_path') else None,
+                    "backdrop": f"https://image.tmdb.org/t/p/original{details.get('backdrop_path')}" if details.get('backdrop_path') else None,
+                    "synopsis": details.get("overview"), "score": score,
                     "year": (details.get("release_date") or details.get("first_air_date") or "0000")[:4],
-                    "genres": [g["name"] for g in details.get("genres", [])], "seasons_links": {}
+                    "genres": [g["name"] for g in details.get("genres", [])],
+                    "director": director, "cast": cast, "seasons_links": {}
                 })
-                await cb.message.edit_text(f"✅ Imported: `{title}`\nURL: {Config.BASE_URL}/watch/{slug}")
+                await cb.message.edit_text(f"✅ Imported from TMDb: `{title}`\nURL: {Config.BASE_URL}/watch/{slug}")
+            except Exception as e: await cb.message.edit_text(f"❌ Error: {e}")
+
+        elif data.startswith("add_tvmaze_"):
+            parts = data.split("_")
+            m_id = parts[3]
+            await cb.message.edit_text("⏳ Importing from TVmaze...")
+            try:
+                details = await media_api.get_tvmaze_details(m_id)
+                if not details: return await cb.message.edit_text("❌ Failed to fetch TVmaze details.")
+                title = details.get("name")
+                slug = slugify(title)
+                summary = details.get("summary") or ""
+                summary = re.sub(r'<[^>]*>', '', summary)
+                image_obj = details.get("image") or {}
+                image_url = image_obj.get("original") or image_obj.get("medium")
+
+                await db.add_media({
+                    "id": f"tvmaze_{m_id}", "title": title, "slug": slug,
+                    "type": "tv",
+                    "image": image_url,
+                    "synopsis": summary, "score": details.get("rating", {}).get("average", 0) or 0.0,
+                    "year": (details.get("premiered") or "0000")[:4],
+                    "genres": details.get("genres", []), "seasons_links": {}
+                })
+                await cb.message.edit_text(f"✅ Imported from TVmaze: `{title}`\nURL: {Config.BASE_URL}/watch/{slug}")
+            except Exception as e: await cb.message.edit_text(f"❌ Error: {e}")
+
+        elif data.startswith("add_omdb_"):
+            parts = data.split("_")
+            m_type = parts[2]
+            imdb_id = parts[3]
+            await cb.message.edit_text("⏳ Importing from OMDb...")
+            try:
+                details = await media_api.get_omdb_metadata(title=None, imdb_id=imdb_id)
+                if not details or details.get("Response") != "True":
+                    return await cb.message.edit_text("❌ Failed to fetch OMDb details.")
+                title = details.get("Title")
+                slug = slugify(title)
+                score = 0.0
+                try:
+                    score = float(details.get("imdbRating", 0.0))
+                except: pass
+                genres = [g.strip() for g in details.get("Genre", "").split(",") if g.strip()]
+                cast = [c.strip() for c in details.get("Actors", "").split(",") if c.strip()]
+
+                await db.add_media({
+                    "id": f"omdb_{imdb_id}", "title": title, "slug": slug,
+                    "type": "movie" if m_type == "movie" else "tv",
+                    "image": details.get("Poster") if details.get("Poster") != "N/A" else None,
+                    "synopsis": details.get("Plot"), "score": score,
+                    "year": details.get("Year")[:4] if details.get("Year") else "0000",
+                    "genres": genres, "director": details.get("Director", "N/A"), "cast": cast, "seasons_links": {}
+                })
+                await cb.message.edit_text(f"✅ Imported from OMDb: `{title}`\nURL: {Config.BASE_URL}/watch/{slug}")
             except Exception as e: await cb.message.edit_text(f"❌ Error: {e}")
 
         elif data == "db_backup":

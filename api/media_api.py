@@ -80,6 +80,9 @@ class MediaAPI:
             } for x in data]
         return []
 
+    async def get_tvmaze_details(self, show_id):
+        return await self._get(f"{self.tvmaze_url}/shows/{show_id}")
+
     async def get_omdb_metadata(self, title, year=None, imdb_id=None):
         """Fetch extensive meta rating/cast from OMDb"""
         if not self.omdb_key: return None
