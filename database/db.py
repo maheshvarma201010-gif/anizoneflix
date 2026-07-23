@@ -34,6 +34,7 @@ class Database:
         self._users = None
         self._categories = None
         self._settings = None
+        self._bots = None
 
     async def connect(self):
         """Initialize connection with absolute persistence focus and retries"""
@@ -65,6 +66,7 @@ class Database:
                 self._users = self._db.users
                 self._categories = self._db.categories
                 self._settings = self._db.settings
+                self._bots = self._db.bots
 
                 logger.info(f"Database Persistence Verified: {Config.DB_NAME} is active.")
                 await self._seed_mock_data_if_empty()
@@ -87,6 +89,7 @@ class Database:
             self._users = self._db.users
             self._categories = self._db.categories
             self._settings = self._db.settings
+            self._bots = self._db.bots
             logger.info("Mock Database connected successfully.")
             await self._seed_mock_data_if_empty()
         except Exception as e:
@@ -229,6 +232,10 @@ class Database:
     @property
     def settings(self):
         return self._settings if self._settings is not None else self.MockCollection("settings")
+
+    @property
+    def bots(self):
+        return self._bots if self._bots is not None else self.MockCollection("bots")
 
     class MockCollection:
         """Emergency layer to prevent system crashes if Atlas is unreachable"""

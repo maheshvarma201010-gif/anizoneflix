@@ -36,6 +36,10 @@ async def lifespan(app: FastAPI):
         await set_commands(bot)
         me = await bot.get_me()
         logger.info(f"Production Suite LIVE -> @{me.username}")
+
+        # Start all multi-bots
+        from bot.bot_manager import multibot_manager
+        await multibot_manager.start_all()
     except Exception as e:
         logger.critical(f"STARTUP FAILURE: {e}")
         logger.error(traceback.format_exc())
@@ -45,6 +49,8 @@ async def lifespan(app: FastAPI):
     # SHUTDOWN
     logger.info("Production Engine shutting down...")
     try:
+        from bot.bot_manager import multibot_manager
+        await multibot_manager.stop_all()
         if bot.is_connected:
             await bot.stop()
         await media_api.close()

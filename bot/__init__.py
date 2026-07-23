@@ -310,6 +310,16 @@ def register_handlers(bot: Client):
             await msg.edit(f"❌ **Database Error:** {str(e)}")
             logger.error(traceback.format_exc())
 
+    @bot.on_message(filters.command("addbot") & filters.private)
+    async def addbot_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        user_state[message.from_user.id] = {"action": "ask_bot_token"}
+        await message.reply(
+            "🤖 **Add a Multi-Bot Listener**\n\n"
+            "This command registers a new Telegram bot that will listen inside a specified group chat and automatically reply with movie page links whenever users ask for them.\n\n"
+            "✍️ **Step 1:** Please send the **Bot Token**:"
+        )
+
     @bot.on_message(filters.command("cancel") & filters.private)
     async def cancel_cmd(client, message):
         user_state.pop(message.from_user.id, None)
@@ -615,7 +625,7 @@ def register_handlers(bot: Client):
 
     # --- Interaction Handler ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "cancel"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "cancel"]), group=1)
     async def interaction_msg(client, message):
         state = user_state.get(message.from_user.id)
         if not state: return
@@ -760,6 +770,28 @@ def register_handlers(bot: Client):
             await db.add_category(message.text.strip())
             await message.reply(f"✅ Category `{message.text}` added.")
             user_state.pop(uid, None)
+        elif action == "ask_bot_token":
+            token = message.text.strip()
+            if not re.match(r"^\d+:[A-Za-z0-9_-]{35,}$", token):
+                return await message.reply("❌ **Invalid Bot Token!** Please send a valid Telegram bot token (e.g., `123456:ABC-DEF1234ghIkl-zyx57W2v1u1`).")
+            user_state[uid].update({"bot_token": token, "action": "ask_group_id"})
+            await message.reply(
+                "👥 **Configure Target Group Chat**\n\n"
+                "✍️ **Step 2:** Please send the **Group ID** (e.g., `-1002345678901`) where this bot will listen and reply to user requests:"
+            )
+        elif action == "ask_group_id":
+            group_id = message.text.strip()
+            token = state["bot_token"]
+            await db.bots.update_one({"token": token}, {"$set": {"token": token, "group_id": group_id}}, upsert=True)
+            from bot.bot_manager import multibot_manager
+            asyncio.create_task(multibot_manager.start_bot(token, group_id))
+            await message.reply(
+                "🚀 **Multi-Bot Configured and Live!**\n\n"
+                f"🔹 **Bot Token:** `{token}`\n"
+                f"🔹 **Target Group:** `{group_id}`\n\n"
+                "The bot is now active and will reply with MoviesZoneFlix page links inside the group."
+            )
+            user_state.pop(uid, None)
 
 async def set_commands(client: Client):
     try:
@@ -772,6 +804,7 @@ async def set_commands(client: Client):
             BotCommand("save", "Backup/Restore"),
             BotCommand("posttochannel", "Post link to channel"),
             BotCommand("categories", "Manage Genres"),
+            BotCommand("addbot", "Add a Multi-Bot listener"),
             BotCommand("cancel", "Cancel Process")
         ])
     except: pass
