@@ -2,12 +2,19 @@ import asyncio
 import logging
 import re
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from database.db import db
 from config.config import Config
 
 logger = logging.getLogger("MZ_MULTI_BOT")
 logger.setLevel(logging.INFO)
+
+async def auto_delete_message(message: Message, delay: int):
+    await asyncio.sleep(delay)
+    try:
+        await message.delete()
+    except Exception:
+        pass
 
 class MultiBotManager:
     def __init__(self):
@@ -61,27 +68,66 @@ class MultiBotManager:
                 if not query:
                     return
 
-                # Search database for a matching movie/series title
+                # Search database for matching movie/series titles
                 try:
-                    # Look for exact or case-insensitive substring match
-                    match = await db.media.find_one({"title": {"$regex": f"^{re.escape(query)}$", "$options": "i"}})
-                    if not match:
-                        # Try fallback substring match if not exactly matched
-                        match = await db.media.find_one({"title": {"$regex": f".*{re.escape(query)}.*", "$options": "i"}})
+                    # Look for matching titles with case-insensitive regex
+                    cursor = db.media.find({"title": {"$regex": f".*{re.escape(query)}.*", "$options": "i"}})
+                    matches = await cursor.to_list(length=10)
 
-                    if match:
+                    if not matches:
+                        # Silent if no matches are found
+                        return
+
+                    if len(matches) == 1:
+                        # Only 1 match found - send link immediately
+                        match = matches[0]
                         link = f"{Config.BASE_URL}/watch/{match['slug']}"
-                        await c.send_message(
+                        sent_msg = await c.send_message(
                             chat_id=message.chat.id,
                             text=f"🎬 **{match['title']}**\n\n🔗 **Link:** {link}",
                             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🍿 Watch Now", url=link)]]),
                             reply_to_message_id=message.id
                         )
+                        # Auto delete reply after 10 seconds
+                        asyncio.create_task(auto_delete_message(sent_msg, 10))
                     else:
-                        # Silent if no match is found
-                        pass
+                        # Multiple matches found - show selection buttons
+                        text = f"🔍 **Multiple matches found for '{query}':**\n\nPlease select one below:"
+                        buttons = []
+                        for m in matches[:8]:
+                            # Callback data uses dynamic bot identifier prefix
+                            buttons.append([InlineKeyboardButton(f"🎬 {m['title']} ({m.get('year', 'N/A')})", callback_data=f"dbot_{m['slug']}")])
+
+                        sent_msg = await c.send_message(
+                            chat_id=message.chat.id,
+                            text=text,
+                            reply_markup=InlineKeyboardMarkup(buttons),
+                            reply_to_message_id=message.id
+                        )
+                        # Auto delete selection message after 10 seconds
+                        asyncio.create_task(auto_delete_message(sent_msg, 10))
                 except Exception as ex:
                     logger.error(f"Error during dynamic bot query: {ex}")
+
+            # Register Callback Query Handler
+            @client.on_callback_query(filters.regex(r"^dbot_"))
+            async def handle_bot_callback(c: Client, cb: CallbackQuery):
+                slug = cb.data.replace("dbot_", "")
+                try:
+                    match = await db.get_media_by_slug(slug)
+                    if match:
+                        link = f"{Config.BASE_URL}/watch/{match['slug']}"
+                        # Edit message directly without sending a new one
+                        await cb.message.edit_text(
+                            text=f"🎬 **{match['title']}**\n\n🔗 **Link:** {link}",
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🍿 Watch Now", url=link)]])
+                        )
+                        # Auto delete edited message after 10 seconds
+                        asyncio.create_task(auto_delete_message(cb.message, 10))
+                    else:
+                        await cb.answer("❌ Title not found.", show_alert=True)
+                except Exception as ex:
+                    logger.error(f"Callback query error: {ex}")
 
             await client.start()
             self.active_bots[bot_id] = client
