@@ -23,6 +23,7 @@ class Config:
     ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x]
     TMDB_API_KEY = os.getenv("TMDB_API_KEY", "")
     OMDB_API_KEY = os.getenv("OMDB_API_KEY", "")
+    TRAKT_CLIENT_ID = os.getenv("TRAKT_CLIENT_ID", "")
     SIMKL_ID = os.getenv("SIMKL_ID", "")
 
     DEBUG = os.getenv("DEBUG", "False").lower() == "true"

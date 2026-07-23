@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="overflow-x-hidden w-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ site_name }}{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="manifest" href="/static/manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -16,110 +16,271 @@
             --gold: #ffb400;
             --bg-body: #050505;
             --bg-card: #0c0c0c;
-            --glass: rgba(15, 15, 15, 0.8);
+            --glass: rgba(10, 10, 10, 0.75);
+            --glass-border: rgba(255, 255, 255, 0.08);
         }
-        body {
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
             background-color: var(--bg-body);
             color: #FFFFFF;
             font-family: 'Inter', sans-serif;
             scroll-behavior: smooth;
         }
-        .swiper-pagination-bullet { background: #fff; }
-        .swiper-pagination-bullet-active { background: var(--accent); }
-        .glass-nav { background: var(--glass); backdrop-filter: blur(10px); }
-        .skeleton { background: linear-gradient(90deg, #121212 25%, #1a1a1a 50%, #121212 75%); background-size: 200% 100%; animation: loading 1.5s infinite; }
-        @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        /* Modern Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #050505;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #222;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ff0000;
+        }
+
+        .glass-nav {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        /* Floating Search Button Animation */
+        @keyframes float-search {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+        }
+        .animate-float-search {
+            animation: float-search 3s ease-in-out infinite;
+        }
+        .animate-float-search:hover {
+            animation-play-state: paused;
+        }
+
+        /* Pulsing neon red/gold glow class */
+        .glow-new {
+            animation: pulse-glow 2s infinite;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 5px rgba(255, 0, 0, 0.4), 0 0 15px rgba(255, 0, 0, 0.2); }
+            50% { box-shadow: 0 0 15px rgba(255, 0, 0, 0.8), 0 0 30px rgba(255, 0, 0, 0.4); }
+        }
+
+        /* Custom Card layout to support landscape cards */
+        .image-container {
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: #0c0c0c;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Safe Hover Animations - Disabled scaling to prevent crop shifts */
+        .safe-hover-card img {
+            transform: none !important;
+            transition: none !important;
+        }
+
+        /* No-Copy protections */
+        body {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        input, textarea, [contenteditable] {
+            -webkit-user-select: text !important;
+            -moz-user-select: text !important;
+            -ms-user-select: text !important;
+            user-select: text !important;
+        }
     </style>
     {% block head %}{% endblock %}
 </head>
-<body class="selection:bg-red-600/40">
-    <nav class="glass-nav sticky top-0 z-50 px-4 md:px-8 py-3 border-b border-white/10">
+<body class="selection:bg-red-600/40 min-h-screen flex flex-col">
+    <!-- Navbar -->
+    <nav class="glass-nav sticky top-0 z-50 px-4 md:px-8 py-4">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <a href="/" class="flex items-center space-x-2">
-                <span class="text-2xl font-black tracking-tighter text-red-600">MOVIESZONE</span>
-                <span class="text-2xl font-black tracking-tighter">FLIX</span>
+            <!-- Brand -->
+            <a href="/" class="flex items-center space-x-2 group">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center font-black text-xl shadow-lg shadow-red-600/20 group-hover:scale-105 transition">A</div>
+                <span class="text-2xl font-black tracking-tighter text-red-600">ANIZONE</span>
+                <span class="text-2xl font-black tracking-tighter text-white">FLIX</span>
             </a>
 
-            <div class="hidden md:flex items-center space-x-8 text-sm font-semibold uppercase tracking-wider">
-                <a href="/" class="hover:text-red-500 transition">Home</a>
-                <a href="/movies" class="hover:text-red-500 transition">Movies</a>
-                <a href="/series" class="hover:text-red-500 transition">Series</a>
-                <a href="/categories" class="hover:text-red-500 transition">Categories</a>
-                <a href="/search" class="text-lg"><i class="fa-solid fa-search"></i></a>
+            <!-- Nav Links -->
+            <div class="hidden md:flex items-center space-x-8 text-xs font-black uppercase tracking-widest text-gray-300">
+                <a href="/" class="hover:text-red-500 transition duration-300 flex items-center gap-1"><i class="fa-solid fa-house"></i> Home</a>
+                <a href="/movies" class="hover:text-red-500 transition duration-300 flex items-center gap-1"><i class="fa-solid fa-film"></i> Movies</a>
+                <a href="/series" class="hover:text-red-500 transition duration-300 flex items-center gap-1"><i class="fa-solid fa-tv"></i> Series</a>
+                <a href="/categories" class="hover:text-red-500 transition duration-300 flex items-center gap-1"><i class="fa-solid fa-layer-group"></i> Categories</a>
             </div>
 
+            <!-- Header Actions -->
             <div class="flex items-center space-x-4">
-                <a href="/admin/login" class="hidden md:block text-xs text-gray-500 hover:text-white transition">ADMIN</a>
-                <button class="md:hidden text-2xl" onclick="toggleMenu()">
+                <a href="/search" class="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-red-600 hover:text-white transition duration-300 animate-float-search" title="Search Library">
+                    <i class="fa-solid fa-search"></i>
+                </a>
+                <a href="/admin/login" class="hidden md:block text-[10px] font-black tracking-widest text-gray-500 hover:text-white transition duration-300">ADMIN</a>
+                <button class="md:hidden text-2xl" onclick="toggleMenu()" aria-label="Toggle Menu">
                     <i class="fa-solid fa-bars"></i>
                 </button>
             </div>
         </div>
     </nav>
 
-    <div id="mobile-menu" class="hidden fixed inset-0 z-50 bg-black/95 p-8 flex flex-col space-y-6 text-2xl font-bold">
-        <div class="flex justify-end"><button onclick="toggleMenu()"><i class="fa-solid fa-times"></i></button></div>
-        <a href="/" onclick="toggleMenu()">Home</a>
-        <a href="/movies" onclick="toggleMenu()">Movies</a>
-        <a href="/series" onclick="toggleMenu()">Series</a>
-        <a href="/categories" onclick="toggleMenu()">Categories</a>
-        <a href="/search" onclick="toggleMenu()">Search</a>
+    <!-- Mobile Menu Overlay -->
+    <div id="mobile-menu" class="hidden fixed inset-0 z-50 bg-black/95 p-8 flex flex-col space-y-6 text-xl font-black tracking-wider">
+        <div class="flex justify-between items-center border-b border-white/10 pb-4">
+            <span class="text-red-600 font-black text-2xl">MENU</span>
+            <button onclick="toggleMenu()" class="text-2xl"><i class="fa-solid fa-times"></i></button>
+        </div>
+        <a href="/" onclick="toggleMenu()" class="hover:text-red-500 flex items-center gap-3"><i class="fa-solid fa-house text-red-600"></i> Home</a>
+        <a href="/movies" onclick="toggleMenu()" class="hover:text-red-500 flex items-center gap-3"><i class="fa-solid fa-film text-red-600"></i> Movies</a>
+        <a href="/series" onclick="toggleMenu()" class="hover:text-red-500 flex items-center gap-3"><i class="fa-solid fa-tv text-red-600"></i> Series</a>
+        <a href="/categories" onclick="toggleMenu()" class="hover:text-red-500 flex items-center gap-3"><i class="fa-solid fa-layer-group text-red-600"></i> Categories</a>
+        <a href="/search" onclick="toggleMenu()" class="hover:text-red-500 flex items-center gap-3"><i class="fa-solid fa-search text-red-600"></i> Search Library</a>
+        <a href="/admin/login" onclick="toggleMenu()" class="text-sm text-gray-500 hover:text-white">Admin Dashboard</a>
     </div>
 
-    <main class="min-h-screen">
+    <!-- Main Content Area -->
+    <main class="flex-grow min-h-screen">
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="bg-[#080808] border-t border-white/5 py-12 px-6 mt-20">
-        <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-10">
-            <div class="col-span-1 md:col-span-2">
-                <h2 class="text-2xl font-black mb-4"><span class="text-red-600">MOVIESZONE</span>FLIX</h2>
-                <p class="text-gray-500 text-sm max-w-sm">The ultimate destination for Movies, Web Series, and TV Shows. Experience cinematic quality streaming anytime, anywhere.</p>
+    <!-- Footer -->
+    <footer class="bg-[#080808] border-t border-white/5 py-16 px-6 mt-24">
+        <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
+            <div class="col-span-1 md:col-span-2 space-y-4">
+                <h2 class="text-2xl font-black tracking-tighter"><span class="text-red-600">ANIZONE</span>FLIX</h2>
+                <p class="text-gray-400 text-sm max-w-sm leading-relaxed">The ultimate destination for Movies, Web Series, and TV Shows. Experience cinematic quality streaming and lightning-fast direct downloads anytime, anywhere.</p>
+                <div class="flex space-x-4 pt-2">
+                    <a href="#" class="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-red-600 transition"><i class="fa-brands fa-telegram"></i></a>
+                    <a href="#" class="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-red-600 transition"><i class="fa-brands fa-discord"></i></a>
+                    <a href="#" class="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-red-600 transition"><i class="fa-brands fa-twitter"></i></a>
+                </div>
             </div>
             <div>
-                <h3 class="font-bold mb-4 uppercase text-xs tracking-widest text-gray-400">Navigation</h3>
-                <ul class="text-gray-500 text-sm space-y-2">
-                    <li><a href="/" class="hover:text-red-500">Home</a></li>
-                    <li><a href="/search?type=movie" class="hover:text-red-500">Movies</a></li>
-                    <li><a href="/search?type=tv" class="hover:text-red-500">Web Series</a></li>
+                <h3 class="font-bold mb-6 uppercase text-xs tracking-widest text-gray-400">Navigation</h3>
+                <ul class="text-gray-400 text-sm space-y-3">
+                    <li><a href="/" class="hover:text-red-500 transition">Home Portal</a></li>
+                    <li><a href="/movies" class="hover:text-red-500 transition">Feature Movies</a></li>
+                    <li><a href="/series" class="hover:text-red-500 transition">Web Series</a></li>
+                    <li><a href="/categories" class="hover:text-red-500 transition">Browse Genres</a></li>
                 </ul>
             </div>
             <div>
-                <h3 class="font-bold mb-4 uppercase text-xs tracking-widest text-gray-400">Legal</h3>
-                <ul class="text-gray-500 text-sm space-y-2">
-                    <li><a href="#" class="hover:text-red-500">DMCA</a></li>
-                    <li><a href="#" class="hover:text-red-500">Privacy Policy</a></li>
-                    <li><a href="#" class="hover:text-red-500">Terms of Use</a></li>
+                <h3 class="font-bold mb-6 uppercase text-xs tracking-widest text-gray-400">Legal Info</h3>
+                <ul class="text-gray-400 text-sm space-y-3">
+                    <li><a href="#" class="hover:text-red-500 transition">DMCA Disclaimer</a></li>
+                    <li><a href="#" class="hover:text-red-500 transition">Privacy Policy</a></li>
+                    <li><a href="#" class="hover:text-red-500 transition">Terms of Service</a></li>
+                    <li><a href="#" class="hover:text-red-500 transition">Contact Us</a></li>
                 </ul>
             </div>
         </div>
-        <div class="max-w-7xl mx-auto pt-8 mt-8 border-t border-white/5 text-center text-gray-600 text-xs">
-            &copy; 2025 {{ site_name }}. All rights reserved.
+        <div class="max-w-7xl mx-auto pt-8 mt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center text-gray-500 text-xs gap-4">
+            <div>&copy; 2025 {{ site_name }}. Engineered for maximum fidelity and speeds.</div>
+            <div class="flex space-x-6 text-gray-600">
+                <span>PWA Ready</span>
+                <span>OTT Theme v3.0</span>
+            </div>
         </div>
     </footer>
 
+    <!-- Scripts Section -->
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
     <script type="module">
         import { cacheService } from '/src/services/cache.js';
         import { useContinueWatching } from '/src/hooks/useContinueWatching.js';
         import { useFavorites } from '/src/hooks/useFavorites.js';
+        import { tmdbService } from '/src/services/tmdb.js';
+        import { tvmazeService } from '/src/services/tvmaze.js';
+        import { omdbService } from '/src/services/omdb.js';
+        import { traktService } from '/src/services/trakt.js';
+
         window.cacheService = cacheService;
         window.useContinueWatching = useContinueWatching;
         window.useFavorites = useFavorites;
+        window.tmdbService = tmdbService;
+        window.tvmazeService = tvmazeService;
+        window.omdbService = omdbService;
+        window.traktService = traktService;
+
         window.CONFIG = {
             tmdb_key: "{{ tmdb_key }}",
-            omdb_key: "{{ omdb_key }}"
+            omdb_key: "{{ omdb_key }}",
+            trakt_key: "{{ trakt_key }}"
         };
+
+        // Initialize aspect ratio checker
+        document.addEventListener('DOMContentLoaded', () => {
+            adjustImageContainers();
+            // Run periodically or after DOM mutation
+            const observer = new MutationObserver(adjustImageContainers);
+            observer.observe(document.body, { childList: true, subtree: true });
+        });
     </script>
     <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/static/sw.js');
-            });
-        }
+        // Toggle mobile navbar menu
         function toggleMenu() {
             const menu = document.getElementById('mobile-menu');
             menu.classList.toggle('hidden');
+        }
+
+        // Anti-copy Event based listener - safe for inputs
+        document.addEventListener('selectstart', (e) => {
+            const tag = e.target.tagName.toLowerCase();
+            if (tag !== 'input' && tag !== 'textarea' && !e.target.isContentEditable) {
+                e.preventDefault();
+            }
+        });
+        document.addEventListener('contextmenu', (e) => {
+            const tag = e.target.tagName.toLowerCase();
+            if (tag !== 'input' && tag !== 'textarea' && !e.target.isContentEditable) {
+                e.preventDefault();
+            }
+        });
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'u' || e.key === 's')) {
+                e.preventDefault();
+            }
+        });
+
+        // Safe Aspect-Ratio Fitting function (Zero Crop & Zero Cutoff Guarantee)
+        function adjustImageContainers() {
+            document.querySelectorAll('img[data-auto-aspect], .image-container img').forEach(img => {
+                if (img.complete) {
+                    applyAspect(img);
+                } else {
+                    img.onload = () => applyAspect(img);
+                }
+            });
+        }
+
+        function applyAspect(img) {
+            const container = img.closest('.image-container');
+            if (container) {
+                const ratio = img.naturalWidth / img.naturalHeight;
+                if (ratio > 1.2) {
+                    // Landscape image! Scale and fit cleanly in aspect-video without cutting off
+                    container.style.aspectRatio = '16/9';
+                    img.style.objectFit = 'contain';
+                    img.style.background = 'radial-gradient(circle, #161616 0%, #050505 100%)';
+                } else {
+                    // Portrait image! Fit in standard aspect-ratio 2/3
+                    container.style.aspectRatio = '2/3';
+                    img.style.objectFit = 'cover';
+                    img.style.background = 'none';
+                }
+            }
         }
     </script>
     {% block scripts %}{% endblock %}

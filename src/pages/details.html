@@ -2,141 +2,240 @@
 
 {% block head %}
 <style>
-    .neon-glow {
-        color: #fff;
-        text-shadow:
-            0 0 5px #fff,
-            0 0 10px #fff,
-            0 0 20px #ff0000,
-            0 0 30px #ff0000,
-            0 0 40px #ff0000;
-        animation: rainbow-glow 5s linear infinite;
+    /* Premium Glass Panels */
+    .glass-card {
+        background: rgba(12, 12, 12, 0.6);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
     }
 
-    @keyframes rainbow-glow {
-        0% { text-shadow: 0 0 10px #ff0000; color: #ff0000; }
-        20% { text-shadow: 0 0 10px #ffb400; color: #ffb400; }
-        40% { text-shadow: 0 0 10px #00ff00; color: #00ff00; }
-        60% { text-shadow: 0 0 10px #00ffff; color: #00ff00; }
-        80% { text-shadow: 0 0 10px #0000ff; color: #0000ff; }
-        100% { text-shadow: 0 0 10px #ff00ff; color: #ff00ff; }
+    /* Neon pulsing borders for download groups */
+    .neon-group {
+        border-left: 4px solid var(--accent);
+        transition: border-left 0.3s ease;
+    }
+    .neon-group:hover {
+        border-left: 4px solid var(--gold);
+    }
+
+    /* Tab headers styles */
+    .tab-btn {
+        position: relative;
+        transition: all 0.3s ease;
+    }
+    .tab-btn.active {
+        color: #ff0000;
+    }
+    .tab-btn.active::after {
+        content: "";
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: #ff0000;
+        border-radius: 9999px;
+        box-shadow: 0 0 10px rgba(255, 0, 0, 0.8);
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="relative min-h-screen">
-    <!-- Hero Backdrop -->
-    <div class="fixed inset-0 z-0 h-[60vh]">
-        <div class="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent z-10"></div>
-        <img src="{{ media.backdrop or media.image }}" class="w-full h-full object-cover opacity-50" alt="">
+<div class="relative min-h-screen pb-20">
+    <!-- Hero Backdrop Banner -->
+    <div class="absolute inset-0 z-0 h-[50vh] md:h-[70vh] overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/65 to-transparent z-10"></div>
+        <div class="absolute inset-0 bg-gradient-to-r from-[#050505] via-transparent to-transparent z-10"></div>
+        <img id="media-backdrop" src="{{ media.backdrop or media.image }}" class="w-full h-full object-cover opacity-30 select-none" alt="" style="background: #050505">
     </div>
 
-    <div class="relative z-10 pt-32 px-6 md:px-20 max-w-7xl mx-auto fade-in">
-        <div class="flex flex-col md:flex-row gap-10">
+    <div class="relative z-10 pt-24 md:pt-40 px-4 md:px-16 max-w-7xl mx-auto space-y-12">
+
+        <!-- Media Profile Section -->
+        <div class="flex flex-col md:flex-row gap-8 md:gap-12 items-start">
+
             <!-- Poster -->
-            <div class="w-full md:w-80 flex-shrink-0">
-                <div class="aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl border border-white/10 group">
-                    <img src="{{ media.image }}" class="w-full h-full object-cover group-hover:scale-110 transition duration-1000" alt="{{ media.title }}">
+            <div class="w-full md:w-80 flex-shrink-0 mx-auto md:mx-0 select-none">
+                <div class="image-container aspect-[2/3] shadow-2xl relative">
+                    <img id="media-poster" src="{{ media.image }}" class="w-full h-full" alt="{{ media.title }}">
                 </div>
             </div>
 
-            <!-- Info -->
-            <div class="flex-grow space-y-6">
-                <div class="flex items-center space-x-3 text-xs font-black uppercase tracking-widest text-red-600">
-                    <span>{{ media.year }}</span>
+            <!-- Details metadata -->
+            <div class="flex-grow space-y-6 text-center md:text-left w-full">
+                <div class="flex flex-wrap items-center justify-center md:justify-start gap-3 text-xs font-black uppercase tracking-widest text-red-600">
+                    <span class="bg-white/5 border border-white/5 px-3 py-1 rounded-full text-white">{{ media.year }}</span>
                     <span>•</span>
-                    <span>{{ media.runtime or 'N/A' }}</span>
+                    <span class="bg-white/5 border border-white/5 px-3 py-1 rounded-full text-white">{{ media.runtime or 'N/A' }}</span>
                     <span>•</span>
-                    <span class="bg-zinc-800 px-2 py-1 rounded text-white">{{ media.type|upper }}</span>
+                    <span class="bg-red-600/10 border border-red-600/30 text-red-500 px-3 py-1 rounded-full">{{ media.type|upper }}</span>
                 </div>
 
-                <h1 class="text-5xl md:text-8xl font-black tracking-tighter uppercase leading-[0.8]">{{ media.title }}</h1>
+                <h1 class="text-3xl md:text-6xl font-black tracking-tighter uppercase leading-tight text-white drop-shadow-lg">{{ media.title }}</h1>
 
-                <div class="flex items-center space-x-6">
-                    <div class="flex items-center">
-                        <i class="fa-solid fa-star text-amber-400 mr-2"></i>
-                        <span class="text-xl font-bold">{{ media.score or media.rating }}</span>
-                        <span class="text-gray-500 text-sm ml-1">/ 10</span>
+                <div class="flex flex-wrap items-center justify-center md:justify-start gap-4">
+                    <div class="flex items-center text-amber-400 bg-white/5 border border-white/5 px-4 py-2 rounded-xl">
+                        <i class="fa-solid fa-star mr-2 text-sm"></i>
+                        <span class="text-base font-black">{{ media.score or media.rating }}</span>
+                        <span class="text-gray-500 text-xs ml-1">/ 10</span>
                     </div>
-                    <div class="flex items-center space-x-2">
+                    <div class="flex flex-wrap gap-2">
                         {% for genre in media.genres %}
-                        <span class="text-[10px] font-black px-3 py-1 bg-white/5 border border-white/10 rounded-full uppercase tracking-widest">{{ genre }}</span>
+                        <span class="text-[9px] md:text-[10px] font-black px-3.5 py-2 bg-white/5 border border-white/5 rounded-full uppercase tracking-widest text-gray-300">{{ genre }}</span>
                         {% endfor %}
                     </div>
                 </div>
 
-                <p class="text-gray-300 text-lg leading-relaxed font-medium max-w-3xl">
+                <p class="text-gray-400 text-sm md:text-base leading-relaxed font-medium max-w-3xl">
                     {{ media.synopsis or media.overview }}
                 </p>
 
-                <div class="flex flex-wrap gap-4 pt-4">
-                    <button onclick="playMedia()" class="bg-red-600 hover:bg-red-700 text-white px-10 py-4 rounded-xl font-black flex items-center transition shadow-2xl hover:scale-105 active:scale-95">
-                        <i class="fa-solid fa-play mr-3"></i> WATCH NOW
+                <!-- Core actions buttons -->
+                <div class="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-4">
+                    <button onclick="playMedia()" class="bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-xl font-black flex items-center transition shadow-lg shadow-red-600/20 active:scale-95">
+                        <i class="fa-solid fa-play mr-2"></i> WATCH NOW
                     </button>
                     {% if media.trailer %}
-                    <a href="{{ media.trailer }}" target="_blank" class="bg-white/10 hover:bg-white/20 text-white px-10 py-4 rounded-xl font-black flex items-center backdrop-blur-xl transition border border-white/10">
-                        <i class="fa-solid fa-video mr-3"></i> TRAILER
+                    <a href="{{ media.trailer }}" target="_blank" class="bg-white/5 hover:bg-white/10 text-white px-8 py-4 rounded-xl font-black flex items-center backdrop-blur-xl transition border border-white/10">
+                        <i class="fa-brands fa-youtube mr-2 text-red-500"></i> TRAILER
                     </a>
                     {% endif %}
-                    <button id="favorite-btn" onclick="toggleFavorite()" class="w-14 h-14 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition border border-white/10">
-                        <i class="fa-regular fa-heart text-xl" id="heart-icon"></i>
+                    <button id="favorite-btn" onclick="toggleFavorite()" class="w-14 h-14 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition border border-white/10" aria-label="Favorite button">
+                        <i class="fa-regular fa-heart text-lg" id="heart-icon"></i>
                     </button>
                 </div>
 
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-8 pt-10 border-t border-white/5">
+                <!-- Fast Info Grid -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-6 pt-8 border-t border-white/5">
                     <div>
-                        <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Director</p>
-                        <p class="font-bold">{{ media.director or 'N/A' }}</p>
+                        <p class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Director</p>
+                        <p class="font-bold text-sm text-gray-200">{{ media.director or 'N/A' }}</p>
                     </div>
                     <div>
-                        <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Status</p>
-                        <p class="font-bold text-green-500">{{ media.status or 'Available' }}</p>
+                        <p class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Status</p>
+                        <p class="font-bold text-sm text-green-500 uppercase tracking-wider">{{ media.status or 'Available' }}</p>
                     </div>
                     <div class="col-span-2">
-                        <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Cast</p>
-                        <p class="font-bold text-sm text-gray-300">{{ media.cast|join(', ') if media.cast else 'N/A' }}</p>
+                        <p class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Cast Ensemble</p>
+                        <p class="font-bold text-xs text-gray-300 leading-snug">{{ media.cast|join(', ') if media.cast else 'N/A' }}</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Episodes / Files Section -->
-        <div id="servers" class="mt-24 space-y-10 pb-20">
-            <h2 class="text-3xl font-black uppercase tracking-tighter">GET <span class="text-red-600">FILES</span></h2>
+        <!-- Dynamic Media Info Tabs -->
+        <div class="pt-12 border-t border-white/5 space-y-8">
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {% if media.seasons_links %}
-                    {% for sname, sdata in media.seasons_links.items() %}
-                    <div class="bg-zinc-900/40 border border-white/5 p-6 rounded-2xl backdrop-blur-md hover:bg-zinc-900/60 transition group">
-                        <h3 class="text-xl font-black mb-4 flex items-center">
-                            <span class="w-1.5 h-5 bg-red-600 mr-3 rounded-full transition-all group-hover:h-8"></span>
-                            <span class="neon-glow" style="animation-delay: -{{ loop.index0 * 1.5 }}s;">{{ sname }}</span>
-                        </h3>
-                        <div class="space-y-3">
-                            {% for label, link in sdata.items() %}
-                                {% if link %}
-                                <a href="{{ link }}" onclick="saveProgress()" class="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl transition group/item">
-                                    <div class="flex items-center">
-                                        <div class="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center mr-3 group-hover/item:bg-red-600 transition">
-                                            <i class="fa-solid fa-download text-xs"></i>
-                                        </div>
-                                        <span class="font-bold text-sm">{{ label }}</span>
-                                    </div>
-                                    <i class="fa-solid fa-chevron-right text-[10px] text-gray-500"></i>
-                                </a>
-                                {% endif %}
-                            {% endfor %}
+            <!-- Tabs Headers -->
+            <div class="flex space-x-6 border-b border-white/5 pb-2 overflow-x-auto no-scrollbar text-xs font-black uppercase tracking-widest">
+                <button onclick="switchTab('tab-downloads')" id="btn-tab-downloads" class="tab-btn active pb-4 px-1 text-gray-400 hover:text-white">Downloads & Servers</button>
+                <button onclick="switchTab('tab-metadata')" id="btn-tab-metadata" class="tab-btn pb-4 px-1 text-gray-400 hover:text-white">Extended Metadata</button>
+                <button onclick="switchTab('tab-reviews')" id="btn-tab-reviews" class="tab-btn pb-4 px-1 text-gray-400 hover:text-white">Reviews & Social</button>
+                <button onclick="switchTab('tab-similar')" id="btn-tab-similar" class="tab-btn pb-4 px-1 text-gray-400 hover:text-white">Similar Titles</button>
+            </div>
+
+            <!-- TAB CONTENT: DOWNLOADS -->
+            <div id="tab-downloads" class="tab-panel space-y-6">
+                <h2 class="text-xl md:text-2xl font-black uppercase tracking-tighter">GET <span class="text-red-600">SECURE FILES</span></h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="servers">
+                    {% if media.seasons_links %}
+                        {% for sname, sdata in media.seasons_links.items() %}
+                        <div class="glass-card p-6 rounded-2xl flex flex-col justify-between neon-group">
+                            <div>
+                                <h3 class="text-lg font-black mb-4 text-white uppercase tracking-tight flex items-center">
+                                    <span class="w-1.5 h-4 bg-red-600 mr-2 rounded-full"></span>
+                                    {{ sname }}
+                                </h3>
+                                <div class="space-y-3">
+                                    {% for label, link in sdata.items() %}
+                                        {% if link %}
+                                        <a href="{{ link }}" onclick="saveProgress()" target="_blank" class="flex items-center justify-between p-3.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl transition group/item">
+                                            <div class="flex items-center">
+                                                <div class="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center mr-3 group-hover/item:bg-red-600 transition text-white">
+                                                    <i class="fa-solid fa-download text-xs"></i>
+                                                </div>
+                                                <span class="font-bold text-xs text-gray-200">{{ label }}</span>
+                                            </div>
+                                            <i class="fa-solid fa-chevron-right text-[9px] text-gray-500 group-hover/item:text-red-500 transition"></i>
+                                        </a>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="col-span-full py-16 text-center glass-card rounded-2xl border border-dashed border-white/10">
+                            <i class="fa-solid fa-circle-info text-gray-500 text-3xl mb-3"></i>
+                            <p class="text-gray-400 font-bold italic text-sm">No active file servers currently available for this title.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- TAB CONTENT: EXTENDED METADATA (OMDb & TVmaze integration) -->
+            <div id="tab-metadata" class="tab-panel hidden space-y-6">
+                <h2 class="text-xl md:text-2xl font-black uppercase tracking-tighter">API <span class="text-red-600">AGGREGATION DATA</span></h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Dynamic Rating Widget card -->
+                    <div class="glass-card p-6 rounded-2xl space-y-4">
+                        <h3 class="text-sm font-black text-gray-300 uppercase tracking-wider border-b border-white/5 pb-2">Comprehensive Meta Ratings</h3>
+                        <div class="space-y-4" id="ratings-container">
+                            <!-- Skeletons -->
+                            <div class="h-6 w-full skeleton rounded"></div>
+                            <div class="h-6 w-full skeleton rounded"></div>
+                            <div class="h-6 w-full skeleton rounded"></div>
                         </div>
                     </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="col-span-full py-12 text-center bg-white/5 rounded-2xl border border-dashed border-white/10">
-                        <p class="text-gray-500 font-bold italic">No servers currently available for this title.</p>
+
+                    <!-- Media details metadata card -->
+                    <div class="glass-card p-6 rounded-2xl space-y-4 col-span-1 md:col-span-2">
+                        <h3 class="text-sm font-black text-gray-300 uppercase tracking-wider border-b border-white/5 pb-2">Extended Meta Information</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm" id="metadata-container">
+                            <div class="h-16 skeleton rounded"></div>
+                            <div class="h-16 skeleton rounded"></div>
+                        </div>
                     </div>
-                {% endif %}
+                </div>
             </div>
+
+            <!-- TAB CONTENT: REVIEWS & SOCIAL (Trakt integration) -->
+            <div id="tab-reviews" class="tab-panel hidden space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl md:text-2xl font-black uppercase tracking-tighter">Social Insights <span class="text-red-600">& Comments</span></h2>
+                    <div class="text-xs bg-amber-500 text-black font-black px-3 py-1 rounded-full flex items-center gap-1.5"><i class="fa-solid fa-users"></i> Trakt.tv Social</div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <!-- Social stats -->
+                    <div class="glass-card p-6 rounded-2xl space-y-4 col-span-1" id="social-stats-container">
+                        <div class="h-24 skeleton rounded"></div>
+                    </div>
+                    <!-- Comments stream -->
+                    <div class="col-span-1 md:col-span-3 space-y-4" id="social-comments-container">
+                        <div class="h-16 skeleton rounded"></div>
+                        <div class="h-16 skeleton rounded"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB CONTENT: SIMILAR TITLES (TMDb integration) -->
+            <div id="tab-similar" class="tab-panel hidden space-y-6">
+                <h2 class="text-xl md:text-2xl font-black uppercase tracking-tighter">Dynamic <span class="text-red-600">Recommendations</span></h2>
+                <div class="swiper similar-swiper overflow-visible">
+                    <div class="swiper-wrapper" id="similar-container">
+                        <!-- Dynamic Recommended Cards -->
+                        <div class="swiper-slide w-[140px] md:w-[200px] skeleton aspect-[2/3] rounded-xl"></div>
+                        <div class="swiper-slide w-[140px] md:w-[200px] skeleton aspect-[2/3] rounded-xl"></div>
+                        <div class="swiper-slide w-[140px] md:w-[200px] skeleton aspect-[2/3] rounded-xl"></div>
+                    </div>
+                </div>
+            </div>
+
         </div>
+
     </div>
 </div>
 {% endblock %}
@@ -168,7 +267,6 @@
     }
 
     function playMedia() {
-        // Record as continue watching when watch is clicked
         window.useContinueWatching.add({...mediaItem, progress: 10});
         document.getElementById('servers').scrollIntoView({ behavior: 'smooth' });
     }
@@ -177,6 +275,248 @@
         window.useContinueWatching.add({...mediaItem, progress: 50});
     }
 
-    document.addEventListener('DOMContentLoaded', updateFavoriteUI);
+    // Tab Switcher
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+
+        document.getElementById(tabId).classList.remove('hidden');
+        document.getElementById('btn-' + tabId).classList.add('active');
+
+        if (tabId === 'tab-similar') {
+            setTimeout(() => {
+                new Swiper('.similar-swiper', {
+                    slidesPerView: 'auto',
+                    spaceBetween: 16,
+                    freeMode: true,
+                    breakpoints: {
+                        768: { spaceBetween: 24 }
+                    }
+                });
+            }, 100);
+        }
+    }
+
+    // Dynamic API Integrations Load logic (Zero Console Errors Guarantee)
+    async function defLoadAPIDetails() {
+        const tmdbKey = window.CONFIG?.tmdb_key;
+        const omdbKey = window.CONFIG?.omdb_key;
+        const traktKey = window.CONFIG?.trakt_key;
+        const title = "{{ media.title }}";
+        const type = "{{ media.type }}";
+        const year = "{{ media.year }}";
+        const tmdbId = "{{ media.tmdb_id or '' }}";
+
+        // 1. Fetch & Integrate TMDb Recommendations & Backdrop
+        if (tmdbKey && tmdbId) {
+            try {
+                const details = await window.tmdbService.getDetails(type === 'tv' ? 'tv' : 'movie', tmdbId);
+                if (details) {
+                    // Update Backdrop if missing
+                    if (details.backdrop_path && !document.getElementById('media-backdrop').src.includes('t/p/')) {
+                        document.getElementById('media-backdrop').src = `https://image.tmdb.org/t/p/original${details.backdrop_path}`;
+                    }
+
+                    // Render Similar Row
+                    const similarList = details.similar?.results || [];
+                    const container = document.getElementById('similar-container');
+                    if (similarList.length > 0) {
+                        container.innerHTML = '';
+                        similarList.slice(0, 10).forEach(item => {
+                            const slide = document.createElement('div');
+                            slide.className = 'swiper-slide w-[140px] md:w-[200px] flex flex-col justify-between';
+                            slide.innerHTML = `
+                                <div class="image-container aspect-[2/3] mb-2 shadow-lg relative">
+                                    <img src="${item.poster_path ? 'https://image.tmdb.org/t/p/w500' + item.poster_path : '/static/file-not-found.png'}" class="w-full h-full object-cover" alt="">
+                                    <div class="absolute top-2 right-2 bg-black/60 backdrop-blur px-1.5 py-0.5 rounded text-[9px] font-black text-amber-400">
+                                        <i class="fa-solid fa-star"></i> ${(item.vote_average || 0).toFixed(1)}
+                                    </div>
+                                </div>
+                                <h4 class="font-bold text-xs truncate text-white mt-1">${item.title || item.name}</h4>
+                            `;
+                            container.appendChild(slide);
+                        });
+                    } else {
+                        renderEmptySimilar();
+                    }
+                }
+            } catch (e) {
+                console.error("Error loading TMDb suggestions:", e);
+                renderEmptySimilar();
+            }
+        } else {
+            renderEmptySimilar();
+        }
+
+        // 2. Fetch & Integrate OMDb ratings/extra facts
+        if (omdbKey) {
+            try {
+                // Fetch by search or title
+                const queryTitle = title.split('S1')[0].split('Season')[0].trim();
+                const response = await fetch(`https://www.omdbapi.com/?apikey=${omdbKey}&t=${encodeURIComponent(queryTitle)}&y=${year}&plot=full`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.Response === 'True') {
+                        renderOMDbMetadata(data);
+                    } else {
+                        renderFallbackMetadata();
+                    }
+                } else {
+                    renderFallbackMetadata();
+                }
+            } catch (e) {
+                console.error("OMDb metadata load error:", e);
+                renderFallbackMetadata();
+            }
+        } else {
+            renderFallbackMetadata();
+        }
+
+        // 3. Fetch & Integrate Trakt.tv comments / stats
+        if (traktKey) {
+            try {
+                const tType = type === 'tv' ? 'show' : 'movie';
+                // Search Trakt ID first
+                const searchRes = await window.traktService.search(type, title);
+                if (searchRes && searchRes.length > 0) {
+                    const matchedItem = searchRes[0][tType];
+                    const traktId = matchedItem?.ids?.trakt;
+                    if (traktId) {
+                        const stats = await window.traktService.getStats(type, traktId);
+                        const comments = await window.traktService.getComments(type, traktId);
+                        renderTraktSocial(stats, comments);
+                    } else {
+                        renderFallbackSocial();
+                    }
+                } else {
+                    renderFallbackSocial();
+                }
+            } catch (e) {
+                console.error("Trakt Social load error:", e);
+                renderFallbackSocial();
+            }
+        } else {
+            renderFallbackSocial();
+        }
+    }
+
+    // Render Helpers
+    function renderEmptySimilar() {
+        document.getElementById('similar-container').innerHTML = `
+            <div class="w-full text-center py-12 text-gray-500 italic text-sm">
+                No similar titles found or APIs offline.
+            </div>
+        `;
+    }
+
+    function renderOMDbMetadata(data) {
+        // Ratings
+        const ratingsContainer = document.getElementById('ratings-container');
+        let html = '';
+        const rates = [
+            { name: 'IMDb Rating', score: data.imdbRating || 'N/A', icon: 'fa-brands fa-imdb text-amber-500' },
+            { name: 'Metascore', score: data.Metascore || 'N/A', icon: 'fa-solid fa-chart-line text-blue-500' },
+            { name: 'Rotten Tomatoes', score: (data.Ratings?.find(r=>r.Source==='Rotten Tomatoes')?.Value) || 'N/A', icon: 'fa-solid fa-lemon text-red-500' }
+        ];
+        rates.forEach(r => {
+            html += `
+                <div class="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                    <span class="flex items-center gap-2 font-black text-xs text-gray-300"><i class="${r.icon}"></i> ${r.name}</span>
+                    <span class="text-sm font-black text-white">${r.score}</span>
+                </div>
+            `;
+        });
+        ratingsContainer.innerHTML = html;
+
+        // Info facts
+        const metaContainer = document.getElementById('metadata-container');
+        metaContainer.innerHTML = `
+            <div class="bg-white/5 p-4 rounded-xl space-y-1">
+                <span class="text-[9px] font-black text-gray-500 uppercase tracking-wider">Writer</span>
+                <p class="font-bold text-gray-200 text-xs line-clamp-2">${data.Writer || 'N/A'}</p>
+            </div>
+            <div class="bg-white/5 p-4 rounded-xl space-y-1">
+                <span class="text-[9px] font-black text-gray-500 uppercase tracking-wider">Awards Received</span>
+                <p class="font-bold text-gray-200 text-xs line-clamp-2">${data.Awards || 'N/A'}</p>
+            </div>
+            <div class="bg-white/5 p-4 rounded-xl space-y-1">
+                <span class="text-[9px] font-black text-gray-500 uppercase tracking-wider">Box Office</span>
+                <p class="font-bold text-gray-200 text-xs">${data.BoxOffice || 'N/A'}</p>
+            </div>
+            <div class="bg-white/5 p-4 rounded-xl space-y-1">
+                <span class="text-[9px] font-black text-gray-500 uppercase tracking-wider">Release Date</span>
+                <p class="font-bold text-gray-200 text-xs">${data.Released || 'N/A'}</p>
+            </div>
+        `;
+    }
+
+    function renderFallbackMetadata() {
+        document.getElementById('ratings-container').innerHTML = `
+            <div class="bg-white/5 p-4 rounded-xl text-center text-xs text-gray-400 italic">OMDb API limits reached or no key configured.</div>
+        `;
+        document.getElementById('metadata-container').innerHTML = `
+            <div class="bg-white/5 p-4 rounded-xl space-y-1">
+                <span class="text-[9px] font-black text-gray-500 uppercase tracking-wider">Aggregator Facts</span>
+                <p class="font-bold text-gray-400 text-xs">Configure your OMDb API Key in settings to load dynamic information.</p>
+            </div>
+        `;
+    }
+
+    function renderTraktSocial(stats, comments) {
+        // Render Stats
+        const statsContainer = document.getElementById('social-stats-container');
+        if (stats) {
+            statsContainer.innerHTML = `
+                <div class="space-y-4">
+                    <div class="bg-white/5 p-4 rounded-xl text-center">
+                        <p class="text-2xl font-black text-white">${stats.watchers || '0'}</p>
+                        <p class="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-1">Total Watchers</p>
+                    </div>
+                    <div class="bg-white/5 p-4 rounded-xl text-center">
+                        <p class="text-2xl font-black text-white">${stats.plays || '0'}</p>
+                        <p class="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-1">Global Plays</p>
+                    </div>
+                </div>
+            `;
+        } else {
+            statsContainer.innerHTML = `<div class="bg-white/5 p-4 rounded-xl text-center text-xs text-gray-400">No stats.</div>`;
+        }
+
+        // Render comments list
+        const commentsContainer = document.getElementById('social-comments-container');
+        if (comments && comments.length > 0) {
+            commentsContainer.innerHTML = '';
+            comments.slice(0, 3).forEach(c => {
+                const commentDiv = document.createElement('div');
+                commentDiv.className = 'glass-card p-5 rounded-2xl space-y-2';
+                commentDiv.innerHTML = `
+                    <div class="flex justify-between items-center text-xs border-b border-white/5 pb-2">
+                        <span class="font-black text-red-500"><i class="fa-solid fa-user-circle"></i> ${c.user?.username || 'Anonymous'}</span>
+                        <span class="text-gray-500 font-bold">${c.user?.rating ? c.user.rating + '/10' : ''}</span>
+                    </div>
+                    <p class="text-gray-300 text-xs leading-relaxed font-medium line-clamp-3">${c.comment || ''}</p>
+                `;
+                commentsContainer.appendChild(commentDiv);
+            });
+        } else {
+            commentsContainer.innerHTML = `
+                <div class="glass-card p-6 rounded-2xl text-center text-xs text-gray-400 italic">No social reviews currently posted. Be the first!</div>
+            `;
+        }
+    }
+
+    function renderFallbackSocial() {
+        document.getElementById('social-stats-container').innerHTML = `
+            <div class="bg-white/5 p-4 rounded-xl text-center text-xs text-gray-400">Social metrics offline.</div>
+        `;
+        document.getElementById('social-comments-container').innerHTML = `
+            <div class="glass-card p-6 rounded-2xl text-center text-xs text-gray-400">Trakt.tv API connection not configured. Complete authentication to render real-time social streams.</div>
+        `;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        updateFavoriteUI();
+        defLoadAPIDetails();
+    });
 </script>
 {% endblock %}

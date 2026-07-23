@@ -9,7 +9,11 @@ class MediaAPI:
     def __init__(self):
         self.tmdb_url = "https://api.themoviedb.org/3"
         self.tvmaze_url = "https://api.tvmaze.com"
+        self.omdb_url = "https://www.omdbapi.com"
+        self.trakt_url = "https://api.trakt.tv"
         self.tmdb_key = Config.TMDB_API_KEY
+        self.omdb_key = Config.OMDB_API_KEY
+        self.trakt_id = Config.TRAKT_CLIENT_ID
         self._session = None
 
     async def get_session(self):
@@ -24,10 +28,10 @@ class MediaAPI:
         if self._session and not self._session.closed:
             await self._session.close()
 
-    async def _get(self, url, params=None):
+    async def _get(self, url, params=None, headers=None):
         session = await self.get_session()
         try:
-            async with session.get(url, params=params) as resp:
+            async with session.get(url, params=params, headers=headers) as resp:
                 if resp.status == 200:
                     return await resp.json()
                 else:
@@ -75,5 +79,43 @@ class MediaAPI:
                 "overview": x["show"].get("summary")
             } for x in data]
         return []
+
+    async def get_omdb_metadata(self, title, year=None, imdb_id=None):
+        """Fetch extensive meta rating/cast from OMDb"""
+        if not self.omdb_key: return None
+        params = {"apikey": self.omdb_key, "plot": "full"}
+        if imdb_id:
+            params["i"] = imdb_id
+        else:
+            params["t"] = title
+            if year: params["y"] = year
+        return await self._get(self.omdb_url, params=params)
+
+    async def get_trakt_metadata(self, media_type, query):
+        """Fetch global social stats/reviews from Trakt"""
+        if not self.trakt_id: return None
+        headers = {
+            "Content-Type": "application/json",
+            "trakt-api-version": "2",
+            "trakt-api-key": self.trakt_id
+        }
+        # Trakt uses "show" instead of "tv"
+        t_type = "show" if media_type == "tv" else "movie"
+        params = {"query": query}
+        results = await self._get(f"{self.trakt_url}/search/{t_type}", params=params, headers=headers)
+        if results and isinstance(results, list) and len(results) > 0:
+            # Get the first match
+            first = results[0]
+            trakt_id = first.get(t_type, {}).get("ids", {}).get("trakt")
+            if trakt_id:
+                # Fetch statistics
+                stats = await self._get(f"{self.trakt_url}/{t_type}s/{trakt_id}/stats", headers=headers)
+                comments = await self._get(f"{self.trakt_url}/{t_type}s/{trakt_id}/comments/trending", headers=headers)
+                return {
+                    "trakt_id": trakt_id,
+                    "stats": stats or {},
+                    "comments": comments or []
+                }
+        return None
 
 media_api = MediaAPI()

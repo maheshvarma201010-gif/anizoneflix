@@ -23,7 +23,7 @@ logger = logging.getLogger("MZ_APP")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # STARTUP
-    logger.info("MZ Platform Engine starting...")
+    logger.info("ANIZONEFLIX Platform Engine starting...")
     try:
         await db.connect()
         loop = asyncio.get_running_loop()
@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
 
 # --- APP INITIALIZATION ---
 
-app = FastAPI(title="MoviesZoneFlix", lifespan=lifespan)
+app = FastAPI(title="ANIZONEFLIX", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -65,12 +65,20 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/src", StaticFiles(directory="src"), name="src")
+
 # Try to use new src/pages first, then fallback or handle specifically
 templates = Jinja2Templates(directory="src/pages")
 # For shared layouts
 templates.env.loader.searchpath.append("src/layouts")
 
 templates.env.filters["slugify"] = slugify
+
+# Configure Global Template variables
+templates.env.globals["tmdb_key"] = Config.TMDB_API_KEY
+templates.env.globals["omdb_key"] = Config.OMDB_API_KEY
+templates.env.globals["trakt_key"] = Config.TRAKT_CLIENT_ID
+templates.env.globals["site_name"] = "ANIZONEFLIX"
+templates.env.globals["logo_url"] = Config.LOGO_URL
 
 # --- CUSTOM RESPONSES ---
 
@@ -97,17 +105,12 @@ async def index(request: Request):
             "trending": trending or [],
             "popular_movies": popular_movies or [],
             "popular_series": popular_series or [],
-            "categories": categories or [],
-            "logo_url": Config.LOGO_URL,
-            "site_name": "MoviesZoneFlix",
-            "tmdb_key": Config.TMDB_API_KEY,
-            "omdb_key": Config.OMDB_API_KEY
+            "categories": categories or []
         })
     except Exception as e:
         logger.error(f"Index error: {e}")
         return templates.TemplateResponse(request=request, name="index.html", context={
-            "trending": [], "popular_movies": [], "popular_series": [], "categories": [],
-            "logo_url": Config.LOGO_URL, "site_name": "MoviesZoneFlix"
+            "trending": [], "popular_movies": [], "popular_series": [], "categories": []
         })
 
 @app.get("/watch/{slug}")
@@ -123,9 +126,7 @@ async def media_detail(request: Request, slug: str):
         return templates.TemplateResponse(request=request, name="details.html", context={
             "media": media,
             "episodes": episodes or [],
-            "categories": categories or [],
-            "logo_url": Config.LOGO_URL,
-            "site_name": "MoviesZoneFlix"
+            "categories": categories or []
         })
     except Exception as e:
         logger.error(f"Detail error for {slug}: {e}")
@@ -156,13 +157,41 @@ async def search_web(request: Request, q: str = "", type: str = "", year: str = 
         return templates.TemplateResponse(request=request, name="search.html", context={
             "results": results or [],
             "query": q,
-            "categories": categories or [],
-            "logo_url": Config.LOGO_URL,
-            "site_name": "MoviesZoneFlix"
+            "categories": categories or []
         })
     except Exception as e:
         logger.error(f"Search error: {e}")
         return templates.TemplateResponse(request=request, name="search.html", context={"results": [], "query": q, "categories": []})
+
+@app.get("/movies")
+async def movies_page(request: Request):
+    try:
+        results = await db.get_all_media(limit=50, filters={"type": "movie"})
+        categories = await db.get_all_categories()
+        return templates.TemplateResponse(request=request, name="search.html", context={
+            "results": results or [],
+            "query": "",
+            "type_filter": "movie",
+            "categories": categories or []
+        })
+    except Exception as e:
+        logger.error(f"Movies page error: {e}")
+        return RedirectResponse(url="/")
+
+@app.get("/series")
+async def series_page(request: Request):
+    try:
+        results = await db.get_all_media(limit=50, filters={"type": "tv"})
+        categories = await db.get_all_categories()
+        return templates.TemplateResponse(request=request, name="search.html", context={
+            "results": results or [],
+            "query": "",
+            "type_filter": "tv",
+            "categories": categories or []
+        })
+    except Exception as e:
+        logger.error(f"Series page error: {e}")
+        return RedirectResponse(url="/")
 
 @app.get("/categories")
 async def categories_page(request: Request):
@@ -188,7 +217,7 @@ async def admin_login(request: Request, token: str = None):
 async def admin_dashboard(request: Request, admin=Depends(get_current_admin)):
     posts = await db.get_all_media(limit=100)
     return templates.TemplateResponse("admin_dashboard.html", {
-        "request": request, "posts": posts or [], "logo_url": Config.LOGO_URL, "site_name": "MoviesZoneFlix"
+        "request": request, "posts": posts or []
     })
 
 if __name__ == "__main__":
