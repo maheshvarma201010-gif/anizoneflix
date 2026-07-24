@@ -1,159 +1,290 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 py-16">
-    <div class="text-center mb-12 animate-fade-in">
-        <h1 class="text-4xl md:text-6xl font-black mb-6 tracking-tighter uppercase grad-text">
-            {% if query %}Results: <span class="text-red-600">{{ query }}</span>{% else %}Search <span class="text-red-600">Anime</span>{% endif %}
+<div class="max-w-7xl mx-auto px-4 py-8 md:py-16">
+    <!-- Header Area -->
+    <div class="text-center mb-8 md:mb-12 animate-fade-in">
+        <h1 id="searchPageHeader" class="text-4xl md:text-6xl font-black mb-4 tracking-tighter uppercase grad-text">
+            Search <span class="text-red-600">Anime</span>
         </h1>
-        <p class="text-gray-500 font-bold text-xs uppercase tracking-[0.3em]">Found {{ results|length }} titles</p>
+        <p id="searchCountText" class="text-gray-500 font-bold text-xs uppercase tracking-[0.3em] transition-all">
+            Found {{ results|length }} titles
+        </p>
     </div>
 
-    <div class="mb-16">
-        <form action="/search" method="GET" class="max-w-2xl mx-auto relative group">
-            <input type="text" name="q" placeholder="Search title or category..." value="{{ query or '' }}"
-                   class="w-full h-16 glass bg-white/[0.03] border-white/10 rounded-2xl px-8 pr-20 text-lg font-bold focus:ring-2 focus:ring-red-600/20 outline-none transition-all group-hover:bg-white/[0.05] group-hover:border-red-600/40 shadow-2xl">
-            <button type="submit" class="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 bg-red-600 rounded-xl hover:bg-red-700 transition-all shadow-2xl shadow-red-900/40 flex items-center justify-center active:scale-90">
-                <i class="fa-solid fa-search text-lg"></i>
-            </button>
-        </form>
+    <!-- Premium Search Bar Wrapper -->
+    <div class="mb-12 max-w-2xl mx-auto">
+        <div class="relative w-full group">
+            <!-- Left Side Search Icon -->
+            <span class="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-red-500 transition-colors pointer-events-none z-10">
+                <i class="fa-solid fa-magnifying-glass text-xl"></i>
+            </span>
+
+            <!-- Main Input Field -->
+            <input type="text" id="liveSearchInput" placeholder="Type title or category..." value="{{ query or '' }}" autocomplete="off"
+                   class="w-full h-16 pl-14 pr-24 glass bg-white/[0.02] border-white/10 rounded-2xl text-lg font-bold focus:ring-2 focus:ring-red-600/30 focus:border-red-600 outline-none transition-all group-hover:bg-white/[0.04] group-hover:border-white/20 shadow-2xl text-white placeholder-gray-500">
+
+            <!-- Right-aligned action container (Spinner and Clear Button) -->
+            <div class="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3 z-10">
+                <!-- Inline Spinner -->
+                <div id="inlineSearchSpinner" class="hidden w-5 h-5 border-2 border-red-600/20 border-t-red-600 rounded-full animate-spin"></div>
+
+                <!-- Clear Button -->
+                <button type="button" id="clearSearchBtn" class="{% if not query %}hidden{% endif %} w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 active:scale-90 flex items-center justify-center text-gray-400 hover:text-white transition-all" title="Clear Search">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+        </div>
     </div>
 
-    {% if results %}
-    <div id="searchResultsContainer" class="responsive-grid gap-3 md:gap-6">
-        {% for anime in results if anime %}
-        <div class="anime-card animate-fade-in no-select no-drag" style="animation-delay: {{ loop.index0 * 0.05 }}s">
-            <a href="/anime/{{ anime.slug }}" class="group block">
-                <div class="poster-wrapper">
-                    <img src="{{ anime.image }}" alt="{{ anime.title }}" loading="lazy">
-                    <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-6">
-                        <div class="btn-premium py-2.5 text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl mb-3 md:mb-4">Watch Now</div>
-                        <div class="flex items-center gap-2 md:gap-4 text-[9px] md:text-[10px] text-gray-400 font-black tracking-widest">
-                            <span class="text-yellow-500"><i class="fa-solid fa-star mr-1"></i> {{ anime.score or '8.5' }}</span>
-                            <span>•</span>
-                            <span>{{ anime.year or '2024' }}</span>
+    <!-- Results Section -->
+    <div id="searchResultsContainer" class="responsive-grid gap-4 md:gap-6">
+        {% if results %}
+            {% for anime in results if anime %}
+            <div class="anime-card animate-fade-in no-select no-drag" style="animation-delay: {{ loop.index0 * 0.02 }}s">
+                <a href="/anime/{{ anime.slug }}" class="group block">
+                    <div class="poster-wrapper">
+                        <img src="{{ anime.image }}" alt="{{ anime.title }}" loading="lazy">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-6">
+                            <div class="btn-premium py-2.5 text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl mb-3 md:mb-4 w-full text-center">Watch Now</div>
+                            <div class="flex items-center gap-2 md:gap-4 text-[9px] md:text-[10px] text-gray-400 font-black tracking-widest">
+                                <span class="text-yellow-500"><i class="fa-solid fa-star mr-1"></i> {{ anime.score or '8.5' }}</span>
+                                <span>•</span>
+                                <span>{{ anime.year or '2024' }}</span>
+                            </div>
+                        </div>
+                        <div class="absolute top-3 right-3 md:top-4 md:right-4 glass px-2 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black border-white/10 shadow-2xl">
+                            <i class="fa-solid fa-star text-yellow-500 mr-1"></i> {{ anime.score or '8.5' }}
                         </div>
                     </div>
-                    <div class="absolute top-3 right-3 md:top-4 md:right-4 glass px-2 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black border-white/10 shadow-2xl">
-                        <i class="fa-solid fa-star text-yellow-500 mr-1"></i> {{ anime.score or '8.5' }}
+                    <div class="p-3 md:p-4 bg-gradient-to-b from-transparent to-black/40">
+                        <h3>{{ anime.title }}</h3>
+                        <div class="flex items-center justify-between mt-2">
+                            <span class="text-[7px] md:text-[8px] text-gray-500 font-bold uppercase tracking-widest">{{ anime.category }}</span>
+                            <span class="text-[7px] md:text-[8px] text-red-600 font-bold uppercase tracking-widest">{{ anime.status or 'RELEASED' }}</span>
+                        </div>
                     </div>
-                </div>
-                <div class="p-3 md:p-4 bg-gradient-to-b from-transparent to-black/40">
-                    <h3>{{ anime.title }}</h3>
-                    <div class="flex items-center justify-between mt-2">
-                        <span class="text-[7px] md:text-[8px] text-gray-500 font-bold uppercase tracking-widest">{{ anime.category }}</span>
-                        <span class="text-[7px] md:text-[8px] text-red-600 font-bold uppercase tracking-widest">{{ anime.status or 'RELEASED' }}</span>
-                    </div>
-                </div>
-            </a>
-        </div>
-        {% endfor %}
+                </a>
+            </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- No Matches Placeholder -->
+    <div id="noResultsPlaceholder" class="{% if results %}hidden{% endif %} py-20 text-center glass rounded-[3rem] border-white/5 max-w-xl mx-auto mt-12">
+        <i class="fa-solid fa-magnifying-glass text-6xl text-gray-700 mb-6"></i>
+        <h3 class="text-2xl font-black text-gray-400 mb-2 uppercase tracking-tighter">No Matches Found</h3>
+        <p class="text-gray-500 font-bold uppercase tracking-widest text-[9px] mb-8 px-6 leading-relaxed">We couldn't find anything matching your query. Try different spelling or simpler keywords!</p>
+        <button id="resetSearchBtn" class="btn-premium px-8 py-4 text-[10px] tracking-widest">RESET SEARCH</button>
     </div>
 
     <!-- Infinite Scroll Loader for search results -->
-    <div id="searchLoader" class="hidden py-20 text-center">
-        <div class="inline-block w-12 h-12 border-4 border-red-600/20 border-t-red-600 rounded-full animate-spin"></div>
-        <p class="mt-4 text-[10px] font-black uppercase tracking-[0.5em] text-gray-600">Loading more search results...</p>
+    <div id="searchLoader" class="{% if not results %}hidden{% endif %} py-16 text-center">
+        <div class="inline-block w-10 h-10 border-4 border-red-600/20 border-t-red-600 rounded-full animate-spin"></div>
+        <p class="mt-4 text-[9px] font-black uppercase tracking-[0.4em] text-gray-600">Loading more search results...</p>
     </div>
+</div>
 
-    <script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const input = document.getElementById('liveSearchInput');
+        const clearBtn = document.getElementById('clearSearchBtn');
+        const spinner = document.getElementById('inlineSearchSpinner');
+        const container = document.getElementById('searchResultsContainer');
+        const noResults = document.getElementById('noResultsPlaceholder');
+        const loader = document.getElementById('searchLoader');
+        const countText = document.getElementById('searchCountText');
+        const pageHeader = document.getElementById('searchPageHeader');
+        const resetBtn = document.getElementById('resetSearchBtn');
+
         let searchPage = 1;
         let searchLoading = false;
         let searchHasMore = true;
+        let currentQuery = input.value.trim();
         const loadedSearchSlugs = new Set();
+        let debounceTimer;
 
-        // Register initial items
-        document.querySelectorAll('#searchResultsContainer .anime-card').forEach(card => {
-            const link = card.querySelector('a').getAttribute('href');
-            const slug = link.split('/anime/').pop();
-            loadedSearchSlugs.add(slug);
-        });
+        // Ensure the search input automatically receives focus on mobile and desktop
+        input.focus();
+        // Fallback for strict mobile browsers that block auto-keyboard popup unless direct tap
+        input.addEventListener('touchstart', () => {
+            input.focus();
+        }, { passive: true });
 
-        const loadMoreSearch = async () => {
-            if (searchLoading || !searchHasMore) return;
+        // Initialize already loaded slugs
+        const registerLoadedSlugs = () => {
+            loadedSearchSlugs.clear();
+            document.querySelectorAll('#searchResultsContainer .anime-card').forEach(card => {
+                const link = card.querySelector('a').getAttribute('href');
+                const slug = link.split('/anime/').pop();
+                loadedSearchSlugs.add(slug);
+            });
+        };
+        registerLoadedSlugs();
+
+        // Helper to construct perfect anime card markup dynamically
+        const createCardHTML = (anime, index) => {
+            return `
+                <div class="anime-card animate-fade-in no-select no-drag" style="animation-delay: ${index * 0.01}s">
+                    <a href="/anime/${anime.slug}" class="group block">
+                        <div class="poster-wrapper">
+                            <img src="${anime.image}" alt="${anime.title}" loading="lazy">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-6">
+                                <div class="btn-premium py-2.5 text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl mb-3 md:mb-4 w-full text-center">Watch Now</div>
+                                <div class="flex items-center gap-2 md:gap-4 text-[9px] md:text-[10px] text-gray-400 font-black tracking-widest">
+                                    <span class="text-yellow-500"><i class="fa-solid fa-star mr-1"></i> ${anime.score || '8.5'}</span>
+                                    <span>•</span>
+                                    <span>${anime.year || '2024'}</span>
+                                </div>
+                            </div>
+                            <div class="absolute top-3 right-3 md:top-4 md:right-4 glass px-2 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black border-white/10 shadow-2xl">
+                                <i class="fa-solid fa-star text-yellow-500 mr-1"></i> ${anime.score || '8.5'}
+                            </div>
+                        </div>
+                        <div class="p-3 md:p-4 bg-gradient-to-b from-transparent to-black/40">
+                            <h3>${anime.title}</h3>
+                            <div class="flex items-center justify-between mt-2">
+                                <span class="text-[7px] md:text-[8px] text-gray-500 font-bold uppercase tracking-widest">${anime.category || 'Anime'}</span>
+                                <span class="text-[7px] md:text-[8px] text-red-600 font-bold uppercase tracking-widest">${anime.status || 'RELEASED'}</span>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            `;
+        };
+
+        // Performs API-based dynamic live search
+        const performSearch = async (query, append = false) => {
+            if (searchLoading) return;
             searchLoading = true;
-            document.getElementById('searchLoader').classList.remove('hidden');
+            spinner.classList.remove('hidden');
+            if (loader) loader.classList.remove('hidden');
 
-            const q = new URLSearchParams(window.location.search).get('q') || '';
+            const normalizedQuery = query.trim();
+
+            if (!append) {
+                searchPage = 0;
+                searchHasMore = true;
+            }
 
             try {
-                const resp = await fetch(`/api/search?q=${encodeURIComponent(q)}&skip=${searchPage * 24}&limit=24`);
-                const res = await resp.json();
+                const url = `/api/search?q=${encodeURIComponent(normalizedQuery)}&skip=${searchPage * 24}&limit=24`;
+                const response = await fetch(url);
+                const result = await response.json();
 
-                if (!res.success || !res.data || res.data.length === 0) {
-                    searchHasMore = false;
+                if (result.success && result.data) {
+                    if (!append) {
+                        container.innerHTML = '';
+                        loadedSearchSlugs.clear();
+                    }
+
+                    if (result.data.length === 0) {
+                        if (!append) {
+                            noResults.classList.remove('hidden');
+                            if (loader) loader.classList.add('hidden');
+                            countText.innerText = 'Found 0 titles';
+                        }
+                        searchHasMore = false;
+                    } else {
+                        noResults.classList.add('hidden');
+                        if (loader) loader.classList.remove('hidden');
+
+                        let cardCount = 0;
+                        result.data.forEach((anime, index) => {
+                            if (loadedSearchSlugs.has(anime.slug)) return;
+                            loadedSearchSlugs.add(anime.slug);
+                            cardCount++;
+                            container.insertAdjacentHTML('beforeend', createCardHTML(anime, index));
+                        });
+
+                        if (result.data.length < 24) {
+                            searchHasMore = false;
+                            if (loader) loader.classList.add('hidden');
+                        }
+
+                        // Update page titles & count text beautifully
+                        if (normalizedQuery) {
+                            pageHeader.innerHTML = `Results: <span class="text-red-600">${normalizedQuery}</span>`;
+                        } else {
+                            pageHeader.innerHTML = `Search <span class="text-red-600">Anime</span>`;
+                        }
+                        countText.innerText = `Found ${loadedSearchSlugs.size} titles`;
+                    }
                 } else {
-                    const container = document.getElementById('searchResultsContainer');
-                    res.data.forEach(anime => {
-                        if (loadedSearchSlugs.has(anime.slug)) return;
-                        loadedSearchSlugs.add(anime.slug);
-
-                        const html = `
-                            <div class="anime-card animate-fade-in no-select no-drag">
-                                <a href="/anime/${anime.slug}" class="group block">
-                                    <div class="poster-wrapper">
-                                        <img src="${anime.image}" alt="${anime.title}" loading="lazy">
-                                        <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-3 md:p-6">
-                                            <div class="btn-premium py-2.5 text-[9px] md:text-[10px] uppercase tracking-widest shadow-2xl mb-3 md:mb-4">Watch Now</div>
-                                            <div class="flex items-center gap-2 md:gap-4 text-[9px] md:text-[10px] text-gray-400 font-black tracking-widest">
-                                                <span class="text-yellow-500"><i class="fa-solid fa-star mr-1"></i> ${anime.score || '8.5'}</span>
-                                                <span>•</span>
-                                                <span>${anime.year || '2024'}</span>
-                                            </div>
-                                        </div>
-                                        <div class="absolute top-3 right-3 md:top-4 md:right-4 glass px-2 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black border-white/10 shadow-2xl">
-                                            <i class="fa-solid fa-star text-yellow-500 mr-1"></i> ${anime.score || '8.5'}
-                                        </div>
-                                    </div>
-                                    <div class="p-3 md:p-4 bg-gradient-to-b from-transparent to-black/40">
-                                        <h3>${anime.title}</h3>
-                                        <div class="flex items-center justify-between mt-2">
-                                            <span class="text-[7px] md:text-[8px] text-gray-500 font-bold uppercase tracking-widest">${anime.category || 'Anime'}</span>
-                                            <span class="text-[7px] md:text-[8px] text-red-600 font-bold uppercase tracking-widest">${anime.status || 'RELEASED'}</span>
-                                        </div>
-                                    </div>
-                                </a>
-                            </div>
-                        `;
-                        container.insertAdjacentHTML('beforeend', html);
-                    });
-                    searchPage++;
+                    searchHasMore = false;
                 }
-            } catch (e) {
-                console.error('Error loading search items:', e);
+            } catch (error) {
+                console.error("Search fetch failed:", error);
+                searchHasMore = false;
             } finally {
                 searchLoading = false;
-                document.getElementById('searchLoader').classList.add('hidden');
+                spinner.classList.add('hidden');
             }
         };
 
-        // Intersection Observer
+        // Infinite Scroll implementation
+        const loadMoreSearch = async () => {
+            if (searchLoading || !searchHasMore) return;
+            searchPage++;
+            await performSearch(currentQuery, true);
+        };
+
+        // Debounce input to prevent database overloading during fast typing
+        input.addEventListener('input', () => {
+            const val = input.value;
+            currentQuery = val;
+
+            if (val.trim()) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                performSearch(currentQuery);
+            }, 150);
+        });
+
+        // Clear Search Action
+        const resetSearch = () => {
+            input.value = '';
+            currentQuery = '';
+            clearBtn.classList.add('hidden');
+            noResults.classList.add('hidden');
+            performSearch('');
+            input.focus();
+        };
+
+        clearBtn.addEventListener('click', resetSearch);
+        resetBtn.addEventListener('click', resetSearch);
+
+        // Immediate Enter keypress search trigger
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                clearTimeout(debounceTimer);
+                performSearch(currentQuery);
+            }
+        });
+
+        // Intersection Observer for performance-tuned dynamic load triggers
         const searchObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     loadMoreSearch();
                 }
             });
-        }, { rootMargin: '200px' });
+        }, { rootMargin: '250px' });
 
-        document.addEventListener('DOMContentLoaded', () => {
-            const searchLoader = document.getElementById('searchLoader');
-            if (searchLoader) searchObserver.observe(searchLoader);
-        });
+        if (loader) searchObserver.observe(loader);
 
+        // Window scroll fallback listener
         window.addEventListener('scroll', () => {
             if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 1200) {
                 loadMoreSearch();
             }
         }, { passive: true });
-    </script>
-    {% else %}
-    <div class="py-40 text-center glass rounded-[4rem] border-white/5">
-        <i class="fa-solid fa-magnifying-glass text-7xl text-gray-800 mb-10"></i>
-        <h3 class="text-3xl font-black text-gray-400 mb-4 uppercase tracking-tighter">No Results Found</h3>
-        <p class="text-gray-600 font-bold uppercase tracking-widest text-[10px] mb-12">We couldn't find anything matching your search. Try another keyword!</p>
-        <a href="/" class="btn-premium px-12 py-5 text-[10px]">BACK TO HOME</a>
-    </div>
-    {% endif %}
-</div>
+    });
+</script>
 {% endblock %}

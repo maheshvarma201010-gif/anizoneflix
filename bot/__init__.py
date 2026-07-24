@@ -76,6 +76,88 @@ def extract_slug(text):
             return None
     return text
 
+def parse_group_block(text: str, expected_count: int):
+    lines = [line.strip() for line in text.strip().split('\n') if line.strip()]
+    if not lines:
+        return None, None, "❌ **Error:** Input cannot be empty."
+
+    group_name = lines[0]
+    button_lines = lines[1:]
+
+    if len(button_lines) != expected_count:
+        return None, None, f"❌ **Error:** Expected exactly {expected_count} button lines (after the Group Name on the first line), but found {len(button_lines)} non-empty line(s)."
+
+    parsed_buttons = {}
+    for idx, line in enumerate(button_lines, 1):
+        if ":" not in line:
+            return None, None, f"❌ **Error on button line {idx}:** Missing ':' separator.\nFormat: `Button Name : Link`"
+
+        parts = line.split(":", 1)
+        name = parts[0].strip()
+        link = parts[1].strip()
+
+        if not name:
+            return None, None, f"❌ **Error on button line {idx}:** Button name cannot be empty."
+        if not link.startswith("http://") and not link.startswith("https://"):
+            return None, None, f"❌ **Error on button line {idx}:** Link must start with http:// or https://"
+
+        parsed_buttons[name] = link
+
+    return group_name, parsed_buttons, None
+
+def parse_advanced_group_block(text: str):
+    import re
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
+    if not lines:
+        return None, "❌ **Error:** Message is empty."
+
+    groups = []
+    current_group = None
+
+    for idx, line in enumerate(lines, 1):
+        num_match = re.match(r'^(\d+)\s*[\.\-\)]\s*(.*)$', line)
+        if num_match:
+            if current_group:
+                if not current_group["buttons"]:
+                    return None, f"❌ **Error in group '{current_group['name']}':** Group has no buttons."
+                groups.append(current_group)
+
+            group_name = num_match.group(2).strip()
+            if not group_name:
+                return None, f"❌ **Error on line {idx}:** Group name after number '{num_match.group(1)}' cannot be empty."
+
+            current_group = {
+                "name": group_name,
+                "buttons": {}
+            }
+        else:
+            if not current_group:
+                return None, f"❌ **Error on line {idx}:** Found button line before any numbered Group entry. Format must start with a number like '1. Group Name'."
+
+            if ":" not in line:
+                return None, f"❌ **Error in group '{current_group['name']}':** Invalid button format on line: `{line}`\nExpected `Button Name : Link`."
+
+            parts = line.split(":", 1)
+            b_name = parts[0].strip()
+            b_link = parts[1].strip()
+
+            if not b_name:
+                return None, f"❌ **Error in group '{current_group['name']}':** Button name cannot be empty."
+            if not b_link.startswith("http://") and not b_link.startswith("https://"):
+                return None, f"❌ **Error in group '{current_group['name']}':** Invalid URL for '{b_name}'. Must start with http:// or https://."
+
+            current_group["buttons"][b_name] = b_link
+
+    if current_group:
+        if not current_group["buttons"]:
+            return None, f"❌ **Error in group '{current_group['name']}':** Group has no buttons."
+        groups.append(current_group)
+
+    if not groups:
+        return None, "❌ **Error:** No groups could be parsed. Make sure to start with a number like `1. Group Name`."
+
+    return groups, None
+
 def register_handlers(bot: Client):
     logger.info("Initializing Hardened Intelligence Suite Handlers...")
 
@@ -276,6 +358,7 @@ def register_handlers(bot: Client):
             if message.command[0] == "edit_m":
                 buttons = [
                     [InlineKeyboardButton("📦 Add Custom Group", callback_data=f"add_cgrp_start_{aid}")],
+                    [InlineKeyboardButton("🚀 Advanced Group", callback_data=f"adv_grp_start_{aid}")],
                     [InlineKeyboardButton("➕ Add Custom Button", callback_data=f"add_btn_start_{aid}")],
                     [InlineKeyboardButton("🗃 Add Custom Box", callback_data=f"add_box_start_{aid}")],
                     [InlineKeyboardButton("📋 Manage Boxes", callback_data=f"manage_boxes_{aid}")],
@@ -290,6 +373,7 @@ def register_handlers(bot: Client):
             else:
                 buttons = [
                     [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{aid}")],
+                    [InlineKeyboardButton("🚀 Advanced Group", callback_data=f"adv_grp_start_{aid}")],
                     [InlineKeyboardButton("🗃 Custom Boxes", callback_data=f"manage_boxes_{aid}")],
                     [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
                     [InlineKeyboardButton("📂 Change Category", callback_data=f"manage_category_{aid}")],
@@ -646,8 +730,8 @@ def register_handlers(bot: Client):
     @bot.on_callback_query(filters.regex("^add_group_yes_"))
     async def add_group_yes_cb(client, callback_query):
         aid = callback_query.data.split("add_group_yes_")[-1]
-        user_state[callback_query.from_user.id] = {"action": "ask_edit_group_name", "slug": aid}
-        await callback_query.message.edit_text("📝 **Group Identity:**\n*(e.g. Season 2, OVA, Movie)*", reply_markup=None)
+        user_state[callback_query.from_user.id] = {"action": "ask_cgrp_btn_count", "slug": aid}
+        await callback_query.message.edit_text("🖇 **How many buttons do you want to add?**\n*(Send a positive integer, e.g. 3)*", reply_markup=None)
         await callback_query.answer()
 
     @bot.on_callback_query(filters.regex("^trigger_poster_"))
@@ -836,6 +920,7 @@ def register_handlers(bot: Client):
 
             buttons = [
                 [InlineKeyboardButton("📦 Add Custom Group", callback_data=f"add_cgrp_start_{aid}")],
+                [InlineKeyboardButton("🚀 Advanced Group", callback_data=f"adv_grp_start_{aid}")],
                 [InlineKeyboardButton("➕ Add Custom Button", callback_data=f"add_btn_start_{aid}")],
                 [InlineKeyboardButton("🗃 Add Custom Box", callback_data=f"add_box_start_{aid}")],
                 [InlineKeyboardButton("📋 Manage Boxes", callback_data=f"manage_boxes_{aid}")],
@@ -851,11 +936,74 @@ def register_handlers(bot: Client):
             logger.error(f"Edit M Back Error: {e}")
             await callback_query.answer("Sync Error")
 
+    @bot.on_callback_query(filters.regex("^adv_grp_start_"))
+    async def adv_grp_start_cb(client, callback_query):
+        aid = callback_query.data.split("adv_grp_start_")[-1]
+        anime = await db.get_anime(aid)
+        if not anime:
+            return await callback_query.answer("❌ Not Found", show_alert=True)
+
+        boxes = anime.get("custom_boxes", [])
+        if not boxes:
+            return await callback_query.answer("⚠️ Please create at least one Custom Box first under /edit_m or Custom Boxes.", show_alert=True)
+
+        buttons = []
+        for idx, box in enumerate(boxes):
+            buttons.append([InlineKeyboardButton(f"🗃 {box['name']}", callback_data=f"adv_grp_sel_{aid}_{idx}")])
+
+        buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")])
+
+        await callback_query.message.edit_text(
+            "🚀 **Advanced Group Setup**\n\n"
+            "Please select the target Custom Box where you want to add these groups dynamically:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+        await callback_query.answer()
+
+    @bot.on_callback_query(filters.regex("^adv_grp_sel_"))
+    async def adv_grp_sel_cb(client, callback_query):
+        data_parts = callback_query.data.split("adv_grp_sel_")[-1].split("_")
+        aid = data_parts[0]
+        box_idx = int(data_parts[1])
+
+        anime = await db.get_anime(aid)
+        if not anime:
+            return await callback_query.answer("❌ Not Found", show_alert=True)
+
+        box = anime.get("custom_boxes", [])[box_idx]
+        user_state[callback_query.from_user.id] = {
+            "action": "ask_adv_grp_block",
+            "slug": aid,
+            "box_idx": box_idx
+        }
+
+        prompt_text = (
+            f"📥 **Target Box:** `{box['name']}`\n\n"
+            "Please send one or more groups with buttons in a single message in the following format:\n\n"
+            "1. Group Name\n"
+            "Button Name : Link\n"
+            "Button Name : Link\n\n"
+            "**Example:**\n"
+            "1. Season 1\n"
+            "480P : https://example.com/480p\n"
+            "720P : https://example.com/720p\n"
+            "1080P : https://example.com/1080p\n\n"
+            "2. Season 2\n"
+            "480P : https://example.com/480p\n"
+            "720P : https://example.com/720p\n"
+            "1080P : https://example.com/1080p\n\n"
+            "⚠️ **Format Notes:**\n"
+            "• Each group must start with a numbered line (e.g. `1. Season 1`)\n"
+            "• Button links must start with `http://` or `https://`"
+        )
+        await callback_query.message.edit_text(prompt_text, reply_markup=None)
+        await callback_query.answer()
+
     @bot.on_callback_query(filters.regex("^add_cgrp_start_"))
     async def add_cgrp_start_cb(client, callback_query):
         aid = callback_query.data.split("add_cgrp_start_")[-1]
-        user_state[callback_query.from_user.id] = {"action": "ask_cgrp_name", "slug": aid}
-        await callback_query.message.edit_text("📦 **Custom Group Name:**\n*(e.g. English Dub, Batch Links)*", reply_markup=None)
+        user_state[callback_query.from_user.id] = {"action": "ask_cgrp_btn_count", "slug": aid}
+        await callback_query.message.edit_text("🖇 **How many buttons do you want to add?**\n*(Send a positive integer, e.g. 3)*", reply_markup=None)
         await callback_query.answer()
 
     @bot.on_callback_query(filters.regex("^add_box_start_"))
@@ -949,9 +1097,8 @@ def register_handlers(bot: Client):
     @bot.on_callback_query(filters.regex("^box_add_grp_"))
     async def box_add_grp_cb(client, callback_query):
         idx = int(callback_query.data.split("_")[-1])
-        aid = user_state[callback_query.from_user.id]["slug"]
-        user_state[callback_query.from_user.id].update({"action": "ask_box_cgrp_name", "box_idx": idx})
-        await callback_query.message.edit_text("📦 **Group Name for Box:**\n*(e.g. 1080p [Dual], Zip File)*", reply_markup=None)
+        user_state[callback_query.from_user.id].update({"action": "ask_box_cgrp_btn_count", "box_idx": idx})
+        await callback_query.message.edit_text("🖇 **How many buttons do you want to add?**\n*(Send a positive integer, e.g. 3)*", reply_markup=None)
         await callback_query.answer()
 
     @bot.on_callback_query(filters.regex("^box_grp_yes$"))
@@ -959,8 +1106,9 @@ def register_handlers(bot: Client):
         # Part of the box creation flow
         state = user_state.get(callback_query.from_user.id)
         if not state: return await callback_query.answer("❌ Session Expired")
-        user_state[callback_query.from_user.id].update({"action": "ask_box_initial_grp_name"})
-        await callback_query.message.edit_text("📦 **First Group Name:**", reply_markup=None)
+        user_state[callback_query.from_user.id].update({"action": "ask_box_initial_grp_btn_count"})
+        await callback_query.message.edit_text("🖇 **How many buttons do you want to add?**\n*(Send a positive integer, e.g. 3)*", reply_markup=None)
+        await callback_query.answer()
 
     @bot.on_callback_query(filters.regex("^box_grp_no$"))
     async def box_grp_no_cb(client, callback_query):
@@ -1232,6 +1380,7 @@ def register_handlers(bot: Client):
 
             buttons = [
                 [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{aid}")],
+                [InlineKeyboardButton("🚀 Advanced Group", callback_data=f"adv_grp_start_{aid}")],
                 [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
                 [InlineKeyboardButton("📂 Change Category", callback_data=f"manage_category_{aid}")],
                 [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{aid}")],
@@ -1867,33 +2016,107 @@ def register_handlers(bot: Client):
                     [InlineKeyboardButton("🎯 Select Position", callback_data="setposb_select")]
                 ]
                 await message.reply("📍 **Position for the new button:**", reply_markup=InlineKeyboardMarkup(buttons))
-            elif action == "ask_cgrp_name":
-                user_state[uid].update({"action": "ask_cgrp_btn_count", "cgrp_name": message.text.strip()})
-                await message.reply(f"🖇 **How many buttons in '{message.text.strip()}'?**\nSend a number (e.g. 3):")
             elif action == "ask_cgrp_btn_count":
                 try:
                     count = int(message.text.strip())
-                    if count <= 0: return await message.reply("❌ Must be greater than 0.")
-                    user_state[uid].update({"action": "ask_cgrp_b_name", "btn_count": count, "current_idx": 1, "cgrp_data": {}})
-                    await message.reply(f"🏷 **Button 1 Label:**")
-                except: await message.reply("❌ Invalid number.")
-            elif action == "ask_cgrp_b_name":
-                user_state[uid].update({"action": "ask_cgrp_b_link", "temp_label": message.text.strip()})
-                await message.reply(f"🔗 **URL for '{message.text.strip()}':**")
-            elif action == "ask_cgrp_b_link":
-                if not message.text.startswith("http"): return await message.reply("❌ Invalid URL.")
-                state["cgrp_data"][state["temp_label"]] = message.text.strip()
-                if state["current_idx"] < state["btn_count"]:
-                    user_state[uid]["current_idx"] += 1
-                    user_state[uid]["action"] = "ask_cgrp_b_name"
-                    await message.reply(f"🏷 **Button {user_state[uid]['current_idx']} Label:**")
-                else:
-                    user_state[uid]["action"] = "ask_cgrp_pos"
-                    buttons = [
-                        [InlineKeyboardButton("🔝 Beginning", callback_data="setposcg_0"), InlineKeyboardButton("🔚 End", callback_data="setposcg_-1")],
-                        [InlineKeyboardButton("🎯 Select Position", callback_data="setposcg_select")]
-                    ]
-                    await message.reply(f"📍 **Position for group '{state['cgrp_name']}':**", reply_markup=InlineKeyboardMarkup(buttons))
+                    if count <= 0:
+                        return await message.reply("❌ **Error:** The number of buttons must be greater than 0. Please send a valid number:")
+
+                    user_state[uid].update({
+                        "action": "ask_cgrp_block",
+                        "btn_count": count
+                    })
+
+                    prompt_text = (
+                        f"🚀 **How to add {count} buttons:**\n\n"
+                        "Please send the **Group Name** (on the first line) followed by button names and links on subsequent lines in this format:\n\n"
+                        "`Group Name`\n"
+                        "`Button Name : Link`\n"
+                        "`Button Name : Link`\n\n"
+                        "**Example:**\n"
+                        "`Season 2`\n"
+                        "`480p : https://example.com/480p`\n"
+                        "`720p : https://example.com/720p`\n"
+                        "`1080p : https://example.com/1080p`"
+                    )
+                    await message.reply(prompt_text)
+                except ValueError:
+                    await message.reply("❌ **Invalid Input:** Please send a valid positive integer:")
+            elif action == "ask_cgrp_block":
+                count = state.get("btn_count")
+                gname, parsed_buttons, err = parse_group_block(message.text, count)
+                if err:
+                    err_msg = (
+                        f"❌ Invalid Format or Link. Please send exactly {count} buttons in the correct format:\n\n"
+                        f"Button Name : Link\n"
+                        f"Button Name : Link\n\n"
+                        f"Example:\n"
+                        f"480p : https://example.com/480p\n"
+                        f"720p : https://example.com/720p\n"
+                        f"1080p : https://example.com/1080p"
+                    )
+                    return await message.reply(err_msg)
+
+                user_state[uid].update({
+                    "action": "ask_cgrp_pos",
+                    "cgrp_name": gname,
+                    "cgrp_data": parsed_buttons
+                })
+
+                buttons = [
+                    [InlineKeyboardButton("🔝 Beginning", callback_data="setposcg_0"), InlineKeyboardButton("🔚 End", callback_data="setposcg_-1")],
+                    [InlineKeyboardButton("🎯 Select Position", callback_data="setposcg_select")]
+                ]
+                await message.reply(
+                    f"📍 **Position for the new group '{gname}':**",
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+            elif action == "ask_adv_grp_block":
+                aid = state["slug"]
+                box_idx = state["box_idx"]
+
+                parsed_groups, err = parse_advanced_group_block(message.text)
+                if err:
+                    return await message.reply(f"{err}\n\nPlease correct the formatting and resend:")
+
+                msg = await message.reply("⏳ **Syncing changes with database and website...**")
+                try:
+                    anime = await db.get_anime(aid)
+                    if not anime:
+                        return await msg.edit("❌ **Error:** Anime document not found in database.")
+
+                    boxes = anime.get("custom_boxes", [])
+                    if box_idx >= len(boxes):
+                        return await msg.edit("❌ **Error:** Selected Custom Box index is out of bounds.")
+
+                    box = boxes[box_idx]
+                    if "groups" not in box or not isinstance(box["groups"], dict):
+                        box["groups"] = {}
+
+                    total_buttons = 0
+                    for grp in parsed_groups:
+                        box["groups"][grp["name"]] = grp["buttons"]
+                        total_buttons += len(grp["buttons"])
+
+                    # Save permanently in DB
+                    await db.anime.update_one(
+                        {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
+                        {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}}
+                    )
+
+                    success_text = (
+                        f"🎉 **Advanced Group Setup Completed!**\n\n"
+                        f"🎬 **Anime:** `{anime['title']}`\n"
+                        f"🗃 **Target Box:** `{box['name']}`\n"
+                        f"📦 **Groups Created:** `{len(parsed_groups)}`\n"
+                        f"🔗 **Total Buttons Added:** `{total_buttons}`\n\n"
+                        f"✨ Changes are now fully synchronized and live on the website!"
+                    )
+                    await msg.edit(success_text)
+                    del user_state[uid]
+                except Exception as e:
+                    logger.error(f"Advanced Group Save Error: {e}")
+                    await msg.edit(f"❌ **An unexpected error occurred during save:** {e}")
             elif action == "ask_box_name":
                 user_state[uid].update({"box_name": message.text.strip(), "action": "ask_box_link"})
                 await message.reply("🔗 **Page Link for the Box:**\n*(Send URL or /skip)*")
@@ -1907,8 +2130,8 @@ def register_handlers(bot: Client):
             elif action == "ask_box_group_check":
                 text = message.text.strip().upper()
                 if text in ["Y", "YES"]:
-                    user_state[uid].update({"action": "ask_box_initial_grp_name"})
-                    await message.reply("📦 **First Group Name:**")
+                    user_state[uid].update({"action": "ask_box_initial_grp_btn_count"})
+                    await message.reply("🖇 **How many buttons do you want to add?**\n*(Send a positive integer, e.g. 3)*")
                 elif text in ["N", "NO"]:
                     aid = state["slug"]
                     new_box = {"name": state["box_name"], "link": state["box_link"], "groups": {}}
@@ -1920,66 +2143,109 @@ def register_handlers(bot: Client):
                     del user_state[uid]
                 else:
                     await message.reply("❌ **Invalid Input.** Please send Y or N:")
-            elif action == "ask_box_initial_grp_name":
-                user_state[uid].update({"action": "ask_box_initial_grp_btn_count", "temp_grp_name": message.text.strip()})
-                await message.reply(f"🖇 **How many buttons in '{message.text.strip()}'?**")
             elif action == "ask_box_initial_grp_btn_count":
                 try:
                     count = int(message.text.strip())
-                    user_state[uid].update({"action": "ask_box_initial_grp_btn_label", "btn_count": count, "current_idx": 1, "temp_grp_data": {}})
-                    await message.reply(f"🏷 **Button 1 Label:**")
-                except: return await message.reply("❌ **Invalid number.** Send a valid integer:")
-            elif action == "ask_box_initial_grp_btn_label":
-                user_state[uid].update({"action": "ask_box_initial_grp_btn_link", "temp_btn_label": message.text.strip()})
-                await message.reply(f"🔗 **URL for '{message.text.strip()}':**")
-            elif action == "ask_box_initial_grp_btn_link":
-                if not message.text.startswith("http"): return await message.reply("❌ Invalid URL.")
-                state["temp_grp_data"][state["temp_btn_label"]] = message.text.strip()
-                if state["current_idx"] < state["btn_count"]:
-                    user_state[uid]["current_idx"] += 1
-                    user_state[uid]["action"] = "ask_box_initial_grp_btn_label"
-                    await message.reply(f"🏷 **Button {user_state[uid]['current_idx']} Label:**")
-                else:
-                    # Finalize BOX with initial group
-                    aid = state["slug"]
-                    new_box = {
-                        "name": state["box_name"],
-                        "link": state["box_link"],
-                        "groups": {state["temp_grp_name"]: state["temp_grp_data"]}
-                    }
-                    anime = await db.get_anime(aid)
-                    boxes = anime.get("custom_boxes", [])
-                    boxes.append(new_box)
-                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
-                    await message.reply(f"✅ **Box '{state['box_name']}' created with group '{state['temp_grp_name']}'.**")
-                    del user_state[uid]
-            elif action == "ask_box_cgrp_name":
-                user_state[uid].update({"action": "ask_box_cgrp_btn_count", "temp_grp_name": message.text.strip()})
-                await message.reply(f"🖇 **How many buttons in '{message.text.strip()}'?**")
+                    if count <= 0:
+                        return await message.reply("❌ **Error:** The number of buttons must be greater than 0. Please send a valid number:")
+
+                    user_state[uid].update({
+                        "action": "ask_box_initial_grp_block",
+                        "btn_count": count
+                    })
+
+                    prompt_text = (
+                        f"🚀 **How to add {count} buttons:**\n\n"
+                        "Please send the **Group Name** (on the first line) followed by button names and links on subsequent lines in this format:\n\n"
+                        "`Group Name`\n"
+                        "`Button Name : Link`\n"
+                        "`Button Name : Link`\n\n"
+                        "**Example:**\n"
+                        "`Season 1`\n"
+                        "`480p : https://example.com/480p`\n"
+                        "`720p : https://example.com/720p`\n"
+                        "`1080p : https://example.com/1080p`"
+                    )
+                    await message.reply(prompt_text)
+                except ValueError:
+                    await message.reply("❌ **Invalid Input:** Please send a valid positive integer:")
+            elif action == "ask_box_initial_grp_block":
+                count = state.get("btn_count")
+                gname, parsed_buttons, err = parse_group_block(message.text, count)
+                if err:
+                    err_msg = (
+                        f"❌ Invalid Format or Link. Please send exactly {count} buttons in the correct format:\n\n"
+                        f"Button Name : Link\n"
+                        f"Button Name : Link\n\n"
+                        f"Example:\n"
+                        f"480p : https://example.com/480p\n"
+                        f"720p : https://example.com/720p\n"
+                        f"1080p : https://example.com/1080p"
+                    )
+                    return await message.reply(err_msg)
+
+                # Finalize BOX with initial group
+                aid = state["slug"]
+                new_box = {
+                    "name": state["box_name"],
+                    "link": state["box_link"],
+                    "groups": {gname: parsed_buttons}
+                }
+                anime = await db.get_anime(aid)
+                boxes = anime.get("custom_boxes", [])
+                boxes.append(new_box)
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
+                await message.reply(f"✅ **Box '{state['box_name']}' created with group '{gname}'.**")
+                del user_state[uid]
             elif action == "ask_box_cgrp_btn_count":
                 try:
                     count = int(message.text.strip())
-                    user_state[uid].update({"action": "ask_box_cgrp_btn_label", "btn_count": count, "current_idx": 1, "temp_grp_data": {}})
-                    await message.reply(f"🏷 **Button 1 Label:**")
-                except: return await message.reply("❌ **Invalid number.** Send a valid integer:")
-            elif action == "ask_box_cgrp_btn_label":
-                user_state[uid].update({"action": "ask_box_cgrp_btn_link", "temp_btn_label": message.text.strip()})
-                await message.reply(f"🔗 **URL for '{message.text.strip()}':**")
-            elif action == "ask_box_cgrp_btn_link":
-                if not message.text.startswith("http"): return await message.reply("❌ Invalid URL.")
-                state["temp_grp_data"][state["temp_btn_label"]] = message.text.strip()
-                if state["current_idx"] < state["btn_count"]:
-                    user_state[uid]["current_idx"] += 1
-                    user_state[uid]["action"] = "ask_box_cgrp_btn_label"
-                    await message.reply(f"🏷 **Button {user_state[uid]['current_idx']} Label:**")
-                else:
-                    aid, b_idx = state["slug"], state["box_idx"]
-                    anime = await db.get_anime(aid)
-                    boxes = anime.get("custom_boxes", [])
-                    boxes[b_idx]["groups"][state["temp_grp_name"]] = state["temp_grp_data"]
-                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
-                    await message.reply(f"✅ **Group '{state['temp_grp_name']}' added to box '{boxes[b_idx]['name']}'.**")
-                    del user_state[uid]
+                    if count <= 0:
+                        return await message.reply("❌ **Error:** The number of buttons must be greater than 0. Please send a valid number:")
+
+                    user_state[uid].update({
+                        "action": "ask_box_cgrp_block",
+                        "btn_count": count
+                    })
+
+                    prompt_text = (
+                        f"🚀 **How to add {count} buttons:**\n\n"
+                        "Please send the **Group Name** (on the first line) followed by button names and links on subsequent lines in this format:\n\n"
+                        "`Group Name`\n"
+                        "`Button Name : Link`\n"
+                        "`Button Name : Link`\n\n"
+                        "**Example:**\n"
+                        "`Season 1`\n"
+                        "`480p : https://example.com/480p`\n"
+                        "`720p : https://example.com/720p`\n"
+                        "`1080p : https://example.com/1080p`"
+                    )
+                    await message.reply(prompt_text)
+                except ValueError:
+                    await message.reply("❌ **Invalid Input:** Please send a valid positive integer:")
+            elif action == "ask_box_cgrp_block":
+                count = state.get("btn_count")
+                b_idx = state["box_idx"]
+                gname, parsed_buttons, err = parse_group_block(message.text, count)
+                if err:
+                    err_msg = (
+                        f"❌ Invalid Format or Link. Please send exactly {count} buttons in the correct format:\n\n"
+                        f"Button Name : Link\n"
+                        f"Button Name : Link\n\n"
+                        f"Example:\n"
+                        f"480p : https://example.com/480p\n"
+                        f"720p : https://example.com/720p\n"
+                        f"1080p : https://example.com/1080p"
+                    )
+                    return await message.reply(err_msg)
+
+                aid = state["slug"]
+                anime = await db.get_anime(aid)
+                boxes = anime.get("custom_boxes", [])
+                boxes[b_idx]["groups"][gname] = parsed_buttons
+                await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
+                await message.reply(f"✅ **Group '{gname}' added to box '{boxes[b_idx]['name']}'.**")
+                del user_state[uid]
             elif action == "ask_renbox_name":
                 idx, aid = state["box_idx"], state["slug"]
                 anime = await db.get_anime(aid)
