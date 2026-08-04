@@ -43,11 +43,64 @@ async def is_authorized(user_id):
 def extract_slug(text):
     if not text: return None
     text = text.strip()
-    if "/watch/" in text:
+    for indicator in ["/watch/", "/anime/"]:
+        if indicator in text:
+            try:
+                return text.split(indicator)[1].split("?")[0].split("/")[0].strip()
+            except: pass
+    if text.startswith("http://") or text.startswith("https://"):
         try:
-            return text.split("/watch/")[1].split("?")[0].split("/")[0].strip()
-        except: return None
+            from urllib.parse import urlparse
+            path = urlparse(text).path
+            parts = [p for p in path.split("/") if p]
+            if parts:
+                return parts[-1]
+        except: pass
     return text
+
+def parse_groups_message(text: str):
+    """
+    Parses a multiline message of groups and buttons.
+    Returns: dict { "Group Name": { "Button Name": "Link" } } or None if validation fails.
+    """
+    lines = [line.strip() for line in text.strip().split("\n")]
+    groups = {}
+    current_group = None
+
+    for line in lines:
+        if not line:
+            continue
+        # Check if it is a group header, e.g. "1. Season 1"
+        header_match = re.match(r"^\d+\.\s*(.+)$", line)
+        if header_match:
+            current_group = header_match.group(1).strip()
+            groups[current_group] = {}
+        else:
+            # Must be a button line: "Button Name : Link"
+            if ":" not in line:
+                return None # Invalid format
+            parts = line.split(":", 1)
+            btn_name = parts[0].strip()
+            btn_link = parts[1].strip()
+
+            if not btn_name or not btn_link:
+                return None # Invalid format
+            if not (btn_link.startswith("http://") or btn_link.startswith("https://")):
+                return None # Invalid format
+
+            if current_group is None:
+                return None # Button declared before any group header
+
+            groups[current_group][btn_name] = btn_link
+
+    # Must have at least one group with at least one button
+    if not groups:
+        return None
+    for gname, buttons in groups.items():
+        if not buttons:
+            return None
+
+    return groups
 
 def register_handlers(bot: Client):
     logger.info("Registering bot handlers...")
@@ -59,38 +112,88 @@ def register_handlers(bot: Client):
     @bot.on_message(filters.command("start") & filters.private)
     async def start_cmd(client, message):
         await message.reply_text(
-            "🎬 **MoviesZoneFlix Management Bot**\n\n"
-            "Admin Commands:\n"
-            "• `/search <query>` — Import from TMDB\n"
-            "• `/edit <url/slug>` — Edit metadata/poster\n"
-            "• `/edit_m <url/slug>` — Manage servers/links\n"
-            "• `/add_movie` — Manual Movie\n"
-            "• `/add_series` — Manual Series\n"
-            "• `/del <url/slug>` — Delete content\n"
-            "• `/save` — Backup/Restore Database\n"
-            "• `/posttochannel <id> <link>` — Post to channel\n"
-            "• `/categories` — Manage Genres\n"
-            "• `/ping` — Status Check"
+            "💎 **MoviesZoneFlix Premium Management Core** 💎\n\n"
+            "Welcome, Administrator! Use the following tools to manage your database, metadata, servers, and channels with absolute ease.\n\n"
+            "👑 **Administrative Commands:**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "🔍 `/search <query>` — Import title details directly from TMDB\n"
+            "✏️ `/edit <url/slug>` — Update titles, posters, descriptions, and metadata\n"
+            "🔗 `/edit_m <url/slug>` — Manage media servers, link groups, and mirrors\n"
+            "🎬 `/add_movie` — Manually add a movie to the portal\n"
+            "📺 `/add_series` — Manually add a TV show/series\n"
+            "🗑️ `/del <url/slug>` — Safely remove media content from the catalog\n"
+            "📂 `/categories` — Create and manage movie genres & categories\n"
+            "📢 `/posttochannel <id> <link>` — Post professional structured media card to channel\n"
+            "💾 `/save` — Perform secure database backup or JSON restoration\n"
+            "📡 `/ping` — Check current bot operational status and latency\n"
+            "❌ `/cancel` — Instantly abort any active conversational sequence\n\n"
+            "⚡ *Powered by MoviesZoneFlix High-Performance Core*"
         )
 
     @bot.on_message(filters.command("ping") & filters.private)
     async def ping_cmd(client, message):
-        await message.reply_text("🏓 **Pong!** Bot is online and responsive.")
+        await message.reply_text("📡 **Pong!** MoviesZoneFlix Engine is fully operational and responsive.")
 
     @bot.on_message(filters.command("search") & filters.private)
     async def search_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
         query = " ".join(message.command[1:])
         if not query: return await message.reply("Usage: `/search <name>`")
-        msg = await message.reply("🔍 Searching TMDB...")
+        msg = await message.reply("🔍 Searching Configured APIs...")
         try:
-            results = await media_api.search_tmdb(query)
-            if not results: return await msg.edit("😔 No matches found.")
+            results = []
+
+            # 1. TMDB Search
+            if Config.TMDB_API_KEY:
+                try:
+                    tmdb_res = await media_api.search_tmdb(query)
+                    for r in tmdb_res[:4]:
+                        r["source"] = "TMDb"
+                        results.append(r)
+                except Exception as e:
+                    logger.error(f"TMDb Search failed: {e}")
+
+            # 2. TVmaze Search
+            try:
+                tvmaze_res = await media_api.search_tvmaze(query)
+                for r in tvmaze_res[:3]:
+                    r["source"] = "TVmaze"
+                    results.append(r)
+            except Exception as e:
+                logger.error(f"TVmaze Search failed: {e}")
+
+            # 3. OMDb Search
+            if Config.OMDB_API_KEY:
+                try:
+                    omdb_data = await media_api.get_omdb_metadata(query)
+                    if omdb_data and omdb_data.get("Response") == "True":
+                        results.append({
+                            "id": omdb_data.get("imdbID"),
+                            "title": omdb_data.get("Title"),
+                            "type": "movie" if omdb_data.get("Type") == "movie" else "tv",
+                            "year": omdb_data.get("Year")[:4] if omdb_data.get("Year") else "0000",
+                            "source": "OMDb"
+                        })
+                except Exception as e:
+                    logger.error(f"OMDb Search failed: {e}")
+
+            if not results: return await msg.edit("😔 No matches found on any configured APIs.")
+
             text = "🎯 **Select Media to Import:**\n\n"
             buttons = []
-            for i, res in enumerate(results[:8], 1):
-                text += f"**{i}.** {res['title']} ({res['year']}) `[{res['type'].upper()}]`\n"
-                buttons.append([InlineKeyboardButton(f"Import {i}", callback_data=f"add_{res['type']}_{res['id']}")])
+            for i, res in enumerate(results[:10], 1):
+                text += f"**{i}.** {res['title']} ({res['year']}) `[{res['type'].upper()}]` • _via {res['source']}_\n"
+
+                # Determine callback
+                if res["source"] == "TMDb":
+                    cb_data = f"add_tmdb_{res['type']}_{res['id']}"
+                elif res["source"] == "TVmaze":
+                    cb_data = f"add_tvmaze_tv_{res['id']}"
+                elif res["source"] == "OMDb":
+                    cb_data = f"add_omdb_{res['type']}_{res['id']}"
+
+                buttons.append([InlineKeyboardButton(f"Import {i} ({res['source']})", callback_data=cb_data)])
+
             await msg.edit(text, reply_markup=InlineKeyboardMarkup(buttons))
         except Exception as e: await msg.edit(f"❌ Error: {e}")
 
@@ -98,8 +201,10 @@ def register_handlers(bot: Client):
     async def edit_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
         query = " ".join(message.command[1:])
+        if not query and message.reply_to_message:
+            query = message.reply_to_message.text or message.reply_to_message.caption or ""
         slug = extract_slug(query)
-        if not slug: return await message.reply("💡 Usage: `/edit <url/slug>`")
+        if not slug: return await message.reply("💡 **Usage:** `/edit <url/slug>` or reply to a link/slug.")
         media = await db.get_media_by_slug(slug)
         if not media: return await message.reply("❌ Not found.")
         buttons = [
@@ -115,6 +220,7 @@ def register_handlers(bot: Client):
              InlineKeyboardButton("📊 Status", callback_data=f"et_status_{slug}")],
             [InlineKeyboardButton("📝 Synopsis", callback_data=f"et_syno_{slug}"),
              InlineKeyboardButton("🎥 Type", callback_data=f"et_type_{slug}")],
+            [InlineKeyboardButton("📂 Change Category", callback_data=f"et_movecat_{slug}")],
             [InlineKeyboardButton("🗑 DELETE MEDIA", callback_data=f"confirm_del_{slug}")]
         ]
         await message.reply_text(f"🛠 **Editing:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
@@ -123,11 +229,16 @@ def register_handlers(bot: Client):
     async def edit_m_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
         query = " ".join(message.command[1:])
+        if not query and message.reply_to_message:
+            query = message.reply_to_message.text or message.reply_to_message.caption or ""
         slug = extract_slug(query)
-        if not slug: return await message.reply("💡 Usage: `/edit_m <url/slug>`")
+        if not slug: return await message.reply("💡 **Usage:** `/edit_m <url/slug>` or reply to a link/slug.")
         media = await db.get_media_by_slug(slug)
         if not media: return await message.reply("❌ Not found.")
-        buttons = [[InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}")]]
+        buttons = [
+            [InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}")],
+            [InlineKeyboardButton("📂 Change Category", callback_data=f"et_movecat_{slug}")]
+        ]
         links = media.get("seasons_links", {})
         if isinstance(links, dict):
             for gname in links.keys():
@@ -141,8 +252,10 @@ def register_handlers(bot: Client):
     async def del_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
         query = " ".join(message.command[1:])
+        if not query and message.reply_to_message:
+            query = message.reply_to_message.text or message.reply_to_message.caption or ""
         slug = extract_slug(query)
-        if not slug: return await message.reply("💡 Usage: `/del <url/slug>`")
+        if not slug: return await message.reply("💡 **Usage:** `/del <url/slug>` or reply to a link/slug.")
         media = await db.get_media_by_slug(slug)
         if not media: return await message.reply("❌ Not found.")
         buttons = [[InlineKeyboardButton("🔥 PURGE IT", callback_data=f"execute_del_{slug}"), InlineKeyboardButton("🛡 ABORT", callback_data="cancel_op")]]
@@ -152,27 +265,28 @@ def register_handlers(bot: Client):
     async def save_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
         buttons = [
-            [InlineKeyboardButton("📥 BACKUP", callback_data="db_backup"),
-             InlineKeyboardButton("📤 RESTORE", callback_data="db_restore")]
+            [InlineKeyboardButton("📥 BACKUP DATABASE", callback_data="db_backup"),
+             InlineKeyboardButton("📤 RESTORE BACKUP", callback_data="db_restore")]
         ]
-        await message.reply_text("💾 **Database Management**", reply_markup=InlineKeyboardMarkup(buttons))
+        await message.reply_text("💾 **MoviesZoneFlix Backup & Migration Center**\n\nSecurely archive your media database or upload an existing ZIP archive to restore.", reply_markup=InlineKeyboardMarkup(buttons))
 
     @bot.on_message(filters.command("categories") & filters.private)
     async def categories_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
         cats = await db.get_all_categories()
-        text = "📂 **Current Categories:**\n\n"
-        for c in cats: text += f"• {c['name']}\n"
-        text += "\nTo add a category, just send the name below:"
+        text = "📂 **Active Categories & Genres:**\n"
+        text += "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        for c in cats: text += f"🔹 {c['name']}\n"
+        text += "\n✍️ **To register a new category, send its name below:**"
         user_state[message.from_user.id] = {"action": "ask_new_cat"}
         await message.reply(text)
 
     @bot.on_message(filters.command(["add_movie", "add_series"]) & filters.private)
     async def manual_add_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
-        m_type = "movie" if "movie" in message.text else "tv"
-        user_state[message.from_user.id] = {"action": "ask_title", "type": m_type}
-        await message.reply(f"📝 Send **Title** for the {m_type}:")
+        m_type = "Movie" if "movie" in message.text else "TV Series"
+        user_state[message.from_user.id] = {"action": "ask_title", "type": "movie" if m_type == "Movie" else "tv"}
+        await message.reply(f"🎬 **Creating Manual Entry**\n\n✍️ Please send the **Title** of the new {m_type}:")
 
     @bot.on_message(filters.command("posttochannel", ["/", "$"]) & filters.private)
     async def post_to_channel_cmd(client, message):
@@ -240,6 +354,16 @@ def register_handlers(bot: Client):
             await msg.edit(f"❌ **Database Error:** {str(e)}")
             logger.error(traceback.format_exc())
 
+    @bot.on_message(filters.command("addbot") & filters.private)
+    async def addbot_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        user_state[message.from_user.id] = {"action": "ask_bot_token"}
+        await message.reply(
+            "🤖 **Add a Multi-Bot Listener**\n\n"
+            "This command registers a new Telegram bot that will listen inside a specified group chat and automatically reply with movie page links whenever users ask for them.\n\n"
+            "✍️ **Step 1:** Please send the **Bot Token**:"
+        )
+
     @bot.on_message(filters.command("cancel") & filters.private)
     async def cancel_cmd(client, message):
         user_state.pop(message.from_user.id, None)
@@ -253,24 +377,102 @@ def register_handlers(bot: Client):
         data = cb.data
         uid = cb.from_user.id
 
-        if data.startswith("add_"):
-            _, m_type, m_id = data.split("_")
-            await cb.message.edit_text("⏳ Importing metadata...")
+        if data.startswith("add_") and not (data.startswith("add_tmdb_") or data.startswith("add_tvmaze_") or data.startswith("add_omdb_")):
+            parts = data.split("_")
+            m_type = parts[1]
+            m_id = parts[2]
+            data = f"add_tmdb_{m_type}_{m_id}"
+
+        if data.startswith("add_tmdb_"):
+            parts = data.split("_")
+            m_type = parts[2]
+            m_id = parts[3]
+            await cb.message.edit_text("⏳ Importing from TMDb...")
             try:
                 details = await media_api.get_tmdb_details(m_type, m_id)
-                if not details: return await cb.message.edit_text("❌ Failed.")
+                if not details: return await cb.message.edit_text("❌ Failed to fetch TMDb details.")
                 title = details.get("title") or details.get("name")
                 slug = slugify(title)
+
+                director = "N/A"
+                cast = []
+                score = details.get("vote_average", 0)
+                if Config.OMDB_API_KEY:
+                    try:
+                        omdb_data = await media_api.get_omdb_metadata(title, (details.get("release_date") or details.get("first_air_date") or "0000")[:4])
+                        if omdb_data and omdb_data.get("Response") == "True":
+                            director = omdb_data.get("Director", "N/A")
+                            cast = [c.strip() for c in omdb_data.get("Actors", "").split(",") if c.strip()]
+                            try:
+                                score = float(omdb_data.get("imdbRating", score))
+                            except: pass
+                    except: pass
+
                 await db.add_media({
-                    "id": str(m_id), "tmdb_id": int(m_id), "title": title, "slug": slug,
+                    "id": f"tmdb_{m_id}", "tmdb_id": int(m_id), "title": title, "slug": slug,
                     "type": "movie" if m_type == "movie" else "tv",
-                    "image": f"https://image.tmdb.org/t/p/w500{details.get('poster_path')}",
-                    "backdrop": f"https://image.tmdb.org/t/p/original{details.get('backdrop_path')}",
-                    "synopsis": details.get("overview"), "score": details.get("vote_average", 0),
+                    "image": f"https://image.tmdb.org/t/p/w500{details.get('poster_path')}" if details.get('poster_path') else None,
+                    "backdrop": f"https://image.tmdb.org/t/p/original{details.get('backdrop_path')}" if details.get('backdrop_path') else None,
+                    "synopsis": details.get("overview"), "score": score,
                     "year": (details.get("release_date") or details.get("first_air_date") or "0000")[:4],
-                    "genres": [g["name"] for g in details.get("genres", [])], "seasons_links": {}
+                    "genres": [g["name"] for g in details.get("genres", [])],
+                    "director": director, "cast": cast, "seasons_links": {}
                 })
-                await cb.message.edit_text(f"✅ Imported: `{title}`\nURL: {Config.BASE_URL}/watch/{slug}")
+                await cb.message.edit_text(f"✅ Imported from TMDb: `{title}`\nURL: {Config.BASE_URL}/watch/{slug}")
+            except Exception as e: await cb.message.edit_text(f"❌ Error: {e}")
+
+        elif data.startswith("add_tvmaze_"):
+            parts = data.split("_")
+            m_id = parts[3]
+            await cb.message.edit_text("⏳ Importing from TVmaze...")
+            try:
+                details = await media_api.get_tvmaze_details(m_id)
+                if not details: return await cb.message.edit_text("❌ Failed to fetch TVmaze details.")
+                title = details.get("name")
+                slug = slugify(title)
+                summary = details.get("summary") or ""
+                summary = re.sub(r'<[^>]*>', '', summary)
+                image_obj = details.get("image") or {}
+                image_url = image_obj.get("original") or image_obj.get("medium")
+
+                await db.add_media({
+                    "id": f"tvmaze_{m_id}", "title": title, "slug": slug,
+                    "type": "tv",
+                    "image": image_url,
+                    "synopsis": summary, "score": details.get("rating", {}).get("average", 0) or 0.0,
+                    "year": (details.get("premiered") or "0000")[:4],
+                    "genres": details.get("genres", []), "seasons_links": {}
+                })
+                await cb.message.edit_text(f"✅ Imported from TVmaze: `{title}`\nURL: {Config.BASE_URL}/watch/{slug}")
+            except Exception as e: await cb.message.edit_text(f"❌ Error: {e}")
+
+        elif data.startswith("add_omdb_"):
+            parts = data.split("_")
+            m_type = parts[2]
+            imdb_id = parts[3]
+            await cb.message.edit_text("⏳ Importing from OMDb...")
+            try:
+                details = await media_api.get_omdb_metadata(title=None, imdb_id=imdb_id)
+                if not details or details.get("Response") != "True":
+                    return await cb.message.edit_text("❌ Failed to fetch OMDb details.")
+                title = details.get("Title")
+                slug = slugify(title)
+                score = 0.0
+                try:
+                    score = float(details.get("imdbRating", 0.0))
+                except: pass
+                genres = [g.strip() for g in details.get("Genre", "").split(",") if g.strip()]
+                cast = [c.strip() for c in details.get("Actors", "").split(",") if c.strip()]
+
+                await db.add_media({
+                    "id": f"omdb_{imdb_id}", "title": title, "slug": slug,
+                    "type": "movie" if m_type == "movie" else "tv",
+                    "image": details.get("Poster") if details.get("Poster") != "N/A" else None,
+                    "synopsis": details.get("Plot"), "score": score,
+                    "year": details.get("Year")[:4] if details.get("Year") else "0000",
+                    "genres": genres, "director": details.get("Director", "N/A"), "cast": cast, "seasons_links": {}
+                })
+                await cb.message.edit_text(f"✅ Imported from OMDb: `{title}`\nURL: {Config.BASE_URL}/watch/{slug}")
             except Exception as e: await cb.message.edit_text(f"❌ Error: {e}")
 
         elif data == "db_backup":
@@ -290,6 +492,50 @@ def register_handlers(bot: Client):
         elif data == "db_restore":
             user_state[uid] = {"action": "awaiting_restore_zip"}
             await cb.message.edit_text("📤 Please upload the `backup.zip` file.")
+
+        elif data.startswith("et_movecat_"):
+            slug = data.replace("et_movecat_", "")
+            media = await db.get_media_by_slug(slug)
+            cats = await db.get_all_categories()
+            buttons = []
+            row = []
+            for c in cats:
+                row.append(InlineKeyboardButton(f"📁 {c['name']}", callback_data=f"setcat_{slug}_{c['name']}"))
+                if len(row) == 2:
+                    buttons.append(row)
+                    row = []
+            if row:
+                buttons.append(row)
+            buttons.append([InlineKeyboardButton("⬅️ Back", callback_data=f"et_main_{slug}")])
+            await cb.message.edit_text(
+                f"📂 **Select Category for:** `{media['title']}`\n\n*Current Genres:* `{', '.join(media.get('genres', []))}`",
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
+
+        elif data.startswith("setcat_"):
+            parts = data.split("_", 2)
+            slug = parts[1]
+            cat_name = parts[2]
+            await db.media.update_one({"slug": slug}, {"$set": {"genres": [cat_name]}})
+            await cb.answer(f"✅ Category changed to {cat_name}!", show_alert=True)
+            media = await db.get_media_by_slug(slug)
+            buttons = [
+                [InlineKeyboardButton("🖼 Poster", callback_data=f"et_poster_{slug}"),
+                 InlineKeyboardButton("🏷 Title", callback_data=f"et_title_{slug}")],
+                [InlineKeyboardButton("📅 Year", callback_data=f"et_year_{slug}"),
+                 InlineKeyboardButton("📂 Genres", callback_data=f"et_genres_{slug}")],
+                [InlineKeyboardButton("🎬 Director", callback_data=f"et_director_{slug}"),
+                 InlineKeyboardButton("🎭 Cast", callback_data=f"et_cast_{slug}")],
+                [InlineKeyboardButton("⭐ Score", callback_data=f"et_score_{slug}"),
+                 InlineKeyboardButton("⏱ Runtime", callback_data=f"et_runtime_{slug}")],
+                [InlineKeyboardButton("📺 Trailer", callback_data=f"et_trailer_{slug}"),
+                 InlineKeyboardButton("📊 Status", callback_data=f"et_status_{slug}")],
+                [InlineKeyboardButton("📝 Synopsis", callback_data=f"et_syno_{slug}"),
+                 InlineKeyboardButton("🎥 Type", callback_data=f"et_type_{slug}")],
+                [InlineKeyboardButton("📂 Change Category", callback_data=f"et_movecat_{slug}")],
+                [InlineKeyboardButton("🗑 DELETE MEDIA", callback_data=f"confirm_del_{slug}")]
+            ]
+            await cb.message.edit_text(f"🛠 **Editing:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
 
         elif data.startswith("et_"):
             parts = data.split("_", 2)
@@ -347,15 +593,35 @@ def register_handlers(bot: Client):
                      InlineKeyboardButton("📊 Status", callback_data=f"et_status_{slug}")],
                     [InlineKeyboardButton("📝 Synopsis", callback_data=f"et_syno_{slug}"),
                      InlineKeyboardButton("🎥 Type", callback_data=f"et_type_{slug}")],
+                    [InlineKeyboardButton("📂 Change Category", callback_data=f"et_movecat_{slug}")],
                     [InlineKeyboardButton("🗑 DELETE MEDIA", callback_data=f"confirm_del_{slug}")]
                 ]
                 await cb.message.edit_text(f"🛠 **Editing:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
 
         elif data.startswith("m_addg_"):
             slug = data.replace("m_addg_", "")
-            user_state[uid] = {"action": "ask_gname", "slug": slug}
+            user_state[uid] = {"action": "ask_groups_bulk", "slug": slug}
             back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data=f"m_back_{slug}")]]
-            await cb.message.edit_text("📦 Send **Group Name** (e.g. 1080p, Season 1):", reply_markup=InlineKeyboardMarkup(back_btn))
+
+            prompt_text = (
+                "Please send one or more groups with buttons in a single message in the following format:\n\n"
+                "1. Group Name\n"
+                "Button Name : Link\n"
+                "Button Name : Link\n\n"
+                "Example:\n"
+                "1. Season 1\n"
+                "480P : https://example.com/480p\n"
+                "720P : https://example.com/720p\n"
+                "1080P : https://example.com/1080p\n\n"
+                "2. Season 2\n"
+                "480P : https://example.com/480p\n"
+                "720P : https://example.com/720p\n"
+                "1080P : https://example.com/1080p\n\n"
+                "⚠️ Format Notes:\n"
+                "• Each group must start with a numbered line (e.g. 1. Season 1)\n"
+                "• Button links must start with http:// or https:// admin can add unlimited groups using serial numbers"
+            )
+            await cb.message.edit_text(prompt_text, reply_markup=InlineKeyboardMarkup(back_btn))
 
         elif data.startswith("m_mgrg_"):
             parts = data.split("_")
@@ -416,13 +682,47 @@ def register_handlers(bot: Client):
             await db.delete_media_by_slug(slug)
             await cb.message.edit_text(f"🗑 **Deleted:** `{slug}` has been removed.")
 
+        elif data.startswith("save_bulk_"):
+            slug = data.replace("save_bulk_", "")
+            state = user_state.get(uid)
+            if not state or "parsed_groups" not in state:
+                return await cb.answer("❌ Error: Session expired or invalid state.", show_alert=True)
+
+            parsed_groups = state["parsed_groups"]
+            media = await db.get_media_by_slug(slug)
+            if not media:
+                return await cb.message.edit_text("❌ Media not found.")
+
+            links = media.get("seasons_links", {})
+            if not isinstance(links, dict):
+                links = {}
+
+            # Merge/Update the new groups
+            for gname, buttons in parsed_groups.items():
+                links[gname] = buttons
+
+            await db.media.update_one({"slug": slug}, {"$set": {"seasons_links": links}})
+            user_state.pop(uid, None)
+
+            # Show success and go back to server manager
+            buttons = [[InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}")]]
+            for gn in links.keys():
+                buttons.append([
+                    InlineKeyboardButton(f"⚙️ {gn}", callback_data=f"m_mgrg_{slug}_{gn}"),
+                    InlineKeyboardButton("🗑", callback_data=f"m_delg_{slug}_{gn}")
+                ])
+            await cb.message.edit_text(
+                f"✅ **Bulk Groups Saved Successfully!**\n\nMedia: `{media['title']}`\n\nManage servers:",
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
+
         elif data == "cancel_op":
             user_state.pop(uid, None)
             await cb.message.edit_text("✨ Operation cancelled.")
 
     # --- Interaction Handler ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "cancel"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "cancel"]), group=1)
     async def interaction_msg(client, message):
         state = user_state.get(message.from_user.id)
         if not state: return
@@ -523,9 +823,47 @@ def register_handlers(bot: Client):
             else:
                 await message.reply("❌ Type must be 'movie' or 'tv'.")
             user_state.pop(uid, None)
-        elif action == "ask_gname":
-            user_state[uid].update({"gname": message.text.strip(), "action": "ask_btn_count"})
-            await message.reply(f"🔢 How many buttons in group `{message.text}`?")
+        elif action == "ask_groups_bulk":
+            parsed = parse_groups_message(message.text)
+            if not parsed:
+                error_text = (
+                    "❌ **Invalid Format!** Please ensure you use the exact format below:\n\n"
+                    "1. Group Name\n"
+                    "Button Name : Link\n"
+                    "Button Name : Link\n\n"
+                    "Example:\n"
+                    "1. Season 1\n"
+                    "480P : https://example.com/480p\n"
+                    "720P : https://example.com/720p\n"
+                    "1080P : https://example.com/1080p\n\n"
+                    "2. Season 2\n"
+                    "480P : https://example.com/480p\n"
+                    "720P : https://example.com/720p\n"
+                    "1080P : https://example.com/1080p\n\n"
+                    "⚠️ **Format Notes:**\n"
+                    "• Each group must start with a numbered line (e.g. 1. Season 1)\n"
+                    "• Button links must start with http:// or https://"
+                )
+                return await message.reply(error_text)
+
+            # Show a beautiful preview of detected groups & buttons
+            preview_text = "👀 **Preview of Detected Groups & Buttons:**\n\n"
+            for gname, buttons in parsed.items():
+                preview_text += f"📦 **{gname}**\n"
+                for bname, blink in buttons.items():
+                    preview_text += f" ├ 🏷 {bname}: {blink}\n"
+                preview_text += "\n"
+
+            # Store in state
+            user_state[uid]["parsed_groups"] = parsed
+
+            inline_buttons = [
+                [
+                    InlineKeyboardButton("✅ Confirm & Save", callback_data=f"save_bulk_{slug}"),
+                    InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")
+                ]
+            ]
+            await message.reply(preview_text, reply_markup=InlineKeyboardMarkup(inline_buttons))
         elif action == "ask_regname":
             new_gname = message.text.strip()
             old_gname = state["old_gname"]
@@ -567,6 +905,28 @@ def register_handlers(bot: Client):
             await db.add_category(message.text.strip())
             await message.reply(f"✅ Category `{message.text}` added.")
             user_state.pop(uid, None)
+        elif action == "ask_bot_token":
+            token = message.text.strip()
+            if not re.match(r"^\d+:[A-Za-z0-9_-]{35,}$", token):
+                return await message.reply("❌ **Invalid Bot Token!** Please send a valid Telegram bot token (e.g., `123456:ABC-DEF1234ghIkl-zyx57W2v1u1`).")
+            user_state[uid].update({"bot_token": token, "action": "ask_group_id"})
+            await message.reply(
+                "👥 **Configure Target Group Chat**\n\n"
+                "✍️ **Step 2:** Please send the **Group ID** (e.g., `-1002345678901`) where this bot will listen and reply to user requests:"
+            )
+        elif action == "ask_group_id":
+            group_id = message.text.strip()
+            token = state["bot_token"]
+            await db.bots.update_one({"token": token}, {"$set": {"token": token, "group_id": group_id}}, upsert=True)
+            from bot.bot_manager import multibot_manager
+            asyncio.create_task(multibot_manager.start_bot(token, group_id))
+            await message.reply(
+                "🚀 **Multi-Bot Configured and Live!**\n\n"
+                f"🔹 **Bot Token:** `{token}`\n"
+                f"🔹 **Target Group:** `{group_id}`\n\n"
+                "The bot is now active and will reply with MoviesZoneFlix page links inside the group."
+            )
+            user_state.pop(uid, None)
 
 async def set_commands(client: Client):
     try:
@@ -579,6 +939,7 @@ async def set_commands(client: Client):
             BotCommand("save", "Backup/Restore"),
             BotCommand("posttochannel", "Post link to channel"),
             BotCommand("categories", "Manage Genres"),
+            BotCommand("addbot", "Add a Multi-Bot listener"),
             BotCommand("cancel", "Cancel Process")
         ])
     except: pass

@@ -2,141 +2,147 @@
 
 {% block head %}
 <style>
-    .neon-glow {
-        color: #fff;
-        text-shadow:
-            0 0 5px #fff,
-            0 0 10px #fff,
-            0 0 20px #ff0000,
-            0 0 30px #ff0000,
-            0 0 40px #ff0000;
-        animation: rainbow-glow 5s linear infinite;
+    /* Premium Glass Panels */
+    .glass-card {
+        background: rgba(12, 12, 12, 0.6);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
     }
 
-    @keyframes rainbow-glow {
-        0% { text-shadow: 0 0 10px #ff0000; color: #ff0000; }
-        20% { text-shadow: 0 0 10px #ffb400; color: #ffb400; }
-        40% { text-shadow: 0 0 10px #00ff00; color: #00ff00; }
-        60% { text-shadow: 0 0 10px #00ffff; color: #00ff00; }
-        80% { text-shadow: 0 0 10px #0000ff; color: #0000ff; }
-        100% { text-shadow: 0 0 10px #ff00ff; color: #ff00ff; }
+    /* Neon pulsing borders for download groups */
+    .neon-group {
+        border-left: 4px solid var(--accent);
+        transition: border-left 0.3s ease;
+    }
+    .neon-group:hover {
+        border-left: 4px solid var(--gold);
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="relative min-h-screen">
-    <!-- Hero Backdrop -->
-    <div class="fixed inset-0 z-0 h-[60vh]">
-        <div class="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent z-10"></div>
-        <img src="{{ media.backdrop or media.image }}" class="w-full h-full object-cover opacity-50" alt="">
+<div class="relative min-h-screen pb-20">
+    <!-- Hero Backdrop Banner -->
+    <div class="absolute inset-0 z-0 h-[50vh] md:h-[70vh] overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/65 to-transparent z-10"></div>
+        <div class="absolute inset-0 bg-gradient-to-r from-[#050505] via-transparent to-transparent z-10"></div>
+        <img id="media-backdrop" src="{{ media.backdrop or media.image }}" class="w-full h-full object-cover opacity-30 select-none" alt="" style="background: #050505">
     </div>
 
-    <div class="relative z-10 pt-32 px-6 md:px-20 max-w-7xl mx-auto fade-in">
-        <div class="flex flex-col md:flex-row gap-10">
+    <div class="relative z-10 pt-24 md:pt-40 px-4 md:px-16 max-w-7xl mx-auto space-y-12">
+
+        <!-- Media Profile Section -->
+        <div class="flex flex-col md:flex-row gap-8 md:gap-12 items-start">
+
             <!-- Poster -->
-            <div class="w-full md:w-80 flex-shrink-0">
-                <div class="aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl border border-white/10 group">
-                    <img src="{{ media.image }}" class="w-full h-full object-cover group-hover:scale-110 transition duration-1000" alt="{{ media.title }}">
+            <div class="w-full md:w-80 flex-shrink-0 mx-auto md:mx-0 select-none">
+                <div class="image-container aspect-[2/3] shadow-2xl relative">
+                    <img id="media-poster" src="{{ media.image }}" class="w-full h-full" alt="{{ media.title }}">
                 </div>
             </div>
 
-            <!-- Info -->
-            <div class="flex-grow space-y-6">
-                <div class="flex items-center space-x-3 text-xs font-black uppercase tracking-widest text-red-600">
-                    <span>{{ media.year }}</span>
+            <!-- Details metadata -->
+            <div class="flex-grow space-y-6 text-center md:text-left w-full">
+                <div class="flex flex-wrap items-center justify-center md:justify-start gap-3 text-xs font-black uppercase tracking-widest text-red-600">
+                    <span class="bg-white/5 border border-white/5 px-3 py-1 rounded-full text-white">{{ media.year }}</span>
                     <span>•</span>
-                    <span>{{ media.runtime or 'N/A' }}</span>
+                    <span class="bg-white/5 border border-white/5 px-3 py-1 rounded-full text-white">{{ media.runtime or 'N/A' }}</span>
                     <span>•</span>
-                    <span class="bg-zinc-800 px-2 py-1 rounded text-white">{{ media.type|upper }}</span>
+                    <span class="bg-red-600/10 border border-red-600/30 text-red-500 px-3 py-1 rounded-full">{{ media.type|upper }}</span>
                 </div>
 
-                <h1 class="text-5xl md:text-8xl font-black tracking-tighter uppercase leading-[0.8]">{{ media.title }}</h1>
+                <h1 class="text-3xl md:text-6xl font-black tracking-tighter uppercase leading-tight text-white drop-shadow-lg">{{ media.title }}</h1>
 
-                <div class="flex items-center space-x-6">
-                    <div class="flex items-center">
-                        <i class="fa-solid fa-star text-amber-400 mr-2"></i>
-                        <span class="text-xl font-bold">{{ media.score or media.rating }}</span>
-                        <span class="text-gray-500 text-sm ml-1">/ 10</span>
+                <div class="flex flex-wrap items-center justify-center md:justify-start gap-4">
+                    <div class="flex items-center text-amber-400 bg-white/5 border border-white/5 px-4 py-2 rounded-xl">
+                        <i class="fa-solid fa-star mr-2 text-sm"></i>
+                        <span class="text-base font-black">{{ media.score or media.rating }}</span>
+                        <span class="text-gray-500 text-xs ml-1">/ 10</span>
                     </div>
-                    <div class="flex items-center space-x-2">
+                    <div class="flex flex-wrap gap-2">
                         {% for genre in media.genres %}
-                        <span class="text-[10px] font-black px-3 py-1 bg-white/5 border border-white/10 rounded-full uppercase tracking-widest">{{ genre }}</span>
+                        <span class="text-[9px] md:text-[10px] font-black px-3.5 py-2 bg-white/5 border border-white/5 rounded-full uppercase tracking-widest text-gray-300">{{ genre }}</span>
                         {% endfor %}
                     </div>
                 </div>
 
-                <p class="text-gray-300 text-lg leading-relaxed font-medium max-w-3xl">
+                <p class="text-gray-400 text-sm md:text-base leading-relaxed font-medium max-w-3xl">
                     {{ media.synopsis or media.overview }}
                 </p>
 
-                <div class="flex flex-wrap gap-4 pt-4">
-                    <button onclick="playMedia()" class="bg-red-600 hover:bg-red-700 text-white px-10 py-4 rounded-xl font-black flex items-center transition shadow-2xl hover:scale-105 active:scale-95">
-                        <i class="fa-solid fa-play mr-3"></i> WATCH NOW
+                <!-- Core actions buttons -->
+                <div class="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-4">
+                    <button onclick="playMedia()" class="bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-xl font-black flex items-center transition shadow-lg shadow-red-600/20 active:scale-95">
+                        <i class="fa-solid fa-play mr-2"></i> WATCH NOW
                     </button>
                     {% if media.trailer %}
-                    <a href="{{ media.trailer }}" target="_blank" class="bg-white/10 hover:bg-white/20 text-white px-10 py-4 rounded-xl font-black flex items-center backdrop-blur-xl transition border border-white/10">
-                        <i class="fa-solid fa-video mr-3"></i> TRAILER
+                    <a href="{{ media.trailer }}" target="_blank" class="bg-white/5 hover:bg-white/10 text-white px-8 py-4 rounded-xl font-black flex items-center backdrop-blur-xl transition border border-white/10">
+                        <i class="fa-brands fa-youtube mr-2 text-red-500"></i> TRAILER
                     </a>
                     {% endif %}
-                    <button id="favorite-btn" onclick="toggleFavorite()" class="w-14 h-14 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition border border-white/10">
-                        <i class="fa-regular fa-heart text-xl" id="heart-icon"></i>
+                    <button id="favorite-btn" onclick="toggleFavorite()" class="w-14 h-14 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition border border-white/10" aria-label="Favorite button">
+                        <i class="fa-regular fa-heart text-lg" id="heart-icon"></i>
                     </button>
                 </div>
 
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-8 pt-10 border-t border-white/5">
+                <!-- Fast Info Grid -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-6 pt-8 border-t border-white/5">
                     <div>
-                        <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Director</p>
-                        <p class="font-bold">{{ media.director or 'N/A' }}</p>
+                        <p class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Director</p>
+                        <p class="font-bold text-sm text-gray-200">{{ media.director or 'N/A' }}</p>
                     </div>
                     <div>
-                        <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Status</p>
-                        <p class="font-bold text-green-500">{{ media.status or 'Available' }}</p>
+                        <p class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Status</p>
+                        <p class="font-bold text-sm text-green-500 uppercase tracking-wider">{{ media.status or 'Available' }}</p>
                     </div>
                     <div class="col-span-2">
-                        <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Cast</p>
-                        <p class="font-bold text-sm text-gray-300">{{ media.cast|join(', ') if media.cast else 'N/A' }}</p>
+                        <p class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Cast Ensemble</p>
+                        <p class="font-bold text-xs text-gray-300 leading-snug">{{ media.cast|join(', ') if media.cast else 'N/A' }}</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Episodes / Files Section -->
-        <div id="servers" class="mt-24 space-y-10 pb-20">
-            <h2 class="text-3xl font-black uppercase tracking-tighter">GET <span class="text-red-600">FILES</span></h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Downloads & Servers Section Rendering Directly -->
+        <div class="pt-12 border-t border-white/5 space-y-8" id="tab-downloads">
+            <h2 class="text-xl md:text-2xl font-black uppercase tracking-tighter">GET <span class="text-red-600">SECURE FILES</span></h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="servers">
                 {% if media.seasons_links %}
                     {% for sname, sdata in media.seasons_links.items() %}
-                    <div class="bg-zinc-900/40 border border-white/5 p-6 rounded-2xl backdrop-blur-md hover:bg-zinc-900/60 transition group">
-                        <h3 class="text-xl font-black mb-4 flex items-center">
-                            <span class="w-1.5 h-5 bg-red-600 mr-3 rounded-full transition-all group-hover:h-8"></span>
-                            <span class="neon-glow" style="animation-delay: -{{ loop.index0 * 1.5 }}s;">{{ sname }}</span>
-                        </h3>
-                        <div class="space-y-3">
-                            {% for label, link in sdata.items() %}
-                                {% if link %}
-                                <a href="{{ link }}" onclick="saveProgress()" class="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl transition group/item">
-                                    <div class="flex items-center">
-                                        <div class="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center mr-3 group-hover/item:bg-red-600 transition">
-                                            <i class="fa-solid fa-download text-xs"></i>
+                    <div class="glass-card p-6 rounded-2xl flex flex-col justify-between neon-group">
+                        <div>
+                            <h3 class="text-lg font-black mb-4 text-white uppercase tracking-tight flex items-center">
+                                <span class="w-1.5 h-4 bg-red-600 mr-2 rounded-full"></span>
+                                {{ sname }}
+                            </h3>
+                            <div class="space-y-3">
+                                {% for label, link in sdata.items() %}
+                                    {% if link %}
+                                    <a href="{{ link }}" onclick="saveProgress()" target="_blank" class="flex items-center justify-between p-3.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl transition group/item">
+                                        <div class="flex items-center">
+                                            <div class="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center mr-3 group-hover/item:bg-red-600 transition text-white">
+                                                <i class="fa-solid fa-download text-xs"></i>
+                                            </div>
+                                            <span class="font-bold text-xs text-gray-200">{{ label }}</span>
                                         </div>
-                                        <span class="font-bold text-sm">{{ label }}</span>
-                                    </div>
-                                    <i class="fa-solid fa-chevron-right text-[10px] text-gray-500"></i>
-                                </a>
-                                {% endif %}
-                            {% endfor %}
+                                        <i class="fa-solid fa-chevron-right text-[9px] text-gray-500 group-hover/item:text-red-500 transition"></i>
+                                    </a>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
                         </div>
                     </div>
                     {% endfor %}
                 {% else %}
-                    <div class="col-span-full py-12 text-center bg-white/5 rounded-2xl border border-dashed border-white/10">
-                        <p class="text-gray-500 font-bold italic">No servers currently available for this title.</p>
+                    <div class="col-span-full py-16 text-center glass-card rounded-2xl border border-dashed border-white/10">
+                        <i class="fa-solid fa-circle-info text-gray-500 text-3xl mb-3"></i>
+                        <p class="text-gray-400 font-bold italic text-sm">No active file servers currently available for this title.</p>
                     </div>
                 {% endif %}
             </div>
         </div>
+
     </div>
 </div>
 {% endblock %}
@@ -168,7 +174,6 @@
     }
 
     function playMedia() {
-        // Record as continue watching when watch is clicked
         window.useContinueWatching.add({...mediaItem, progress: 10});
         document.getElementById('servers').scrollIntoView({ behavior: 'smooth' });
     }
@@ -177,6 +182,8 @@
         window.useContinueWatching.add({...mediaItem, progress: 50});
     }
 
-    document.addEventListener('DOMContentLoaded', updateFavoriteUI);
+    document.addEventListener('DOMContentLoaded', () => {
+        updateFavoriteUI();
+    });
 </script>
 {% endblock %}
