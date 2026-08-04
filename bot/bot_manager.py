@@ -85,7 +85,7 @@ class MultiBotManager:
                         sent_msg = await c.send_message(
                             chat_id=message.chat.id,
                             text=f"🎬 **{match['title']}**\n\n🔗 **Link:** {link}",
-                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🍿 PAGE LINK", url=link)]]),
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🍿 Watch Now", url=link)]]),
                             reply_to_message_id=message.id
                         )
                         # Auto delete reply after 10 seconds

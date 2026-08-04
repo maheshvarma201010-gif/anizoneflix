@@ -58,6 +58,50 @@ def extract_slug(text):
         except: pass
     return text
 
+def parse_groups_message(text: str):
+    """
+    Parses a multiline message of groups and buttons.
+    Returns: dict { "Group Name": { "Button Name": "Link" } } or None if validation fails.
+    """
+    lines = [line.strip() for line in text.strip().split("\n")]
+    groups = {}
+    current_group = None
+
+    for line in lines:
+        if not line:
+            continue
+        # Check if it is a group header, e.g. "1. Season 1"
+        header_match = re.match(r"^\d+\.\s*(.+)$", line)
+        if header_match:
+            current_group = header_match.group(1).strip()
+            groups[current_group] = {}
+        else:
+            # Must be a button line: "Button Name : Link"
+            if ":" not in line:
+                return None # Invalid format
+            parts = line.split(":", 1)
+            btn_name = parts[0].strip()
+            btn_link = parts[1].strip()
+
+            if not btn_name or not btn_link:
+                return None # Invalid format
+            if not (btn_link.startswith("http://") or btn_link.startswith("https://")):
+                return None # Invalid format
+
+            if current_group is None:
+                return None # Button declared before any group header
+
+            groups[current_group][btn_name] = btn_link
+
+    # Must have at least one group with at least one button
+    if not groups:
+        return None
+    for gname, buttons in groups.items():
+        if not buttons:
+            return None
+
+    return groups
+
 def register_handlers(bot: Client):
     logger.info("Registering bot handlers...")
 
@@ -556,9 +600,28 @@ def register_handlers(bot: Client):
 
         elif data.startswith("m_addg_"):
             slug = data.replace("m_addg_", "")
-            user_state[uid] = {"action": "ask_gname", "slug": slug}
+            user_state[uid] = {"action": "ask_groups_bulk", "slug": slug}
             back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data=f"m_back_{slug}")]]
-            await cb.message.edit_text("📦 Send **Group Name** (e.g. 1080p, Season 1):", reply_markup=InlineKeyboardMarkup(back_btn))
+
+            prompt_text = (
+                "Please send one or more groups with buttons in a single message in the following format:\n\n"
+                "1. Group Name\n"
+                "Button Name : Link\n"
+                "Button Name : Link\n\n"
+                "Example:\n"
+                "1. Season 1\n"
+                "480P : https://example.com/480p\n"
+                "720P : https://example.com/720p\n"
+                "1080P : https://example.com/1080p\n\n"
+                "2. Season 2\n"
+                "480P : https://example.com/480p\n"
+                "720P : https://example.com/720p\n"
+                "1080P : https://example.com/1080p\n\n"
+                "⚠️ Format Notes:\n"
+                "• Each group must start with a numbered line (e.g. 1. Season 1)\n"
+                "• Button links must start with http:// or https:// admin can add unlimited groups using serial numbers"
+            )
+            await cb.message.edit_text(prompt_text, reply_markup=InlineKeyboardMarkup(back_btn))
 
         elif data.startswith("m_mgrg_"):
             parts = data.split("_")
@@ -618,6 +681,40 @@ def register_handlers(bot: Client):
             slug = data.replace("execute_del_", "")
             await db.delete_media_by_slug(slug)
             await cb.message.edit_text(f"🗑 **Deleted:** `{slug}` has been removed.")
+
+        elif data.startswith("save_bulk_"):
+            slug = data.replace("save_bulk_", "")
+            state = user_state.get(uid)
+            if not state or "parsed_groups" not in state:
+                return await cb.answer("❌ Error: Session expired or invalid state.", show_alert=True)
+
+            parsed_groups = state["parsed_groups"]
+            media = await db.get_media_by_slug(slug)
+            if not media:
+                return await cb.message.edit_text("❌ Media not found.")
+
+            links = media.get("seasons_links", {})
+            if not isinstance(links, dict):
+                links = {}
+
+            # Merge/Update the new groups
+            for gname, buttons in parsed_groups.items():
+                links[gname] = buttons
+
+            await db.media.update_one({"slug": slug}, {"$set": {"seasons_links": links}})
+            user_state.pop(uid, None)
+
+            # Show success and go back to server manager
+            buttons = [[InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}")]]
+            for gn in links.keys():
+                buttons.append([
+                    InlineKeyboardButton(f"⚙️ {gn}", callback_data=f"m_mgrg_{slug}_{gn}"),
+                    InlineKeyboardButton("🗑", callback_data=f"m_delg_{slug}_{gn}")
+                ])
+            await cb.message.edit_text(
+                f"✅ **Bulk Groups Saved Successfully!**\n\nMedia: `{media['title']}`\n\nManage servers:",
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
 
         elif data == "cancel_op":
             user_state.pop(uid, None)
@@ -726,9 +823,47 @@ def register_handlers(bot: Client):
             else:
                 await message.reply("❌ Type must be 'movie' or 'tv'.")
             user_state.pop(uid, None)
-        elif action == "ask_gname":
-            user_state[uid].update({"gname": message.text.strip(), "action": "ask_btn_count"})
-            await message.reply(f"🔢 How many buttons in group `{message.text}`?")
+        elif action == "ask_groups_bulk":
+            parsed = parse_groups_message(message.text)
+            if not parsed:
+                error_text = (
+                    "❌ **Invalid Format!** Please ensure you use the exact format below:\n\n"
+                    "1. Group Name\n"
+                    "Button Name : Link\n"
+                    "Button Name : Link\n\n"
+                    "Example:\n"
+                    "1. Season 1\n"
+                    "480P : https://example.com/480p\n"
+                    "720P : https://example.com/720p\n"
+                    "1080P : https://example.com/1080p\n\n"
+                    "2. Season 2\n"
+                    "480P : https://example.com/480p\n"
+                    "720P : https://example.com/720p\n"
+                    "1080P : https://example.com/1080p\n\n"
+                    "⚠️ **Format Notes:**\n"
+                    "• Each group must start with a numbered line (e.g. 1. Season 1)\n"
+                    "• Button links must start with http:// or https://"
+                )
+                return await message.reply(error_text)
+
+            # Show a beautiful preview of detected groups & buttons
+            preview_text = "👀 **Preview of Detected Groups & Buttons:**\n\n"
+            for gname, buttons in parsed.items():
+                preview_text += f"📦 **{gname}**\n"
+                for bname, blink in buttons.items():
+                    preview_text += f" ├ 🏷 {bname}: {blink}\n"
+                preview_text += "\n"
+
+            # Store in state
+            user_state[uid]["parsed_groups"] = parsed
+
+            inline_buttons = [
+                [
+                    InlineKeyboardButton("✅ Confirm & Save", callback_data=f"save_bulk_{slug}"),
+                    InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")
+                ]
+            ]
+            await message.reply(preview_text, reply_markup=InlineKeyboardMarkup(inline_buttons))
         elif action == "ask_regname":
             new_gname = message.text.strip()
             old_gname = state["old_gname"]
