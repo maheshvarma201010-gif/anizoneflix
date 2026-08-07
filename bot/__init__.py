@@ -81,7 +81,9 @@ def parse_buttons_string(text, expected_count):
     if not text:
         return None
     text = text.strip()
-    parts = text.split(":")
+    # Split only on separator colons (not protocol colons)
+    pattern = r'(?<!\bhttps)(?<!\bhttp)(?<!\btg):'
+    parts = re.split(pattern, text)
     if len(parts) != expected_count + 1:
         return None  # Invalid colon count
 
@@ -100,14 +102,14 @@ def parse_buttons_string(text, expected_count):
             link = link.strip()
             next_name = next_name.strip()
 
-            if not link.startswith("http"):
+            if not link.startswith("http") and not link.startswith("tg"):
                 return None
 
             buttons[curr_name] = link
             curr_name = next_name
         else:
             link = part
-            if not link.startswith("http"):
+            if not link.startswith("http") and not link.startswith("tg"):
                 return None
             buttons[curr_name] = link
 
@@ -1664,7 +1666,14 @@ def register_handlers(bot: Client):
         else: groups.insert(pos, new_group)
 
         aid = state["slug"]
-        await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": dict(groups)}, "$currentDate": {"updated_at": True}})
+        await db.anime.update_one(
+            {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
+            {
+                "$set": {"seasons_links": dict(groups)},
+                "$addToSet": {"newly_added_groups": state["cgrp_name"]},
+                "$currentDate": {"updated_at": True}
+            }
+        )
         await callback_query.message.edit_text(f"✅ **Group '{state['cgrp_name']}' synchronized at position {pos if pos != -1 else len(groups)}.**")
         del user_state[uid]
 
@@ -2240,28 +2249,53 @@ def register_handlers(bot: Client):
                     })
                     await message.reply(
                         "Please send the button names and links in the following format:\n\n"
+                        "GROUP NAME\n"
                         "Button Name : Link Button Name : Link\n\n"
                         "Example:\n"
+                        "EP15\n\n"
                         "480p : https://example.com/480p 720p : https://example.com/720p 1080p : https://example.com/1080p"
                     )
                 except:
                     await message.reply("❌ **Invalid number.** Send a valid integer:")
             elif action == "ask_cgrp_links_format":
                 btn_count = state["btn_count"]
-                parsed_buttons = parse_buttons_string(message.text, btn_count)
+                # Split message into non-empty lines
+                lines = [line.strip() for line in message.text.split("\n") if line.strip()]
+                if len(lines) < 2:
+                    return await message.reply(
+                        f"❌ **Invalid Format.** Please send the Group Name on the first line, followed by exactly {btn_count} buttons on the next line:\n\n"
+                        "GROUP NAME\n"
+                        "Button Name : Link Button Name : Link\n\n"
+                        "Example:\n"
+                        "EP15\n\n"
+                        "480p : https://example.com/480p 720p : https://example.com/720p 1080p : https://example.com/1080p"
+                    )
+
+                gname = lines[0]
+                buttons_text = "\n".join(lines[1:])
+                parsed_buttons = parse_buttons_string(buttons_text, btn_count)
                 if parsed_buttons is None:
                     return await message.reply(
                         f"❌ **Invalid Format or Link.** Please send exactly {btn_count} buttons in the correct format:\n\n"
+                        "GROUP NAME\n"
                         "Button Name : Link Button Name : Link\n\n"
                         "Example:\n"
+                        "EP15\n\n"
                         "480p : https://example.com/480p 720p : https://example.com/720p 1080p : https://example.com/1080p"
                     )
+
                 user_state[uid].update({
-                    "action": "ask_cgrp_name_after_links",
-                    "cgrp_data": parsed_buttons
+                    "cgrp_name": gname,
+                    "cgrp_data": parsed_buttons,
+                    "action": "ask_cgrp_pos"
                 })
-                await message.reply("📦 **Now please send the Custom Group Name:**\n*(e.g. Season 1, OVA, English Dub)*")
+                buttons = [
+                    [InlineKeyboardButton("🔝 Beginning", callback_data="setposcg_0"), InlineKeyboardButton("🔚 End", callback_data="setposcg_-1")],
+                    [InlineKeyboardButton("🎯 Select Position", callback_data="setposcg_select")]
+                ]
+                await message.reply(f"📍 **Position for group '{gname}':**", reply_markup=InlineKeyboardMarkup(buttons))
             elif action == "ask_cgrp_name_after_links":
+                # Kept as fallback in case any existing state is active
                 gname = message.text.strip()
                 user_state[uid].update({
                     "cgrp_name": gname,
@@ -2336,9 +2370,18 @@ def register_handlers(bot: Client):
                     successful_boxes += 1
 
                 if successful_boxes > 0:
+                    new_grp_names = []
+                    for item in parsed_boxes:
+                        for grp in item["groups"]:
+                            new_grp_names.append(grp["group_name"])
+
                     await db.anime.update_one(
                         {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
-                        {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}}
+                        {
+                            "$set": {"custom_boxes": boxes},
+                            "$addToSet": {"newly_added_groups": {"$each": new_grp_names}},
+                            "$currentDate": {"updated_at": True}
+                        }
                     )
 
                 failed_boxes_count = len(failed_boxes_list)
@@ -2387,7 +2430,11 @@ def register_handlers(bot: Client):
 
                 await db.anime.update_one(
                     {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
-                    {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}}
+                    {
+                        "$set": {"custom_boxes": boxes},
+                        "$addToSet": {"newly_added_groups": {"$each": list(parsed_groups.keys())}},
+                        "$currentDate": {"updated_at": True}
+                    }
                 )
 
                 g_count = len(parsed_groups)
@@ -2515,7 +2562,14 @@ def register_handlers(bot: Client):
                     anime = await db.get_anime(aid)
                     boxes = anime.get("custom_boxes", [])
                     boxes.append(new_box)
-                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
+                    await db.anime.update_one(
+                        {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
+                        {
+                            "$set": {"custom_boxes": boxes},
+                            "$addToSet": {"newly_added_groups": state["temp_grp_name"]},
+                            "$currentDate": {"updated_at": True}
+                        }
+                    )
                     await message.reply(f"✅ **Box '{state['box_name']}' created with group '{state['temp_grp_name']}'.**")
                     del user_state[uid]
             elif action == "ask_box_cgrp_name":
@@ -2542,7 +2596,14 @@ def register_handlers(bot: Client):
                     anime = await db.get_anime(aid)
                     boxes = anime.get("custom_boxes", [])
                     boxes[b_idx]["groups"][state["temp_grp_name"]] = state["temp_grp_data"]
-                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}})
+                    await db.anime.update_one(
+                        {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
+                        {
+                            "$set": {"custom_boxes": boxes},
+                            "$addToSet": {"newly_added_groups": state["temp_grp_name"]},
+                            "$currentDate": {"updated_at": True}
+                        }
+                    )
                     await message.reply(f"✅ **Group '{state['temp_grp_name']}' added to box '{boxes[b_idx]['name']}'.**")
                     del user_state[uid]
             elif action == "ask_renbox_name":
@@ -2711,7 +2772,14 @@ def register_handlers(bot: Client):
 
                 new_links = dict(current_groups)
                 if await db.ping():
-                    await db.anime.update_one({"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid}, {"$set": {"seasons_links": new_links}, "$currentDate": {"updated_at": True}})
+                    await db.anime.update_one(
+                        {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
+                        {
+                            "$set": {"seasons_links": new_links},
+                            "$addToSet": {"newly_added_groups": state["group_name"]},
+                            "$currentDate": {"updated_at": True}
+                        }
+                    )
                     await message.reply(f"💎 **Success!** Group synchronized.")
                 else:
                     await message.reply("❌ Database Offline")

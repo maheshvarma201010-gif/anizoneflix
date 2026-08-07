@@ -58,6 +58,41 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     hardenProtections();
 
+    // --- Theme Toggle Logic ---
+    const initThemeToggle = () => {
+        const toggleBtn = document.getElementById('theme-toggle');
+        if (!toggleBtn) return;
+
+        const currentTheme = localStorage.getItem('theme') || 'dark';
+        const icon = toggleBtn.querySelector('i');
+        if (currentTheme === 'light') {
+            document.documentElement.classList.add('light-theme');
+            if (icon) {
+                icon.className = 'fa-solid fa-sun text-[var(--accent)]';
+            }
+        } else {
+            document.documentElement.classList.remove('light-theme');
+            if (icon) {
+                icon.className = 'fa-solid fa-moon text-[var(--accent)]';
+            }
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            const isLight = document.documentElement.classList.contains('light-theme');
+            const icon = toggleBtn.querySelector('i');
+            if (isLight) {
+                document.documentElement.classList.remove('light-theme');
+                localStorage.setItem('theme', 'dark');
+                if (icon) icon.className = 'fa-solid fa-moon text-[var(--accent)]';
+            } else {
+                document.documentElement.classList.add('light-theme');
+                localStorage.setItem('theme', 'light');
+                if (icon) icon.className = 'fa-solid fa-sun text-[var(--accent)]';
+            }
+        });
+    };
+    initThemeToggle();
+
     // --- Interactive Elements: Ripple Effect ---
     const createRipple = (event) => {
         const button = event.currentTarget;
