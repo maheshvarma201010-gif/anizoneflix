@@ -5,6 +5,7 @@ import os
 import json
 import zipfile
 import tempfile
+import re
 from urllib.parse import unquote
 from io import BytesIO
 from bson import ObjectId
@@ -404,6 +405,7 @@ def register_handlers(bot: Client):
                     [InlineKeyboardButton("➕ Add Custom Button", callback_data=f"add_btn_start_{aid}")],
                     [InlineKeyboardButton("🗃 Add Custom Box", callback_data=f"add_box_start_{aid}")],
                     [InlineKeyboardButton("🚀 Advanced Group", callback_data=f"adv_grp_start_{aid}")],
+                    [InlineKeyboardButton("🔥 Ultra Advanced Group", callback_data=f"ultra_adv_grp_start_{aid}")],
                     [InlineKeyboardButton("📋 Manage Boxes", callback_data=f"manage_boxes_{aid}")],
                     [InlineKeyboardButton("📝 Manage Buttons", callback_data=f"manage_btns_{aid}")],
                     [InlineKeyboardButton("🔄 Refresh", callback_data=f"edit_m_back_{aid}")],
@@ -419,6 +421,7 @@ def register_handlers(bot: Client):
                     [InlineKeyboardButton("🗃 Custom Boxes", callback_data=f"manage_boxes_{aid}")],
                     [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
                     [InlineKeyboardButton("🚀 Advanced Group", callback_data=f"adv_grp_start_{aid}")],
+                    [InlineKeyboardButton("🔥 Ultra Advanced Group", callback_data=f"ultra_adv_grp_start_{aid}")],
                     [InlineKeyboardButton("📂 Change Category", callback_data=f"manage_category_{aid}")],
                     [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{aid}")],
                     [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{aid}")],
@@ -966,6 +969,7 @@ def register_handlers(bot: Client):
                 [InlineKeyboardButton("➕ Add Custom Button", callback_data=f"add_btn_start_{aid}")],
                 [InlineKeyboardButton("🗃 Add Custom Box", callback_data=f"add_box_start_{aid}")],
                 [InlineKeyboardButton("🚀 Advanced Group", callback_data=f"adv_grp_start_{aid}")],
+                [InlineKeyboardButton("🔥 Ultra Advanced Group", callback_data=f"ultra_adv_grp_start_{aid}")],
                 [InlineKeyboardButton("📋 Manage Boxes", callback_data=f"manage_boxes_{aid}")],
                 [InlineKeyboardButton("📝 Manage Buttons", callback_data=f"manage_btns_{aid}")],
                 [InlineKeyboardButton("🔄 Refresh", callback_data=f"edit_m_back_{aid}")],
@@ -988,10 +992,145 @@ def register_handlers(bot: Client):
 
     @bot.on_callback_query(filters.regex("^add_box_start_"))
     async def add_box_start_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
         aid = callback_query.data.split("add_box_start_")[-1]
-        user_state[callback_query.from_user.id] = {"action": "ask_box_name", "slug": aid}
-        await callback_query.message.edit_text("🗃 **Custom Box Identity:**\n*(e.g. Download Box, Multi-Audio Box)*", reply_markup=None)
+
+        # Detect origin (edit_m vs edit)
+        origin = "edit"
+        curr_text = callback_query.message.text or ""
+        if "Custom Management" in curr_text:
+            origin = "edit_m"
+
+        user_state[callback_query.from_user.id] = {
+            "action": "ask_box_name",
+            "slug": aid,
+            "origin": origin
+        }
+
+        cancel_callback = f"cancel_bulkbox_{origin}:::{aid}"
+
+        instruction_text = (
+            "🗃 **Bulk Box Creation**\n\n"
+            "You can add multiple boxes at once!\n"
+            "Please send your box names in the following format:\n\n"
+            "1. Naruto\n"
+            "2. One Piece\n"
+            "3. Bleach\n"
+            "4. Jujutsu Kaisen\n"
+            "5. Demon Slayer\n\n"
+            "Send your list of box names now or click Cancel to abort:"
+        )
+
+        await callback_query.message.edit_text(
+            instruction_text,
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("❌ Cancel", callback_data=cancel_callback)
+            ]])
+        )
         await callback_query.answer()
+
+    @bot.on_callback_query(filters.regex("^cancel_bulkbox_(edit|edit_m):::"))
+    async def cancel_bulkbox_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        data = callback_query.data.split("cancel_bulkbox_")[-1]
+        origin, aid = data.split(":::", 1)
+
+        uid = callback_query.from_user.id
+        user_state.pop(uid, None)
+
+        await callback_query.answer("Operation Cancelled")
+
+        if origin == "edit_m":
+            callback_query.data = f"edit_m_back_{aid}"
+            return await edit_m_back_cb(client, callback_query)
+        else:
+            callback_query.data = f"back_to_edit_{aid}"
+            return await back_to_edit_cb(client, callback_query)
+
+    @bot.on_callback_query(filters.regex("^ultra_adv_grp_start_"))
+    async def ultra_adv_grp_start_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        try:
+            aid = callback_query.data.split("ultra_adv_grp_start_")[-1]
+            anime = await db.get_anime(aid)
+            if not anime: return await callback_query.answer("❌ Anime Not Found", show_alert=True)
+
+            uid = callback_query.from_user.id
+
+            # Record the origin callback (whether it came from edit or edit_m)
+            # We can detect this based on the current message text/caption or state.
+            # Usually `/edit_m` has "Custom Management" in its title, and `/edit` has "Executive Suite" or similar.
+            origin = "edit"
+            curr_text = callback_query.message.text or ""
+            if "Custom Management" in curr_text:
+                origin = "edit_m"
+
+            user_state[uid] = {
+                "action": "ask_ultra_adv_grp_message",
+                "slug": aid,
+                "origin": origin
+            }
+
+            cancel_callback = f"cancel_uag_{origin}:::{aid}"
+
+            instruction_text = (
+                f"🔥 **Ultra Advanced Group: {anime['title']}**\n\n"
+                "Please send the custom box groups and buttons in this format:\n\n"
+                "`I. BOX NAME: Naruto` (Roman-numbered existing box)\n\n"
+                "`1. Quality` (Serial number + Group Name)\n"
+                "`480P : https://example.com/480` (Button Name : Link)\n"
+                "`720P : https://example.com/720`\n\n"
+                "`2. Languages`\n"
+                "`Telugu : https://example.com/telugu`\n\n"
+                "`II. BOX NAME: One Piece`\n\n"
+                "`1. Quality`\n"
+                "`480P : https://example.com/480`\n\n"
+                "⚠️ **Rules & Guidelines:**\n"
+                "• **Ultra Advanced Group must NEVER create a new box.** It only updates existing boxes.\n"
+                "• Any boxes not found in this series will be marked as failed/not found, but other valid boxes will continue processing.\n"
+                "• All groups and buttons will be appended to the existing box without overwriting other unrelated groups.\n"
+                "• The parser splits only on the **first colon (:)** for button links to avoid corrupting URLs containing colons.\n\n"
+                "Send your formatted input now or click Cancel to abort:"
+            )
+
+            await callback_query.message.edit_text(
+                instruction_text,
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("❌ Cancel", callback_data=cancel_callback)
+                ]])
+            )
+            await callback_query.answer()
+        except Exception as e:
+            logger.error(f"Ultra Advanced Group Start Error: {e}")
+            await callback_query.answer("Error initiating Ultra Advanced Group flow", show_alert=True)
+
+    @bot.on_callback_query(filters.regex("^cancel_uag_(edit|edit_m):::"))
+    async def cancel_uag_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        data = callback_query.data.split("cancel_uag_")[-1]
+        origin, aid = data.split(":::", 1)
+
+        uid = callback_query.from_user.id
+        user_state.pop(uid, None)
+
+        await callback_query.answer("Operation Cancelled")
+
+        if origin == "edit_m":
+            # Simulate back to edit_m callback
+            callback_query.data = f"edit_m_back_{aid}"
+            return await edit_m_back_cb(client, callback_query)
+        else:
+            # Simulate back to edit callback
+            callback_query.data = f"back_to_edit_{aid}"
+            return await back_to_edit_cb(client, callback_query)
 
     @bot.on_callback_query(filters.regex("^adv_grp_start_"))
     async def adv_grp_start_cb(client, callback_query):
@@ -1453,6 +1592,7 @@ def register_handlers(bot: Client):
                 [InlineKeyboardButton("🗃 Custom Boxes", callback_data=f"manage_boxes_{aid}")],
                 [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
                 [InlineKeyboardButton("🚀 Advanced Group", callback_data=f"adv_grp_start_{aid}")],
+                [InlineKeyboardButton("🔥 Ultra Advanced Group", callback_data=f"ultra_adv_grp_start_{aid}")],
                 [InlineKeyboardButton("📂 Change Category", callback_data=f"manage_category_{aid}")],
                 [InlineKeyboardButton("🏷 Change Title", callback_data=f"edit_title_{aid}")],
                 [InlineKeyboardButton("🖼 Change Poster", callback_data=f"trigger_poster_{aid}")],
@@ -1849,6 +1989,8 @@ def register_handlers(bot: Client):
     async def interaction_handler(client, message):
         if not message.from_user: return
         uid = message.from_user.id
+        if not await is_authorized(uid):
+            return await message.reply("🚫 **Access Denied.** Unauthorized user.")
         state = user_state.get(uid)
         if not state: return
 
@@ -2130,6 +2272,92 @@ def register_handlers(bot: Client):
                     [InlineKeyboardButton("🎯 Select Position", callback_data="setposcg_select")]
                 ]
                 await message.reply(f"📍 **Position for group '{gname}':**", reply_markup=InlineKeyboardMarkup(buttons))
+            elif action == "ask_ultra_adv_grp_message":
+                from utils.parser import parse_ultra_advanced_group
+                parsed_boxes, parsing_errors = parse_ultra_advanced_group(message.text)
+                if parsing_errors:
+                    await message.reply(
+                        f"❌ **Formatting Error in Ultra Advanced Group:**\n\n"
+                        f"{chr(10).join(parsing_errors[:10])}\n"
+                        f"{'...and more' if len(parsing_errors) > 10 else ''}\n\n"
+                        "Please correct the formatting and resend the complete message (or send /cancel to abort):"
+                    )
+                    return
+
+                aid = state["slug"]
+                anime = await db.get_anime(aid)
+                if not anime:
+                    await message.reply("❌ **Error:** Anime page not found in database anymore.")
+                    user_state.pop(uid, None)
+                    return
+
+                boxes = anime.get("custom_boxes", [])
+
+                # We need to process sequentially
+                boxes_processed = len(parsed_boxes)
+                successful_boxes = 0
+                failed_boxes_list = []
+                groups_added = 0
+                buttons_added = 0
+
+                # Convert existing box names to lowercase for robust case-insensitive matching
+                box_name_map = {}
+                for idx, box in enumerate(boxes):
+                    box_name_map[box["name"].strip().lower()] = idx
+
+                for item in parsed_boxes:
+                    box_name_ref = item["box_name"].strip()
+                    lower_ref = box_name_ref.lower()
+
+                    if lower_ref not in box_name_map:
+                        failed_boxes_list.append(box_name_ref)
+                        continue
+
+                    # Found the existing box!
+                    b_idx = box_name_map[lower_ref]
+                    target_box = boxes[b_idx]
+
+                    if "groups" not in target_box or not isinstance(target_box["groups"], dict):
+                        target_box["groups"] = {}
+
+                    # Add groups
+                    for grp in item["groups"]:
+                        grp_name = grp["group_name"]
+                        buttons_dict = grp["buttons"]
+
+                        if grp_name not in target_box["groups"]:
+                            target_box["groups"][grp_name] = {}
+
+                        # Append newly supplied buttons to existing/new groups
+                        target_box["groups"][grp_name].update(buttons_dict)
+                        groups_added += 1
+                        buttons_added += len(buttons_dict)
+
+                    successful_boxes += 1
+
+                if successful_boxes > 0:
+                    await db.anime.update_one(
+                        {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
+                        {"$set": {"custom_boxes": boxes}, "$currentDate": {"updated_at": True}}
+                    )
+
+                failed_boxes_count = len(failed_boxes_list)
+
+                summary = (
+                    "✅ **Ultra Advanced Group Completed**\n\n"
+                    f"📦 **Boxes Processed:** {boxes_processed}\n"
+                    f"✅ **Successful Boxes:** {successful_boxes}\n"
+                    f"❌ **Boxes Not Found:** {failed_boxes_count}\n"
+                    f"➕ **Groups Added:** {groups_added}\n"
+                    f"🔘 **Buttons Added:** {buttons_added}\n"
+                )
+
+                if failed_boxes_list:
+                    summary += "\n**Not Found:**\n" + "\n".join(f"• {name}" for name in failed_boxes_list)
+
+                user_state.pop(uid, None)
+                await message.reply(summary)
+
             elif action == "ask_adv_grp_message":
                 parsed_groups, error_msg = parse_advanced_group_message(message.text)
                 if error_msg:
@@ -2176,8 +2404,64 @@ def register_handlers(bot: Client):
                 del user_state[uid]
                 await message.reply(success_text)
             elif action == "ask_box_name":
-                user_state[uid].update({"box_name": message.text.strip(), "action": "ask_box_link"})
-                await message.reply("🔗 **Page Link for the Box:**\n*(Send URL or /skip)*")
+                from utils.parser import parse_bulk_box_names
+                box_names, parsing_errors = parse_bulk_box_names(message.text)
+                if parsing_errors:
+                    await message.reply(
+                        f"❌ **Formatting Error in Bulk Box format:**\n\n"
+                        f"{chr(10).join(parsing_errors[:10])}\n"
+                        f"{'...and more' if len(parsing_errors) > 10 else ''}\n\n"
+                        "Please correct the formatting and send again (or send /cancel to abort):"
+                    )
+                    return
+
+                aid = state["slug"]
+                anime = await db.get_anime(aid)
+                if not anime:
+                    await message.reply("❌ **Error:** Anime page not found in database.")
+                    user_state.pop(uid, None)
+                    return
+
+                existing_boxes = anime.get("custom_boxes", [])
+                existing_box_names_lower = {b["name"].strip().lower() for b in existing_boxes}
+
+                total_submitted = len(box_names)
+                added_boxes = []
+                already_exists = []
+                failed = 0
+
+                for bname in box_names:
+                    bname_clean = bname.strip()
+                    if bname_clean.lower() in existing_box_names_lower:
+                        already_exists.append(bname_clean)
+                    else:
+                        new_box = {
+                            "name": bname_clean,
+                            "link": None,
+                            "groups": {}
+                        }
+                        existing_boxes.append(new_box)
+                        added_boxes.append(bname_clean)
+
+                if added_boxes:
+                    await db.anime.update_one(
+                        {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
+                        {"$set": {"custom_boxes": existing_boxes}, "$currentDate": {"updated_at": True}}
+                    )
+
+                summary = (
+                    "✅ **Bulk Box Creation Completed**\n\n"
+                    f"📦 **Total Submitted:** {total_submitted}\n"
+                    f"✅ **Added:** {len(added_boxes)}\n"
+                    f"⚠️ **Already Exists:** {len(already_exists)}\n"
+                    f"❌ **Failed:** {failed}\n"
+                )
+
+                if already_exists:
+                    summary += "\n**Already Exists:**\n" + "\n".join(f"• {name}" for name in already_exists)
+
+                user_state.pop(uid, None)
+                await message.reply(summary)
             elif action == "ask_box_link":
                 link = message.text.strip() if message.text != "/skip" else None
                 user_state[uid].update({"box_link": link, "action": "ask_box_group_check"})
