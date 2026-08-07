@@ -1,8 +1,10 @@
 :root {
     --primary: #2563eb; /* Royal Blue */
+    --primary-2: #1e40af; /* Deep Cobalt Blue */
     --accent: #facc15;  /* Vibrant Yellow */
     --accent-dark: #ca8a04;
     --primary-glow: rgba(37, 99, 235, 0.35);
+    --primary-2-glow: rgba(30, 64, 175, 0.45);
     --accent-glow: rgba(250, 204, 21, 0.35);
     --bg-dark: #030712; /* Rich Dark Slate */
     --bg-card: rgba(17, 24, 39, 0.6);
@@ -25,8 +27,10 @@
     --text-main: #0f172a; /* Slate 900 */
     --text-dim: #475569;  /* Slate 600 */
     --primary: #1d4ed8;  /* Slightly darker blue for high readability */
+    --primary-2: #2563eb; /* Vibrant Cobalt Blue */
     --accent: #ca8a04;   /* Golden yellow for high contrast */
     --primary-glow: rgba(29, 78, 216, 0.15);
+    --primary-2-glow: rgba(37, 99, 235, 0.25);
     --accent-glow: rgba(202, 138, 4, 0.15);
     --selection-bg: rgba(250, 204, 21, 0.3);
     --shadow-subtle: 0 8px 30px rgba(15, 23, 42, 0.08);
@@ -80,13 +84,13 @@ html, body {
 }
 
 .glass:hover {
-    border-color: var(--primary);
-    box-shadow: 0 8px 32px 0 var(--primary-glow);
+    border-color: var(--primary-2);
+    box-shadow: 0 8px 32px 0 var(--primary-2-glow);
 }
 
 /* Gradients */
 .grad-primary {
-    background: linear-gradient(135deg, var(--primary), var(--accent));
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
 }
 
 .grad-text {
@@ -159,15 +163,15 @@ html, body {
     gap: 6px;
     cursor: pointer;
     border: none;
-    background: linear-gradient(135deg, var(--primary), #1d4ed8);
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
     color: white !important;
-    box-shadow: 0 4px 20px var(--primary-glow);
+    box-shadow: 0 4px 20px var(--primary-2-glow);
     letter-spacing: 0.05em;
 }
 
 .btn-premium:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 30px var(--primary-glow);
+    box-shadow: 0 8px 30px var(--primary-2-glow);
     filter: brightness(1.1);
 }
 
@@ -236,8 +240,8 @@ html, body {
 
 .anime-card:hover {
     transform: translateY(-4px) !important;
-    border-color: var(--primary);
-    box-shadow: 0 12px 30px var(--primary-glow);
+    border-color: var(--primary-2);
+    box-shadow: 0 12px 30px var(--primary-2-glow);
 }
 
 .anime-card h3 {

@@ -186,94 +186,106 @@ class Database:
     async def search_anime_intelligent(self, raw_query: str, limit: int = 50):
         try:
             if self._anime is None: return []
-            q = raw_query.lower().strip()
-            # Remove punctuation except spaces
-            q = re.sub(r'[^\w\s]', '', q, flags=re.UNICODE)
-            q = re.sub(r'\s+', ' ', q).strip()
-
-            if not q:
+            q_clean = raw_query.strip()
+            if not q_clean:
                 return []
 
-            words = q.split()
+            # Split into alphanumeric words
+            words = [w for w in re.split(r'[^a-zA-Z0-9]+', q_clean.lower()) if w]
             if not words:
-                return []
-
-            # For very short queries (less than 3 characters, e.g., "hi", "no"), strictly restrict matches
-            # to exact match or whole word bounds to prevent false substring matches (like "hi" in "shinchan").
-            if len(q) < 3:
-                or_conditions = [
-                    {"title": {"$regex": f"^{re.escape(raw_query)}$", "$options": "i"}},
-                    {"title": {"$regex": f"\\b{re.escape(raw_query)}\\b", "$options": "i"}}
-                ]
-                cursor = self._anime.find({"$or": or_conditions})
+                # Fallback to exact regex if no alphanumeric words are present
+                cursor = self._anime.find({"title": {"$regex": re.escape(q_clean), "$options": "i"}})
                 docs = await cursor.to_list(length=100)
-                docs = clean_doc(docs) or []
+                return clean_doc(docs) or []
 
-                scored_docs = []
-                for doc in docs:
-                    title = doc.get("title", "").lower().strip()
-                    score = 0
-                    if title == q:
-                        score = 100
-                    elif f" {q} " in f" {title} ":
-                        score = 80
-                    else:
-                        score = 50
-                    scored_docs.append((score, doc))
-                scored_docs.sort(key=lambda x: x[0], reverse=True)
-                return [doc for _, doc in scored_docs][:limit]
+            # Build list of OR conditions for MongoDB to find all potential candidate matches
+            or_conditions = []
 
-            # Multi-word queries: build progressive query list for fallbacks
-            # "naruto Telugu season 1" -> ["naruto", "naruto telugu", "naruto telugu season", "naruto telugu season 1"]
-            query_variations = []
-            for i in range(1, len(words) + 1):
-                query_variations.append(" ".join(words[:i]))
+            # 1. Exact substring match of raw query
+            or_conditions.append({"title": {"$regex": re.escape(q_clean), "$options": "i"}})
 
-            # We try search matching from shortest word to longest or longest to shortest depending on relevance.
-            # Usually we check the longest first, but user requested:
-            # "If user sends like naruto Telugu season 1 bot search for first word if not found with first and second words if not found first,second and third word at once"
-            # Thus, we execute progressive fallbacks in this order:
-            # 1. First word only: "naruto"
-            # 2. First + Second: "naruto telugu"
-            # 3. First + Second + Third: "naruto telugu season"
-            # 4. Full query: "naruto telugu season 1"
+            # 2. Flexible regex matching all words in order
+            flexible_pattern = ".*".join([re.escape(w) for w in words])
+            or_conditions.append({"title": {"$regex": flexible_pattern, "$options": "i"}})
 
-            for variation in query_variations:
-                word_regex = ".*".join([re.escape(w) for w in variation.split()])
-                or_conditions = [
-                    {"title": {"$regex": f"^{re.escape(variation)}$", "$options": "i"}},
-                    {"title": {"$regex": f"^{re.escape(variation)}", "$options": "i"}},
-                    {"title": {"$regex": re.escape(variation), "$options": "i"}}
-                ]
-                if word_regex:
-                    or_conditions.append({"title": {"$regex": word_regex, "$options": "i"}})
+            # 3. AND query of all words (if short enough)
+            if len(words) <= 5:
+                or_conditions.append({"$and": [{"title": {"$regex": re.escape(w), "$options": "i"}} for w in words]})
 
-                cursor = self._anime.find({"$or": or_conditions})
-                docs = await cursor.to_list(length=100)
-                docs = clean_doc(docs) or []
+            # 4. AND query of first 2 words (main franchise identifier)
+            if len(words) >= 2:
+                or_conditions.append({"$and": [{"title": {"$regex": re.escape(w), "$options": "i"}} for w in words[:2]]})
 
-                if docs:
-                    # Found matches with this variation! Apply in-memory ranking
-                    scored_docs = []
-                    for doc in docs:
-                        title = doc.get("title", "").lower().strip()
-                        score = 0
-                        if title == variation:
-                            score = 100
-                        elif title.startswith(variation):
-                            score = 80
-                        elif f" {variation} " in f" {title} ":
-                            score = 60
-                        elif variation in title:
-                            score = 40
-                        else:
-                            score = 20
-                        scored_docs.append((score, doc))
+            # 5. First word only (absolute fallback)
+            or_conditions.append({"title": {"$regex": re.escape(words[0]), "$options": "i"}})
 
-                    scored_docs.sort(key=lambda x: x[0], reverse=True)
-                    return [doc for _, doc in scored_docs][:limit]
+            # Query MongoDB for candidates
+            cursor = self._anime.find({"$or": or_conditions})
+            docs = await cursor.to_list(length=150)
+            docs = clean_doc(docs) or []
 
-            return []
+            # In-memory advanced scoring and ranking
+            def get_score(doc):
+                title = doc.get("title", "")
+                title_lower = title.lower()
+
+                # Normalization helpers
+                def normalize(s):
+                    return re.sub(r'[^a-zA-Z0-9]', '', s.lower())
+
+                norm_title = normalize(title)
+                norm_query = normalize(q_clean)
+
+                score = 0
+
+                # Level 1: Exact matches ignoring punctuation/case/spaces
+                if norm_title == norm_query:
+                    score += 2000
+                elif norm_title.startswith(norm_query):
+                    score += 1500
+                elif norm_query in norm_title:
+                    score += 1000
+
+                # Level 2: Substring matching in raw text
+                if q_clean.lower() in title_lower:
+                    score += 500
+                    if title_lower.startswith(q_clean.lower()):
+                        score += 300
+
+                # Level 3: Word-level matching
+                title_words = [w for w in re.split(r'[^a-zA-Z0-9]+', title_lower) if w]
+
+                # Check exact word sequence
+                word_seq_match = True
+                last_idx = -1
+                for qw in words:
+                    try:
+                        idx = title_words.index(qw, last_idx + 1)
+                        last_idx = idx
+                    except ValueError:
+                        word_seq_match = False
+                        break
+
+                if word_seq_match:
+                    score += 800
+
+                # Count how many query words match
+                matching_words_count = sum(1 for qw in words if qw in title_words)
+                if matching_words_count > 0:
+                    score += (matching_words_count / len(words)) * 600
+
+                return score
+
+            # Rank candidates
+            scored_docs = []
+            for d in docs:
+                score = get_score(d)
+                scored_docs.append((score, d))
+
+            # Sort by score descending, then alphabetically by title
+            scored_docs.sort(key=lambda x: (-x[0], x[1].get("title", "").lower()))
+
+            return [d for score, d in scored_docs if score > 0][:limit]
         except Exception as e:
             logger.error(f"Read Error (search_anime_intelligent): {e}")
             return []
