@@ -96,5 +96,23 @@ I. BOX NAME: Naruto
         self.assertEqual(parsed, ["Naruto", "One Piece"])
         self.assertTrue(any("Box name is empty" in e for e in errs))
 
+    def test_combined_group_name_and_buttons_parsing(self):
+        text = """
+Episode 15 - The New Demon Lord
+480p : https://t.me/anizoneflix_bot?start=Z2V0LTIyNDY1OTA4MTk5NTk0MDE2 720p : https://t.me/anizoneflix_bot?start=Z2V0LTIyNDYzOTAwNzAxNzY1NDQw 1080p : https://t.me/anizoneflix_bot?start=Z2V0LTIyNDY0OTA4NDUwNjc5NzI4
+"""
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
+        self.assertGreaterEqual(len(lines), 2)
+
+        gname = lines[0]
+        buttons_text = "\n".join(lines[1:])
+
+        self.assertEqual(gname, "Episode 15 - The New Demon Lord")
+        parsed_buttons = parse_buttons_string(buttons_text, 3)
+        self.assertIsNotNone(parsed_buttons)
+        self.assertEqual(parsed_buttons["480p"], "https://t.me/anizoneflix_bot?start=Z2V0LTIyNDY1OTA4MTk5NTk0MDE2")
+        self.assertEqual(parsed_buttons["720p"], "https://t.me/anizoneflix_bot?start=Z2V0LTIyNDYzOTAwNzAxNzY1NDQw")
+        self.assertEqual(parsed_buttons["1080p"], "https://t.me/anizoneflix_bot?start=Z2V0LTIyNDY0OTA4NDUwNjc5NzI4")
+
 if __name__ == "__main__":
     unittest.main()
