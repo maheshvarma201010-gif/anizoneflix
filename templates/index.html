@@ -109,8 +109,8 @@
     <!-- ============================================================ -->
     <section class="overflow-x-hidden">
         <div class="flex items-center gap-3 mb-6 px-2">
-            <div class="w-1.5 h-8 bg-gradient-to-b from-[var(--primary)] to-[var(--accent)] rounded-full shadow-[0_0_12px_var(--primary-glow)]"></div>
-            <h2 class="text-xl md:text-2xl font-black tracking-tighter uppercase text-[var(--text-main)]">New <span class="text-[var(--primary)]">Updates</span></h2>
+            <div class="w-1.5 h-8 rgb-gradient-bg rounded-full shadow-[0_0_12px_rgba(0,255,136,0.5)]"></div>
+            <h2 class="text-xl md:text-2xl font-black tracking-tighter uppercase text-[var(--text-main)]">New <span class="rgb-text-animated">Updates</span></h2>
             <span class="ml-auto text-[9px] font-bold uppercase tracking-widest text-[var(--text-dim)] hidden sm:block">Live Feed</span>
         </div>
 
@@ -118,14 +118,14 @@
             <div class="swiper-wrapper">
                 {% for anime in recent[:15] %}
                 <div class="swiper-slide md:!w-auto">
-                    <a href="/anime/{{ anime.slug }}" class="group flex items-center gap-4 glass px-5 py-4 rounded-2xl hover:border-[var(--primary)]">
+                    <a href="/anime/{{ anime.slug }}" class="group flex items-center gap-4 glass px-5 py-4 rounded-2xl hover:border-emerald-500 hover:shadow-[0_0_20px_rgba(34,197,94,0.3)] transition-all">
                         <div class="w-24 md:w-32 aspect-video rounded-lg overflow-hidden border border-[var(--glass-border)] shadow-xl bg-black relative flex-shrink-0">
                             <img src="{{ anime.image }}" alt="{{ anime.title }}" loading="lazy" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110">
                             <div class="absolute inset-0 bg-black/30 group-hover:bg-transparent transition-colors duration-300"></div>
                         </div>
                         <div class="max-w-[140px] md:max-w-[200px]">
-                            <span class="block text-[8px] font-black text-[var(--accent)] uppercase tracking-widest mb-1.5"><i class="fa-regular fa-bolt mr-1"></i> Flash Update</span>
-                            <span class="block font-bold text-[10px] md:text-xs uppercase tracking-tight text-[var(--text-main)] group-hover:text-[var(--primary)] transition-colors line-clamp-2 leading-snug">{{ anime.title }}</span>
+                            <span class="block text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1.5"><i class="fa-regular fa-bolt mr-1 text-emerald-400"></i> Flash Update</span>
+                            <span class="block font-bold text-[10px] md:text-xs uppercase tracking-tight text-[var(--text-main)] group-hover:text-emerald-400 transition-colors line-clamp-2 leading-snug">{{ anime.title }}</span>
                         </div>
                     </a>
                 </div>

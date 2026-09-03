@@ -419,6 +419,7 @@ def register_handlers(bot: Client):
                 )
             else:
                 buttons = [
+                    [InlineKeyboardButton("👑 Admin Choice (Manage Content Groups)", callback_data=f"manage_groups_{aid}")],
                     [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{aid}")],
                     [InlineKeyboardButton("🗃 Custom Boxes", callback_data=f"manage_boxes_{aid}")],
                     [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
@@ -1669,8 +1670,10 @@ def register_handlers(bot: Client):
         await db.anime.update_one(
             {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
             {
-                "$set": {"seasons_links": dict(groups)},
-                "$addToSet": {"newly_added_groups": state["cgrp_name"]},
+                "$set": {
+                    "seasons_links": dict(groups),
+                    "newly_added_groups": [state["cgrp_name"]]
+                },
                 "$currentDate": {"updated_at": True}
             }
         )
@@ -2378,8 +2381,10 @@ def register_handlers(bot: Client):
                     await db.anime.update_one(
                         {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
                         {
-                            "$set": {"custom_boxes": boxes},
-                            "$addToSet": {"newly_added_groups": {"$each": new_grp_names}},
+                            "$set": {
+                                "custom_boxes": boxes,
+                                "newly_added_groups": new_grp_names
+                            },
                             "$currentDate": {"updated_at": True}
                         }
                     )
@@ -2431,8 +2436,10 @@ def register_handlers(bot: Client):
                 await db.anime.update_one(
                     {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
                     {
-                        "$set": {"custom_boxes": boxes},
-                        "$addToSet": {"newly_added_groups": {"$each": list(parsed_groups.keys())}},
+                        "$set": {
+                            "custom_boxes": boxes,
+                            "newly_added_groups": list(parsed_groups.keys())
+                        },
                         "$currentDate": {"updated_at": True}
                     }
                 )
@@ -2565,8 +2572,10 @@ def register_handlers(bot: Client):
                     await db.anime.update_one(
                         {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
                         {
-                            "$set": {"custom_boxes": boxes},
-                            "$addToSet": {"newly_added_groups": state["temp_grp_name"]},
+                            "$set": {
+                                "custom_boxes": boxes,
+                                "newly_added_groups": [state["temp_grp_name"]]
+                            },
                             "$currentDate": {"updated_at": True}
                         }
                     )
@@ -2599,8 +2608,10 @@ def register_handlers(bot: Client):
                     await db.anime.update_one(
                         {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
                         {
-                            "$set": {"custom_boxes": boxes},
-                            "$addToSet": {"newly_added_groups": state["temp_grp_name"]},
+                            "$set": {
+                                "custom_boxes": boxes,
+                                "newly_added_groups": [state["temp_grp_name"]]
+                            },
                             "$currentDate": {"updated_at": True}
                         }
                     )
@@ -2775,8 +2786,10 @@ def register_handlers(bot: Client):
                     await db.anime.update_one(
                         {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
                         {
-                            "$set": {"seasons_links": new_links},
-                            "$addToSet": {"newly_added_groups": state["group_name"]},
+                            "$set": {
+                                "seasons_links": new_links,
+                                "newly_added_groups": [state["group_name"]]
+                            },
                             "$currentDate": {"updated_at": True}
                         }
                     )
