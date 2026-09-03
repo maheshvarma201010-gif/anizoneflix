@@ -40,6 +40,10 @@ async def lifespan(app: FastAPI):
         # Start all multi-bots
         from bot.bot_manager import multibot_manager
         await multibot_manager.start_all()
+
+        # Start post-redeploy auto-extraction and duplicate page maintenance tasks
+        from utils.maintenance import start_maintenance_tasks
+        asyncio.create_task(start_maintenance_tasks(db))
     except Exception as e:
         logger.critical(f"STARTUP FAILURE: {e}")
         logger.error(traceback.format_exc())

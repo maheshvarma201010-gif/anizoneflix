@@ -316,9 +316,21 @@ class Database:
             count += 1
 
     async def add_media(self, data):
+        import time
         try:
             if self._media is None: return None
-            uid = data.get("tmdb_id") or data.get("id")
+
+            # Ensure data has an id
+            if "id" not in data or not data["id"]:
+                from utils.utils import slugify
+                slug_val = data.get("slug") or slugify(data.get("title", "media"))
+                data["id"] = f"man_{slug_val}"
+
+            uid = str(data["id"])
+
+            # Ensure created_at timestamp exists
+            if "created_at" not in data or not data["created_at"]:
+                data["created_at"] = time.time()
 
             # Check duplicate title / slug if title is present
             if "title" in data:
@@ -326,7 +338,7 @@ class Database:
                 data["title"] = title
                 data["slug"] = slug
 
-            return await self._media.update_one({"id": str(uid)}, {"$set": data}, upsert=True)
+            return await self._media.update_one({"id": uid}, {"$set": data}, upsert=True)
         except Exception as e:
             logger.error(f"Persistence Error (add_media): {e}")
             return None

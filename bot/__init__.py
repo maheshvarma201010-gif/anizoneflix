@@ -639,7 +639,7 @@ def register_handlers(bot: Client):
             parts = data.split("_", 2)
             slug = parts[1]
             cat_name = parts[2]
-            await db.media.update_one({"slug": slug}, {"$set": {"genres": [cat_name]}})
+            await db.media.update_one({"slug": slug}, {"$set": {"genres": [cat_name], "admin_edited": True}})
             await cb.answer(f"✅ Category changed to {cat_name}!", show_alert=True)
             media = await db.get_media_by_slug(slug)
             buttons = [
@@ -887,7 +887,7 @@ def register_handlers(bot: Client):
             await message.reply(f"🚀 Published! {Config.BASE_URL}/watch/{slug}")
             user_state.pop(uid, None)
         elif action == "ask_poster":
-            await db.media.update_one({"slug": slug}, {"$set": {"image": message.text.strip()}})
+            await db.media.update_one({"slug": slug}, {"$set": {"image": message.text.strip(), "admin_edited": True}})
             await message.reply("✅ Poster updated.")
             user_state.pop(uid, None)
         elif action == "ask_title_edit":
@@ -895,55 +895,55 @@ def register_handlers(bot: Client):
             media = await db.get_media_by_slug(slug)
             m_id = media.get("id") if media else None
             unique_title, unique_slug = await db.resolve_unique_title_and_slug(nt, media_id=m_id)
-            await db.media.update_one({"slug": slug}, {"$set": {"title": unique_title, "slug": unique_slug}})
+            await db.media.update_one({"slug": slug}, {"$set": {"title": unique_title, "slug": unique_slug, "admin_edited": True}})
             await message.reply(f"✅ Title updated to '{unique_title}'.")
             user_state.pop(uid, None)
         elif action == "ask_syno":
-            await db.media.update_one({"slug": slug}, {"$set": {"synopsis": message.text.strip()}})
+            await db.media.update_one({"slug": slug}, {"$set": {"synopsis": message.text.strip(), "admin_edited": True}})
             await message.reply("✅ Synopsis updated.")
             user_state.pop(uid, None)
         elif action == "ask_year_edit":
-            await db.media.update_one({"slug": slug}, {"$set": {"year": message.text.strip()}})
+            await db.media.update_one({"slug": slug}, {"$set": {"year": message.text.strip(), "admin_edited": True}})
             await message.reply("✅ Year updated.")
             user_state.pop(uid, None)
         elif action == "ask_genres_edit":
             genres = [g.strip() for g in message.text.split(",") if g.strip()]
-            await db.media.update_one({"slug": slug}, {"$set": {"genres": genres}})
+            await db.media.update_one({"slug": slug}, {"$set": {"genres": genres, "admin_edited": True}})
             await message.reply(f"✅ Genres updated: {', '.join(genres)}")
             user_state.pop(uid, None)
         elif action == "ask_director":
-            await db.media.update_one({"slug": slug}, {"$set": {"director": message.text.strip()}})
+            await db.media.update_one({"slug": slug}, {"$set": {"director": message.text.strip(), "admin_edited": True}})
             await message.reply("✅ Director updated.")
             user_state.pop(uid, None)
         elif action == "ask_cast":
             cast = [c.strip() for c in message.text.split(",") if c.strip()]
-            await db.media.update_one({"slug": slug}, {"$set": {"cast": cast}})
+            await db.media.update_one({"slug": slug}, {"$set": {"cast": cast, "admin_edited": True}})
             await message.reply("✅ Cast updated.")
             user_state.pop(uid, None)
         elif action == "ask_score":
             try:
                 score = float(message.text.strip())
-                await db.media.update_one({"slug": slug}, {"$set": {"score": score}})
+                await db.media.update_one({"slug": slug}, {"$set": {"score": score, "admin_edited": True}})
                 await message.reply("✅ Score updated.")
             except:
                 await message.reply("❌ Invalid score.")
             user_state.pop(uid, None)
         elif action == "ask_runtime":
-            await db.media.update_one({"slug": slug}, {"$set": {"runtime": message.text.strip()}})
+            await db.media.update_one({"slug": slug}, {"$set": {"runtime": message.text.strip(), "admin_edited": True}})
             await message.reply("✅ Runtime updated.")
             user_state.pop(uid, None)
         elif action == "ask_trailer":
-            await db.media.update_one({"slug": slug}, {"$set": {"trailer": message.text.strip()}})
+            await db.media.update_one({"slug": slug}, {"$set": {"trailer": message.text.strip(), "admin_edited": True}})
             await message.reply("✅ Trailer updated.")
             user_state.pop(uid, None)
         elif action == "ask_status":
-            await db.media.update_one({"slug": slug}, {"$set": {"status": message.text.strip()}})
+            await db.media.update_one({"slug": slug}, {"$set": {"status": message.text.strip(), "admin_edited": True}})
             await message.reply("✅ Status updated.")
             user_state.pop(uid, None)
         elif action == "ask_type":
             mtype = message.text.strip().lower()
             if mtype in ["movie", "tv"]:
-                await db.media.update_one({"slug": slug}, {"$set": {"type": mtype}})
+                await db.media.update_one({"slug": slug}, {"$set": {"type": mtype, "admin_edited": True}})
                 await message.reply(f"✅ Type updated to {mtype}.")
             else:
                 await message.reply("❌ Type must be 'movie' or 'tv'.")
