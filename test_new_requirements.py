@@ -38,11 +38,11 @@ async def test_all():
 
     print("--- Test 3: 1-Hour Duplicate Cleanup ---")
     now = time.time()
-    # p1: age > 1 hr, has group -> MUST KEEP
+    # p1: age > 2 hr (created first), has group -> MUST KEEP
     await db.media.update_one({"slug": "peddi"}, {"$set": {"created_at": now - 7200, "seasons_links": {"Group 1": {"480p": "http://link"}}}})
-    # p2: age > 1 hr, no group -> MUST DELETE
-    await db.media.update_one({"slug": "peddi1"}, {"$set": {"created_at": now - 7200, "seasons_links": {}}})
-    # p3: age < 1 hr (recent), no group -> MUST KEEP
+    # p2: age > 1 hr (created second), no group -> MUST DELETE
+    await db.media.update_one({"slug": "peddi1"}, {"$set": {"created_at": now - 4000, "seasons_links": {}}})
+    # p3: age < 1 hr (created third), no group -> MUST KEEP
     await db.media.update_one({"slug": "peddi2"}, {"$set": {"created_at": now - 100, "seasons_links": {}}})
 
     await cleanup_duplicate_pages_over_1hr(db)

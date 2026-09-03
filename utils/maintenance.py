@@ -130,16 +130,20 @@ async def cleanup_duplicate_pages_over_1hr(db):
             if len(group) <= 1:
                 continue
 
-            # Check each item in group: if it has no groups and age > 1 hr, and there exists another page for this base title
-            for m in group:
-                seasons_links = m.get("seasons_links")
+            # Sort group by created_at (earliest first) to preserve original page
+            group.sort(key=lambda x: x.get("created_at", 0))
+
+            # Leave primary page group[0], check subsequent duplicate copies
+            duplicates = group[1:]
+            for dup in duplicates:
+                seasons_links = dup.get("seasons_links")
                 has_groups = bool(seasons_links) and len(seasons_links) > 0
-                created_at = m.get("created_at", 0)
+                created_at = dup.get("created_at", 0)
                 age = now - created_at
 
                 if not has_groups and age > 3600:
-                    slug = m.get("slug")
-                    logger.info(f"Purging duplicate page without groups (>1hr old): '{m.get('title')}' (slug: {slug})")
+                    slug = dup.get("slug")
+                    logger.info(f"Purging duplicate page without groups (>1hr old): '{dup.get('title')}' (slug: {slug})")
                     await db.delete_media_by_slug(slug)
                     deleted_count += 1
 

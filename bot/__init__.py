@@ -30,6 +30,44 @@ bot = Client(
 )
 
 user_state = {}
+search_cache = {}
+
+def build_search_page(cache_id, results, page=1, items_per_page=6):
+    total = len(results)
+    total_pages = max(1, (total + items_per_page - 1) // items_per_page)
+    if page < 1: page = 1
+    if page > total_pages: page = total_pages
+
+    start_idx = (page - 1) * items_per_page
+    end_idx = start_idx + items_per_page
+    page_items = results[start_idx:end_idx]
+
+    text = f"🎯 **Select Media to Import (Page {page}/{total_pages} • Total {total} Results):**\n\n"
+    buttons = []
+    for i, res in enumerate(page_items, start_idx + 1):
+        title_disp = res['title'][:22] + "..." if len(res['title']) > 25 else res['title']
+        text += f"**{i}.** {res['title']} ({res['year']}) `[{res['type'].upper()}]` • _via {res['source']}_\n"
+
+        if res["source"] == "TMDb":
+            cb_data = f"add_tmdb_{res['type']}_{res['id']}"
+        elif res["source"] == "TVmaze":
+            cb_data = f"add_tvmaze_tv_{res['id']}"
+        elif res["source"] == "OMDb":
+            cb_data = f"add_omdb_{res['type']}_{res['id']}"
+
+        buttons.append([InlineKeyboardButton(f"Import {i}. {title_disp} ({res['source']})", callback_data=cb_data)])
+
+    nav_row = []
+    if page > 1:
+        nav_row.append(InlineKeyboardButton("◀️ Previous", callback_data=f"srchp_{cache_id}_{page - 1}"))
+    nav_row.append(InlineKeyboardButton(f"📄 {page}/{total_pages}", callback_data="noop"))
+    if page < total_pages:
+        nav_row.append(InlineKeyboardButton("Next ▶️", callback_data=f"srchp_{cache_id}_{page + 1}"))
+
+    if nav_row:
+        buttons.append(nav_row)
+
+    return text, InlineKeyboardMarkup(buttons)
 
 async def is_authorized(user_id):
     if not user_id: return False
@@ -143,20 +181,21 @@ def register_handlers(bot: Client):
         try:
             results = []
 
-            # 1. TMDB Search
+            # 1. TMDB Search (Page 1 & Page 2 for comprehensive coverage)
             if Config.TMDB_API_KEY:
                 try:
-                    tmdb_res = await media_api.search_tmdb(query)
-                    for r in tmdb_res[:4]:
-                        r["source"] = "TMDb"
-                        results.append(r)
+                    for p in [1, 2]:
+                        tmdb_res = await media_api.search_tmdb(query, page=p)
+                        for r in tmdb_res:
+                            r["source"] = "TMDb"
+                            results.append(r)
                 except Exception as e:
                     logger.error(f"TMDb Search failed: {e}")
 
             # 2. TVmaze Search
             try:
                 tvmaze_res = await media_api.search_tvmaze(query)
-                for r in tvmaze_res[:3]:
+                for r in tvmaze_res:
                     r["source"] = "TVmaze"
                     results.append(r)
             except Exception as e:
@@ -179,22 +218,21 @@ def register_handlers(bot: Client):
 
             if not results: return await msg.edit("😔 No matches found on any configured APIs.")
 
-            text = "🎯 **Select Media to Import:**\n\n"
-            buttons = []
-            for i, res in enumerate(results[:10], 1):
-                text += f"**{i}.** {res['title']} ({res['year']}) `[{res['type'].upper()}]` • _via {res['source']}_\n"
+            # Deduplicate results by (title lower, year, source)
+            seen = set()
+            unique_results = []
+            for r in results:
+                key = (r.get("title", "").lower().strip(), str(r.get("year")), r.get("source"))
+                if key not in seen:
+                    seen.add(key)
+                    unique_results.append(r)
 
-                # Determine callback
-                if res["source"] == "TMDb":
-                    cb_data = f"add_tmdb_{res['type']}_{res['id']}"
-                elif res["source"] == "TVmaze":
-                    cb_data = f"add_tvmaze_tv_{res['id']}"
-                elif res["source"] == "OMDb":
-                    cb_data = f"add_omdb_{res['type']}_{res['id']}"
+            import uuid
+            cache_id = str(uuid.uuid4())[:8]
+            search_cache[cache_id] = unique_results
 
-                buttons.append([InlineKeyboardButton(f"Import {i} ({res['source']})", callback_data=cb_data)])
-
-            await msg.edit(text, reply_markup=InlineKeyboardMarkup(buttons))
+            text, markup = build_search_page(cache_id, unique_results, page=1)
+            await msg.edit(text, reply_markup=markup)
         except Exception as e: await msg.edit(f"❌ Error: {e}")
 
     @bot.on_message(filters.command("edit") & filters.private)
@@ -369,7 +407,7 @@ def register_handlers(bot: Client):
             safe_synopsis = html.escape(synopsis)
             safe_link = html.escape(link)
 
-            sans_title = to_sans_bold(safe_title)
+            sans_title = html.escape(to_sans_bold(title))
 
             # Blockquote block for metadata
             metadata_block = (
@@ -838,6 +876,19 @@ def register_handlers(bot: Client):
                 f"✅ **Bulk Groups Saved Successfully!**\n\nMedia: `{media['title']}`\n\nManage servers:",
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
+
+        elif data.startswith("srchp_"):
+            parts = data.split("_")
+            cache_id = parts[1]
+            page = int(parts[2])
+            cached = search_cache.get(cache_id)
+            if not cached:
+                return await cb.answer("❌ Search session expired. Please search again.", show_alert=True)
+            text, markup = build_search_page(cache_id, cached, page=page)
+            await cb.message.edit_text(text, reply_markup=markup)
+
+        elif data == "noop":
+            await cb.answer()
 
         elif data == "cancel_op":
             user_state.pop(uid, None)

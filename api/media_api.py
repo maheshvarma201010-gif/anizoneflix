@@ -40,9 +40,9 @@ class MediaAPI:
             logger.error(f"Request Error {url}: {e}")
         return None
 
-    async def search_tmdb(self, query):
+    async def search_tmdb(self, query, page=1):
         if not self.tmdb_key: return []
-        params = {"api_key": self.tmdb_key, "query": query}
+        params = {"api_key": self.tmdb_key, "query": query, "page": page, "include_adult": "false"}
         data = await self._get(f"{self.tmdb_url}/search/multi", params=params)
         if data and "results" in data:
             results = []
