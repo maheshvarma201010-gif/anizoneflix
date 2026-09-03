@@ -237,20 +237,9 @@
 
         // Anti-copy Event based listener - safe for inputs
         document.addEventListener('selectstart', (e) => {
-            const tag = e.target.tagName.toLowerCase();
+            const tag = e.target.tagName ? e.target.tagName.toLowerCase() : '';
             if (tag !== 'input' && tag !== 'textarea' && !e.target.isContentEditable) {
-                e.preventDefault();
-            }
-        });
-        document.addEventListener('contextmenu', (e) => {
-            const tag = e.target.tagName.toLowerCase();
-            if (tag !== 'input' && tag !== 'textarea' && !e.target.isContentEditable) {
-                e.preventDefault();
-            }
-        });
-        document.addEventListener('keydown', (e) => {
-            if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'u' || e.key === 's')) {
-                e.preventDefault();
+                // allow normal selection if needed
             }
         });
 

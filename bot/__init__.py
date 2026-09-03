@@ -318,35 +318,99 @@ def register_handlers(bot: Client):
             media = await db.get_media_by_slug(slug)
             if not media: return await msg.edit("❌ Media not found in database.")
 
-            title = media.get('title', 'N/A')
-            year = media.get('year', 'N/A')
-            director = media.get('director', 'N/A')
-            cast = ", ".join(media.get('cast', [])) if media.get('cast') else 'N/A'
-            genres = ", ".join(media.get('genres', [])) if media.get('genres') else 'N/A'
-            score = media.get('score', 'N/A')
-            runtime = media.get('runtime', 'N/A')
-            synopsis = media.get('synopsis', 'No description.')
+            # Helper for Unicode Sans Bold
+            def to_sans_bold(text):
+                res = []
+                for c in str(text):
+                    code = ord(c)
+                    if 65 <= code <= 90: res.append(chr(0x1D5D4 + (code - 65)))
+                    elif 97 <= code <= 122: res.append(chr(0x1D5EE + (code - 97)))
+                    elif 48 <= code <= 57: res.append(chr(0x1D7EC + (code - 48)))
+                    else: res.append(c)
+                return ''.join(res)
+
+            # Format fields gracefully
+            title = media.get('title') or 'N/A'
+            year = media.get('year') or 'N/A'
+            director = media.get('director') or 'N/A'
+
+            raw_cast = media.get('cast')
+            if isinstance(raw_cast, list) and raw_cast:
+                cast = ", ".join(raw_cast)
+            elif isinstance(raw_cast, str) and raw_cast and raw_cast != 'N/A':
+                cast = raw_cast
+            else:
+                cast = 'N/A'
+
+            raw_genres = media.get('genres')
+            if isinstance(raw_genres, list) and raw_genres:
+                genres = ", ".join(raw_genres)
+            elif isinstance(raw_genres, str) and raw_genres and raw_genres != 'N/A':
+                genres = raw_genres
+            else:
+                genres = 'N/A'
+
+            score = media.get('score')
+            score_str = f"⭐ {score} / 10" if score and score != 'N/A' else 'N/A'
+
+            runtime = media.get('runtime') or 'N/A'
+            synopsis = media.get('synopsis') or 'No description available.'
             image = media.get('image')
 
-            caption = (
-                f"🎬 **Title:** {title}  📅 **Year:** {year}\n"
-                f"📝 **Director:** {director}\n"
-                f"🎭 **Cast:** {cast}\n"
-                f"📂 **Genres:** {genres}\n"
-                f"⭐ **Score:** {score}\n"
-                f"⏱ **Runtime:** {runtime}\n\n"
-                f"📝 **Description:**\n{synopsis}\n\n"
-                f"🔗 **Page Link:** {link}"
+            # Build Telegram HTML structured card with blockquotes and clickable hyperlink
+            import html
+            safe_title = html.escape(title)
+            safe_year = html.escape(str(year))
+            safe_director = html.escape(director)
+            safe_cast = html.escape(cast)
+            safe_genres = html.escape(genres)
+            safe_score = html.escape(str(score_str))
+            safe_runtime = html.escape(str(runtime))
+            safe_synopsis = html.escape(synopsis)
+            safe_link = html.escape(link)
+
+            sans_title = to_sans_bold(safe_title)
+
+            # Blockquote block for metadata
+            metadata_block = (
+                f"🎬 <b>Title:</b> <b>{sans_title}</b>  📅 <b>Year:</b> <i>{safe_year}</i>\n"
+                f"📝 <b>Director:</b> <i>{safe_director}</i>\n"
+                f"🎭 <b>Cast:</b> <i>{safe_cast}</i>\n"
+                f"📂 <b>Genres:</b> <i>{safe_genres}</i>\n"
+                f"⭐ <b>Score:</b> <b>{safe_score}</b>\n"
+                f"⏱ <b>Runtime:</b> <i>{safe_runtime}</i>"
             )
 
-            reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton(f"🎬 {title}", url=link)]])
+            caption = (
+                f"<blockquote>{metadata_block}</blockquote>\n\n"
+                f"<b><u>📝 Synopsis / Description:</u></b>\n"
+                f"<blockquote>{safe_synopsis}</blockquote>\n\n"
+                f"🍿 <b>Watch / Download Full Movie:</b>\n"
+                f"👉 <a href=\"{safe_link}\">🎬 Watch {sans_title} Now</a>"
+            )
+
+            reply_markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton(f"🍿 Watch {title} On MoviesZoneFlix", url=link)]
+            ])
 
             try:
                 if image:
-                    await client.send_photo(channel_id, image, caption=caption, reply_markup=reply_markup)
+                    await client.send_photo(
+                        channel_id,
+                        image,
+                        caption=caption,
+                        parse_mode=enums.ParseMode.HTML,
+                        reply_markup=reply_markup
+                    )
                 else:
-                    await client.send_message(channel_id, caption, reply_markup=reply_markup)
-                await msg.edit(f"🚀 **Successfully posted to channel:** `{channel_id}`")
+                    await client.send_message(
+                        channel_id,
+                        caption,
+                        parse_mode=enums.ParseMode.HTML,
+                        reply_markup=reply_markup,
+                        disable_web_page_preview=False
+                    )
+                await msg.edit(f"🚀 **Successfully posted premium card to channel:** `{channel_id}`")
             except Exception as e:
                 await msg.edit(f"❌ **Telegram Error:** {str(e)}\n\n💡 *Make sure the bot is an admin in the channel and the ID is correct.*")
 
@@ -394,31 +458,62 @@ def register_handlers(bot: Client):
                 title = details.get("title") or details.get("name")
                 slug = slugify(title)
 
-                director = "N/A"
+                director = None
                 cast = []
-                score = details.get("vote_average", 0)
-                if Config.OMDB_API_KEY:
-                    try:
-                        omdb_data = await media_api.get_omdb_metadata(title, (details.get("release_date") or details.get("first_air_date") or "0000")[:4])
-                        if omdb_data and omdb_data.get("Response") == "True":
-                            director = omdb_data.get("Director", "N/A")
-                            cast = [c.strip() for c in omdb_data.get("Actors", "").split(",") if c.strip()]
-                            try:
-                                score = float(omdb_data.get("imdbRating", score))
-                            except: pass
-                    except: pass
+                runtime = None
+                if details.get("runtime"):
+                    runtime = f"{details['runtime']} min"
+                elif details.get("episode_run_time") and len(details["episode_run_time"]) > 0:
+                    runtime = f"{details['episode_run_time'][0]} min"
 
-                await db.add_media({
+                # Parse credits from TMDb
+                credits = details.get("credits") or {}
+                crew = credits.get("crew") or []
+                for member in crew:
+                    if member.get("job") == "Director":
+                        director = member.get("name")
+                        break
+                cast_members = credits.get("cast") or []
+                cast = [c.get("name") for c in cast_members[:6] if c.get("name")]
+
+                score = round(details.get("vote_average", 0), 1)
+                year = (details.get("release_date") or details.get("first_air_date") or "")[:4]
+
+                # Fallback to OMDb if director/cast/runtime missing
+                if Config.OMDB_API_KEY and (not director or not cast or not runtime):
+                    try:
+                        omdb_data = await media_api.get_omdb_metadata(title, year)
+                        if omdb_data and omdb_data.get("Response") == "True":
+                            if not director and omdb_data.get("Director") and omdb_data["Director"] != "N/A":
+                                director = omdb_data["Director"]
+                            if not cast and omdb_data.get("Actors") and omdb_data["Actors"] != "N/A":
+                                cast = [c.strip() for c in omdb_data["Actors"].split(",") if c.strip()]
+                            if not runtime and omdb_data.get("Runtime") and omdb_data["Runtime"] != "N/A":
+                                runtime = omdb_data["Runtime"]
+                            if not score and omdb_data.get("imdbRating") and omdb_data["imdbRating"] != "N/A":
+                                try: score = float(omdb_data["imdbRating"])
+                                except: pass
+                    except Exception as e:
+                        logger.error(f"OMDb fallback error: {e}")
+
+                media_doc = {
                     "id": f"tmdb_{m_id}", "tmdb_id": int(m_id), "title": title, "slug": slug,
                     "type": "movie" if m_type == "movie" else "tv",
                     "image": f"https://image.tmdb.org/t/p/w500{details.get('poster_path')}" if details.get('poster_path') else None,
                     "backdrop": f"https://image.tmdb.org/t/p/original{details.get('backdrop_path')}" if details.get('backdrop_path') else None,
-                    "synopsis": details.get("overview"), "score": score,
-                    "year": (details.get("release_date") or details.get("first_air_date") or "0000")[:4],
-                    "genres": [g["name"] for g in details.get("genres", [])],
-                    "director": director, "cast": cast, "seasons_links": {}
-                })
-                await cb.message.edit_text(f"✅ Imported from TMDb: `{title}`\nURL: {Config.BASE_URL}/watch/{slug}")
+                    "synopsis": details.get("overview") or "",
+                    "score": score,
+                    "year": year or "N/A",
+                    "genres": [g["name"] for g in details.get("genres", [])] if details.get("genres") else [],
+                    "director": director or "N/A",
+                    "cast": cast,
+                    "runtime": runtime or "N/A",
+                    "seasons_links": {}
+                }
+                await db.add_media(media_doc)
+                added = await db.get_media_by_id(f"tmdb_{m_id}")
+                final_slug = added["slug"] if added else slug
+                await cb.message.edit_text(f"✅ Imported from TMDb: `{added['title'] if added else title}`\nURL: {Config.BASE_URL}/watch/{final_slug}")
             except Exception as e: await cb.message.edit_text(f"❌ Error: {e}")
 
         elif data.startswith("add_tvmaze_"):
@@ -435,15 +530,31 @@ def register_handlers(bot: Client):
                 image_obj = details.get("image") or {}
                 image_url = image_obj.get("original") or image_obj.get("medium")
 
-                await db.add_media({
+                runtime = f"{details['runtime']} min" if details.get("runtime") else "N/A"
+                score = details.get("rating", {}).get("average", 0) or 0.0
+                year = (details.get("premiered") or "")[:4] or "N/A"
+
+                cast = []
+                if details.get("_embedded") and details["_embedded"].get("cast"):
+                    cast = [c["person"]["name"] for c in details["_embedded"]["cast"][:6] if c.get("person")]
+
+                media_doc = {
                     "id": f"tvmaze_{m_id}", "title": title, "slug": slug,
                     "type": "tv",
                     "image": image_url,
-                    "synopsis": summary, "score": details.get("rating", {}).get("average", 0) or 0.0,
-                    "year": (details.get("premiered") or "0000")[:4],
-                    "genres": details.get("genres", []), "seasons_links": {}
-                })
-                await cb.message.edit_text(f"✅ Imported from TVmaze: `{title}`\nURL: {Config.BASE_URL}/watch/{slug}")
+                    "synopsis": summary,
+                    "score": score,
+                    "year": year,
+                    "genres": details.get("genres", []),
+                    "director": "N/A",
+                    "cast": cast,
+                    "runtime": runtime,
+                    "seasons_links": {}
+                }
+                await db.add_media(media_doc)
+                added = await db.get_media_by_id(f"tvmaze_{m_id}")
+                final_slug = added["slug"] if added else slug
+                await cb.message.edit_text(f"✅ Imported from TVmaze: `{added['title'] if added else title}`\nURL: {Config.BASE_URL}/watch/{final_slug}")
             except Exception as e: await cb.message.edit_text(f"❌ Error: {e}")
 
         elif data.startswith("add_omdb_"):
@@ -461,18 +572,30 @@ def register_handlers(bot: Client):
                 try:
                     score = float(details.get("imdbRating", 0.0))
                 except: pass
-                genres = [g.strip() for g in details.get("Genre", "").split(",") if g.strip()]
-                cast = [c.strip() for c in details.get("Actors", "").split(",") if c.strip()]
+                genres = [g.strip() for g in details.get("Genre", "").split(",") if g.strip() and g.strip() != "N/A"]
+                cast = [c.strip() for c in details.get("Actors", "").split(",") if c.strip() and c.strip() != "N/A"]
+                director = details.get("Director") if details.get("Director") != "N/A" else "N/A"
+                runtime = details.get("Runtime") if details.get("Runtime") != "N/A" else "N/A"
+                synopsis = details.get("Plot") if details.get("Plot") != "N/A" else ""
+                year = details.get("Year")[:4] if details.get("Year") else "N/A"
 
-                await db.add_media({
+                media_doc = {
                     "id": f"omdb_{imdb_id}", "title": title, "slug": slug,
                     "type": "movie" if m_type == "movie" else "tv",
                     "image": details.get("Poster") if details.get("Poster") != "N/A" else None,
-                    "synopsis": details.get("Plot"), "score": score,
-                    "year": details.get("Year")[:4] if details.get("Year") else "0000",
-                    "genres": genres, "director": details.get("Director", "N/A"), "cast": cast, "seasons_links": {}
-                })
-                await cb.message.edit_text(f"✅ Imported from OMDb: `{title}`\nURL: {Config.BASE_URL}/watch/{slug}")
+                    "synopsis": synopsis,
+                    "score": score,
+                    "year": year,
+                    "genres": genres,
+                    "director": director,
+                    "cast": cast,
+                    "runtime": runtime,
+                    "seasons_links": {}
+                }
+                await db.add_media(media_doc)
+                added = await db.get_media_by_id(f"omdb_{imdb_id}")
+                final_slug = added["slug"] if added else slug
+                await cb.message.edit_text(f"✅ Imported from OMDb: `{added['title'] if added else title}`\nURL: {Config.BASE_URL}/watch/{final_slug}")
             except Exception as e: await cb.message.edit_text(f"❌ Error: {e}")
 
         elif data == "db_backup":
@@ -769,9 +892,11 @@ def register_handlers(bot: Client):
             user_state.pop(uid, None)
         elif action == "ask_title_edit":
             nt = message.text.strip()
-            ns = slugify(nt)
-            await db.media.update_one({"slug": slug}, {"$set": {"title": nt, "slug": ns}})
-            await message.reply(f"✅ Title updated.")
+            media = await db.get_media_by_slug(slug)
+            m_id = media.get("id") if media else None
+            unique_title, unique_slug = await db.resolve_unique_title_and_slug(nt, media_id=m_id)
+            await db.media.update_one({"slug": slug}, {"$set": {"title": unique_title, "slug": unique_slug}})
+            await message.reply(f"✅ Title updated to '{unique_title}'.")
             user_state.pop(uid, None)
         elif action == "ask_syno":
             await db.media.update_one({"slug": slug}, {"$set": {"synopsis": message.text.strip()}})

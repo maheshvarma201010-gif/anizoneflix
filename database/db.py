@@ -270,10 +270,62 @@ class Database:
 
     # --- Robust CRUD Methods (Persistence Focused) ---
 
+    async def resolve_unique_title_and_slug(self, base_title, media_id=None):
+        import re
+        from utils.utils import slugify
+
+        if not base_title:
+            return base_title, slugify(base_title or "")
+
+        base_title = base_title.strip()
+        base_slug = slugify(base_title)
+
+        if self._media is None:
+            return base_title, base_slug
+
+        query = {
+            "$or": [
+                {"title": {"$regex": f"^{re.escape(base_title)}$", "$options": "i"}},
+                {"slug": base_slug}
+            ]
+        }
+        if media_id:
+            query["id"] = {"$ne": str(media_id)}
+
+        existing = await self._media.find_one(query)
+        if not existing:
+            return base_title, base_slug
+
+        count = 1
+        while True:
+            candidate_title = f"{base_title}{count}"
+            candidate_slug = slugify(candidate_title)
+
+            cand_query = {
+                "$or": [
+                    {"title": {"$regex": f"^{re.escape(candidate_title)}$", "$options": "i"}},
+                    {"slug": candidate_slug}
+                ]
+            }
+            if media_id:
+                cand_query["id"] = {"$ne": str(media_id)}
+
+            cand_existing = await self._media.find_one(cand_query)
+            if not cand_existing:
+                return candidate_title, candidate_slug
+            count += 1
+
     async def add_media(self, data):
         try:
             if self._media is None: return None
             uid = data.get("tmdb_id") or data.get("id")
+
+            # Check duplicate title / slug if title is present
+            if "title" in data:
+                title, slug = await self.resolve_unique_title_and_slug(data["title"], media_id=uid)
+                data["title"] = title
+                data["slug"] = slug
+
             return await self._media.update_one({"id": str(uid)}, {"$set": data}, upsert=True)
         except Exception as e:
             logger.error(f"Persistence Error (add_media): {e}")

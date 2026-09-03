@@ -18,7 +18,14 @@ body {
 }
 
 .ott-card {
-  @apply bg-zinc-900 rounded-lg overflow-hidden transition-transform duration-300 hover:scale-105 hover:z-10 shadow-lg;
+  @apply bg-zinc-900/80 rounded-xl overflow-hidden transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl hover:shadow-red-600/20 border border-white/5 hover:border-red-600/30;
+}
+
+.glass-panel {
+  background: rgba(15, 15, 15, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .btn-primary {
