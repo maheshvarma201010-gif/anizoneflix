@@ -114,5 +114,22 @@ Episode 15 - The New Demon Lord
         self.assertEqual(parsed_buttons["720p"], "https://t.me/anizoneflix_bot?start=Z2V0LTIyNDYzOTAwNzAxNzY1NDQw")
         self.assertEqual(parsed_buttons["1080p"], "https://t.me/anizoneflix_bot?start=Z2V0LTIyNDY0OTA4NDUwNjc5NzI4")
 
+    def test_songs_db_mock_methods(self):
+        from database.db import db
+        import asyncio
+
+        async def run_songs_test():
+            # Test mocked/unconnected safe operations
+            songs = await db.get_all_songs()
+            self.assertIsInstance(songs, list)
+
+            song = await db.get_song("non_existent_id")
+            self.assertIsNone(song)
+
+            channel = await db.get_song_channel()
+            self.assertIsNone(channel)
+
+        asyncio.run(run_songs_test())
+
 if __name__ == "__main__":
     unittest.main()

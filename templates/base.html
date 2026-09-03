@@ -402,6 +402,109 @@
         </div>
     </footer>
 
+    <!-- Background Music Audio Player -->
+    <script>
+        (function() {
+            let bgSongs = [];
+            let currentSongIndex = 0;
+            let audioCtx = null;
+            let gainNode = null;
+            let audioElement = null;
+            let isInitialized = false;
+
+            async function initBgMusic() {
+                try {
+                    const res = await fetch('/api/songs');
+                    const json = await res.json();
+                    if (json.success && json.data && json.data.length > 0) {
+                        bgSongs = json.data;
+                        // Shuffle songs for random playback if > 1 song
+                        if (bgSongs.length > 1) {
+                            for (let i = bgSongs.length - 1; i > 0; i--) {
+                                const j = Math.floor(Math.random() * (i + 1));
+                                [bgSongs[i], bgSongs[j]] = [bgSongs[j], bgSongs[i]];
+                            }
+                        }
+                        setupAudioPlayer();
+                    }
+                } catch (err) {
+                    console.error("Background music init error:", err);
+                }
+            }
+
+            function setupAudioPlayer() {
+                if (!bgSongs.length) return;
+
+                audioElement = new Audio();
+                audioElement.crossOrigin = "anonymous";
+                playCurrentSong();
+
+                audioElement.addEventListener('ended', () => {
+                    if (bgSongs.length === 1) {
+                        // If only 1 song is available, loop continuously
+                        audioElement.currentTime = 0;
+                        audioElement.play().catch(() => {});
+                    } else {
+                        // Play next song randomly or sequentially
+                        currentSongIndex = (currentSongIndex + 1) % bgSongs.length;
+                        playCurrentSong();
+                    }
+                });
+
+                // Auto-play attempt on user interaction to comply with browser autoplay policies
+                const enableAudioOnInteraction = () => {
+                    if (audioCtx && audioCtx.state === 'suspended') {
+                        audioCtx.resume();
+                    }
+                    if (audioElement && audioElement.paused) {
+                        audioElement.play().catch(() => {});
+                    }
+                };
+
+                window.addEventListener('click', enableAudioOnInteraction, { once: true });
+                window.addEventListener('touchstart', enableAudioOnInteraction, { once: true });
+                window.addEventListener('keydown', enableAudioOnInteraction, { once: true });
+            }
+
+            function playCurrentSong() {
+                if (!bgSongs[currentSongIndex]) return;
+
+                const song = bgSongs[currentSongIndex];
+                const songUrl = song.file_path || `/api/songs/stream/${song.song_id}`;
+                audioElement.src = songUrl;
+
+                // Setup 300% volume boost using Web Audio API GainNode
+                if (!audioCtx) {
+                    try {
+                        const AudioContext = window.AudioContext || window.webkitAudioContext;
+                        if (AudioContext) {
+                            audioCtx = new AudioContext();
+                            const source = audioCtx.createMediaElementSource(audioElement);
+                            gainNode = audioCtx.createGain();
+                            // Gain = 3.0 represents 300% volume
+                            gainNode.gain.value = 3.0;
+                            source.connect(gainNode);
+                            gainNode.connect(audioCtx.destination);
+                        }
+                    } catch (e) {
+                        console.warn("Web Audio API GainNode error, falling back to max volume:", e);
+                        audioElement.volume = 1.0;
+                    }
+                }
+
+                if (audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                audioElement.play().catch(err => {
+                    console.log("Autoplay blocked until user interaction:", err);
+                });
+            }
+
+            document.addEventListener('DOMContentLoaded', initBgMusic);
+        })();
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
     <script src="/static/js/main.js?v=2.1"></script>
     {% block scripts %}{% endblock %}
