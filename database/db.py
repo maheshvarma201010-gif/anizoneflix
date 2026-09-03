@@ -35,6 +35,7 @@ class Database:
         self._categories = None
         self._settings = None
         self._bots = None
+        self._songs = None
 
     async def connect(self):
         """Initialize connection with absolute persistence focus and retries"""
@@ -67,6 +68,7 @@ class Database:
                 self._categories = self._db.categories
                 self._settings = self._db.settings
                 self._bots = self._db.bots
+                self._songs = self._db.songs
 
                 logger.info(f"Database Persistence Verified: {Config.DB_NAME} is active.")
                 await self._seed_mock_data_if_empty()
@@ -90,6 +92,7 @@ class Database:
             self._categories = self._db.categories
             self._settings = self._db.settings
             self._bots = self._db.bots
+            self._songs = self._db.songs
             logger.info("Mock Database connected successfully.")
             await self._seed_mock_data_if_empty()
         except Exception as e:
@@ -236,6 +239,10 @@ class Database:
     @property
     def bots(self):
         return self._bots if self._bots is not None else self.MockCollection("bots")
+
+    @property
+    def songs(self):
+        return self._songs if self._songs is not None else self.MockCollection("songs")
 
     class MockCollection:
         """Emergency layer to prevent system crashes if Atlas is unreachable"""
@@ -469,6 +476,65 @@ class Database:
             return data
         except Exception as e:
             logger.error(f"Export Error: {e}")
+            return None
+
+    # --- Song Management CRUD ---
+
+    async def add_song(self, song_data):
+        try:
+            if self._songs is None: return None
+            import time, uuid
+            if "id" not in song_data:
+                song_data["id"] = str(uuid.uuid4())[:8]
+            if "created_at" not in song_data:
+                song_data["created_at"] = time.time()
+            return await self._songs.update_one({"id": song_data["id"]}, {"$set": song_data}, upsert=True)
+        except Exception as e:
+            logger.error(f"Persistence Error (add_song): {e}")
+            return None
+
+    async def get_all_songs(self):
+        try:
+            if self._songs is None: return []
+            cursor = self._songs.find().sort("created_at", -1)
+            docs = await cursor.to_list(length=100)
+            return clean_doc(docs) or []
+        except Exception as e:
+            logger.error(f"Read Error (get_all_songs): {e}")
+            return []
+
+    async def get_song_by_id(self, song_id):
+        try:
+            if self._songs is None: return None
+            doc = await self._songs.find_one({"id": song_id})
+            return clean_doc(doc)
+        except Exception as e:
+            logger.error(f"Read Error (get_song_by_id): {e}")
+            return None
+
+    async def delete_song(self, song_id):
+        try:
+            if self._songs is None: return None
+            return await self._songs.delete_one({"id": song_id})
+        except Exception as e:
+            logger.error(f"Persistence Error (delete_song): {e}")
+            return None
+
+    async def set_song_channel(self, channel_id):
+        try:
+            if self._settings is None: return None
+            return await self._settings.update_one({"key": "song_channel"}, {"$set": {"key": "song_channel", "value": channel_id}}, upsert=True)
+        except Exception as e:
+            logger.error(f"Persistence Error (set_song_channel): {e}")
+            return None
+
+    async def get_song_channel(self):
+        try:
+            if self._settings is None: return None
+            doc = await self._settings.find_one({"key": "song_channel"})
+            return doc.get("value") if doc else None
+        except Exception as e:
+            logger.error(f"Read Error (get_song_channel): {e}")
             return None
 
     async def import_data(self, data):

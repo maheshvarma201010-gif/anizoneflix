@@ -456,6 +456,28 @@ def register_handlers(bot: Client):
             await msg.edit(f"❌ **Database Error:** {str(e)}")
             logger.error(traceback.format_exc())
 
+    @bot.on_message(filters.command("songs", ["/", "$"]) & filters.private)
+    async def songs_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        songs = await db.get_all_songs()
+        channel_id = await db.get_song_channel()
+        channel_info = f"`{channel_id}`" if channel_id else "❌ *Not Configured*"
+
+        text = (
+            "🎵 **Background Music & Song Management Core**\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📡 **Storage Channel:** {channel_info}\n"
+            f"🎶 **Active Songs in Catalog:** `{len(songs)}`\n\n"
+            "Choose an action below to manage website background songs:"
+        )
+
+        buttons = [
+            [InlineKeyboardButton("➕ Add New Song", callback_data="song_add"),
+             InlineKeyboardButton("📋 Manage/Delete Songs", callback_data="song_list_1")],
+            [InlineKeyboardButton("📢 Configure Storage Channel", callback_data="song_set_channel")]
+        ]
+        await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
     @bot.on_message(filters.command("addbot") & filters.private)
     async def addbot_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
@@ -890,13 +912,117 @@ def register_handlers(bot: Client):
         elif data == "noop":
             await cb.answer()
 
+        elif data == "song_add":
+            user_state[uid] = {"action": "ask_song_file"}
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="song_main")]]
+            await cb.message.edit_text(
+                "🎵 **Add New Background Song**\n\n"
+                "✍️ Please send or forward an **audio file, MP3, document, or video** containing the song:",
+                reply_markup=InlineKeyboardMarkup(back_btn)
+            )
+
+        elif data.startswith("song_list_"):
+            page = int(data.split("_")[2])
+            songs = await db.get_all_songs()
+            if not songs:
+                buttons = [[InlineKeyboardButton("➕ Add New Song", callback_data="song_add"),
+                            InlineKeyboardButton("⬅️ Back", callback_data="song_main")]]
+                return await cb.message.edit_text("📂 **No background songs available.**", reply_markup=InlineKeyboardMarkup(buttons))
+
+            per_page = 5
+            total_pages = max(1, (len(songs) + per_page - 1) // per_page)
+            if page < 1: page = 1
+            if page > total_pages: page = total_pages
+
+            start_idx = (page - 1) * per_page
+            items = songs[start_idx:start_idx + per_page]
+
+            text = f"📋 **Manage Songs (Page {page}/{total_pages} • Total {len(songs)}):**\n\n"
+            buttons = []
+            for s in items:
+                text += f"🎵 **{s.get('title', 'Song')}** (`{s['id']}`)\n"
+                buttons.append([
+                    InlineKeyboardButton(f"🔄 Replace {s.get('title', '')[:15]}", callback_data=f"song_repl_{s['id']}"),
+                    InlineKeyboardButton("🗑 Delete", callback_data=f"song_del_{s['id']}")
+                ])
+
+            nav_row = []
+            if page > 1: nav_row.append(InlineKeyboardButton("◀️ Prev", callback_data=f"song_list_{page - 1}"))
+            nav_row.append(InlineKeyboardButton(f"📄 {page}/{total_pages}", callback_data="noop"))
+            if page < total_pages: nav_row.append(InlineKeyboardButton("Next ▶️", callback_data=f"song_list_{page + 1}"))
+
+            if nav_row: buttons.append(nav_row)
+            buttons.append([InlineKeyboardButton("⬅️ Main Menu", callback_data="song_main")])
+
+            await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+        elif data.startswith("song_del_"):
+            song_id = data.replace("song_del_", "")
+            song = await db.get_song_by_id(song_id)
+            if song and song.get("filename"):
+                file_p = os.path.join("static/songs", song["filename"])
+                if os.path.exists(file_p):
+                    try: os.remove(file_p)
+                    except: pass
+            await db.delete_song(song_id)
+            await cb.answer("🗑 Song deleted successfully!", show_alert=True)
+            # Reload list
+            songs = await db.get_all_songs()
+            if not songs:
+                buttons = [[InlineKeyboardButton("➕ Add New Song", callback_data="song_add"),
+                            InlineKeyboardButton("⬅️ Back", callback_data="song_main")]]
+                return await cb.message.edit_text("📂 **No background songs available.**", reply_markup=InlineKeyboardMarkup(buttons))
+            # Refresh list page 1
+            cb.data = "song_list_1"
+            await bot_callbacks(client, cb)
+
+        elif data.startswith("song_repl_"):
+            song_id = data.replace("song_repl_", "")
+            user_state[uid] = {"action": "ask_replace_song_file", "replace_id": song_id}
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="song_list_1")]]
+            await cb.message.edit_text(
+                f"🔄 **Replace Song (`{song_id}`)**\n\n"
+                "✍️ Please send or forward the new **audio file, MP3, document, or video** to replace this song:",
+                reply_markup=InlineKeyboardMarkup(back_btn)
+            )
+
+        elif data == "song_set_channel":
+            user_state[uid] = {"action": "ask_song_channel"}
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="song_main")]]
+            await cb.message.edit_text(
+                "📢 **Configure Song Storage Channel**\n\n"
+                "✍️ Please send the **Channel ID** (e.g. `-1001234567890`) where songs will be stored & backed up:",
+                reply_markup=InlineKeyboardMarkup(back_btn)
+            )
+
+        elif data == "song_main":
+            user_state.pop(uid, None)
+            songs = await db.get_all_songs()
+            channel_id = await db.get_song_channel()
+            channel_info = f"`{channel_id}`" if channel_id else "❌ *Not Configured*"
+
+            text = (
+                "🎵 **Background Music & Song Management Core**\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"📡 **Storage Channel:** {channel_info}\n"
+                f"🎶 **Active Songs in Catalog:** `{len(songs)}`\n\n"
+                "Choose an action below to manage website background songs:"
+            )
+
+            buttons = [
+                [InlineKeyboardButton("➕ Add New Song", callback_data="song_add"),
+                 InlineKeyboardButton("📋 Manage/Delete Songs", callback_data="song_list_1")],
+                [InlineKeyboardButton("📢 Configure Storage Channel", callback_data="song_set_channel")]
+            ]
+            await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
         elif data == "cancel_op":
             user_state.pop(uid, None)
             await cb.message.edit_text("✨ Operation cancelled.")
 
     # --- Interaction Handler ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "cancel"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video | filters.voice) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel"]), group=1)
     async def interaction_msg(client, message):
         state = user_state.get(message.from_user.id)
         if not state: return
@@ -1102,6 +1228,65 @@ def register_handlers(bot: Client):
                 f"🔹 **Target Group:** `{group_id}`\n\n"
                 "The bot is now active and will reply with MoviesZoneFlix page links inside the group."
             )
+            user_state.pop(uid, None)
+
+        elif action in ["ask_song_file", "ask_replace_song_file"]:
+            media_obj = message.audio or message.document or message.video or message.voice
+            if not media_obj:
+                return await message.reply("❌ Please send or forward an **audio, MP3 document, or video** file.")
+
+            msg = await message.reply("⏳ **Downloading and saving song file...**")
+            import uuid, time
+            ext = ".mp3"
+            file_name = getattr(media_obj, "file_name", None)
+            title = getattr(media_obj, "title", None) or getattr(media_obj, "file_name", None) or "Background Song"
+            if file_name and "." in file_name:
+                ext = f".{file_name.rsplit('.', 1)[-1].lower()}"
+
+            song_id = state.get("replace_id") or str(uuid.uuid4())[:8]
+            saved_filename = f"{song_id}{ext}"
+            os.makedirs("static/songs", exist_ok=True)
+            dest_path = os.path.join("static/songs", saved_filename)
+
+            try:
+                await client.download_media(message, file_name=dest_path)
+                song_url = f"{Config.BASE_URL}/api/songs/file/{saved_filename}"
+
+                song_doc = {
+                    "id": song_id,
+                    "title": title,
+                    "filename": saved_filename,
+                    "url": song_url,
+                    "created_at": time.time()
+                }
+
+                # Forward / Upload to dedicated song channel if configured
+                song_channel = await db.get_song_channel()
+                if song_channel:
+                    try:
+                        chan_id = int(song_channel) if song_channel.startswith("-") or song_channel.isdigit() else song_channel
+                        fwd_msg = await client.send_document(
+                            chan_id,
+                            dest_path,
+                            caption=f"🎵 **MoviesZoneFlix Song Backup**\n\n🔹 **Title:** `{title}`\n🔹 **Song ID:** `{song_id}`\n🌐 **URL:** {song_url}"
+                        )
+                        if fwd_msg:
+                            song_doc["channel_message_id"] = fwd_msg.id
+                    except Exception as ce:
+                        logger.error(f"Failed to post song to channel {song_channel}: {ce}")
+
+                await db.add_song(song_doc)
+                await msg.edit(f"✅ **Song Successfully Saved & Set for Website Background Playback!**\n\n🎵 **Title:** `{title}`\n🆔 **ID:** `{song_id}`\n🌐 **File URL:** {song_url}")
+            except Exception as e:
+                logger.error(f"Song download error: {e}")
+                await msg.edit(f"❌ **Failed to download song file:** {e}")
+            finally:
+                user_state.pop(uid, None)
+
+        elif action == "ask_song_channel":
+            cid = message.text.strip()
+            await db.set_song_channel(cid)
+            await message.reply(f"🚀 **Song Storage Channel Configured:** `{cid}`")
             user_state.pop(uid, None)
 
 async def set_commands(client: Client):
