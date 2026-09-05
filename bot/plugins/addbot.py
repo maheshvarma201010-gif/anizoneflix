@@ -60,6 +60,10 @@ async def addbot_command_handler(client: Client, message: Message):
     except Exception as e:
         logger.error(f"Token validation failed: {e}")
         await status_msg.edit(f"❌ **Token Verification Failed:** {e}")
+        try:
+            from bot.bot_manager import report_addbot_issue
+            await report_addbot_issue(token[:15] + "...", f"Validation error during /addbot setup: {str(e)}")
+        except: pass
         return
 
     # Step 2: Bot asks "Send the Auto Group ID."
@@ -89,3 +93,7 @@ async def addbot_command_handler(client: Client, message: Message):
     except Exception as e:
         logger.error(f"Error starting addbot state flow: {e}")
         await message.reply("❌ Failed to initiate state flow.")
+        try:
+            from bot.bot_manager import report_addbot_issue
+            await report_addbot_issue(f"User ID {message.from_user.id}", f"State flow initiation failure: {str(e)}")
+        except: pass

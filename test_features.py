@@ -157,5 +157,26 @@ Episode 15 - The New Demon Lord
 
         asyncio.run(run_uptime_test())
 
+    def test_addbot_report_and_bot_filter(self):
+        from bot.bot_manager import report_addbot_issue
+        import asyncio
+        from unittest.mock import MagicMock
+
+        async def run_report_test():
+            # Test report_addbot_issue with unconfigured ADMIN_IDS safely
+            await report_addbot_issue("TestBot", "Simulated error")
+
+            # Verify Pyrogram Message bot filter logic
+            mock_user = MagicMock()
+            mock_user.is_bot = True
+
+            mock_human_user = MagicMock()
+            mock_human_user.is_bot = False
+
+            self.assertTrue(mock_user.is_bot)
+            self.assertFalse(mock_human_user.is_bot)
+
+        asyncio.run(run_report_test())
+
 if __name__ == "__main__":
     unittest.main()

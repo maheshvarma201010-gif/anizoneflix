@@ -2435,6 +2435,10 @@ def register_handlers(bot: Client):
                 except Exception as e:
                     logger.error(f"Error during addbot validation flow: {e}")
                     await message.reply(f"❌ **An unexpected error occurred during validation:** {e}")
+                    try:
+                        from bot.bot_manager import report_addbot_issue
+                        await report_addbot_issue(state.get("token", "")[:15] + "...", f"Addbot group validation failure: {str(e)}")
+                    except: pass
                 return
             elif action == "ask_search_query":
                 return await search_handler(client, message, is_retry=True)
