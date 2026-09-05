@@ -614,6 +614,106 @@ class Database:
             logger.error(f"Read Error (get_song_channel): {e}")
             return None
 
+    # --- Configured Bot & Session Settings ---
+
+    async def add_configured_bot(self, username: str):
+        try:
+            if self._settings is None: return None
+            clean_username = username.strip().lstrip("@")
+            doc = await self._settings.find_one({"key": "configured_bots"})
+            bots = doc.get("value", []) if doc and isinstance(doc.get("value"), list) else []
+
+            # Case-insensitive uniqueness check
+            if not any(b.lower() == clean_username.lower() for b in bots):
+                bots.append(clean_username)
+
+            await self._settings.update_one(
+                {"key": "configured_bots"},
+                {"$set": {"key": "configured_bots", "value": bots}},
+                upsert=True
+            )
+            # Also set configured_bot fallback
+            await self._settings.update_one(
+                {"key": "configured_bot"},
+                {"$set": {"key": "configured_bot", "value": clean_username}},
+                upsert=True
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Persistence Error (add_configured_bot): {e}")
+            return False
+
+    async def set_configured_bot(self, username: str):
+        return await self.add_configured_bot(username)
+
+    async def get_configured_bots(self):
+        try:
+            if self._settings is None: return []
+            doc = await self._settings.find_one({"key": "configured_bots"})
+            if doc and isinstance(doc.get("value"), list):
+                return doc.get("value")
+            # Fallback to single bot if exists
+            single_doc = await self._settings.find_one({"key": "configured_bot"})
+            if single_doc and single_doc.get("value"):
+                return [single_doc.get("value")]
+            return []
+        except Exception as e:
+            logger.error(f"Read Error (get_configured_bots): {e}")
+            return []
+
+    async def get_configured_bot(self):
+        bots = await self.get_configured_bots()
+        return bots[0] if bots else None
+
+    async def delete_configured_bot(self, username: str):
+        try:
+            if self._settings is None: return False
+            clean_username = username.strip().lstrip("@")
+            doc = await self._settings.find_one({"key": "configured_bots"})
+            bots = doc.get("value", []) if doc and isinstance(doc.get("value"), list) else []
+
+            updated_bots = [b for b in bots if b.lower() != clean_username.lower()]
+            await self._settings.update_one(
+                {"key": "configured_bots"},
+                {"$set": {"key": "configured_bots", "value": updated_bots}},
+                upsert=True
+            )
+
+            # Update single fallback
+            fallback_val = updated_bots[0] if updated_bots else None
+            await self._settings.update_one(
+                {"key": "configured_bot"},
+                {"$set": {"key": "configured_bot", "value": fallback_val}},
+                upsert=True
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Persistence Error (delete_configured_bot): {e}")
+            return False
+
+    async def set_configured_session(self, session_string: str):
+        try:
+            if self._settings is None: return None
+            return await self._settings.update_one(
+                {"key": "configured_session"},
+                {"$set": {"key": "configured_session", "value": session_string.strip()}},
+                upsert=True
+            )
+        except Exception as e:
+            logger.error(f"Persistence Error (set_configured_session): {e}")
+            return None
+
+    async def get_configured_session(self):
+        try:
+            if self._settings is None: return None
+            doc = await self._settings.find_one({"key": "configured_session"})
+            if doc:
+                return doc.get("value")
+            return None
+        except Exception as e:
+            logger.error(f"Read Error (get_configured_session): {e}")
+            return None
+
     async def is_admin(self, user_id):
         try:
             if self._users is None: return False
