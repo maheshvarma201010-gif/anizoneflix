@@ -85,7 +85,7 @@ class MultiBotManager:
                         sent_msg = await c.send_message(
                             chat_id=message.chat.id,
                             text=f"🎬 **{match['title']}**\n\n🔗 **Link:** {link}",
-                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🍿 Watch Now", url=link)]]),
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬇️ Download Now", url=link)]]),
                             reply_to_message_id=message.id
                         )
                         # Auto delete reply after 10 seconds
@@ -120,7 +120,7 @@ class MultiBotManager:
                         # Edit message directly without sending a new one
                         await cb.message.edit_text(
                             text=f"🎬 **{match['title']}**\n\n🔗 **Link:** {link}",
-                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🍿 Watch Now", url=link)]])
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬇️ Download Now", url=link)]])
                         )
                         # Auto delete edited message after 10 seconds
                         asyncio.create_task(auto_delete_message(cb.message, 10))

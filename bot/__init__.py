@@ -423,12 +423,12 @@ def register_handlers(bot: Client):
                 f"<blockquote>{metadata_block}</blockquote>\n\n"
                 f"<b><u>📝 Synopsis / Description:</u></b>\n"
                 f"<blockquote>{safe_synopsis}</blockquote>\n\n"
-                f"🍿 <b>Watch / Download Full Movie:</b>\n"
-                f"👉 <a href=\"{safe_link}\">🎬 Watch {sans_title} Now</a>"
+                f"⬇️ <b>Download Full Movie / TV Show:</b>\n"
+                f"👉 <a href=\"{safe_link}\">🚀 Download {sans_title} Now</a>"
             )
 
             reply_markup = InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"🍿 Watch {title} On MoviesZoneFlix", url=link)]
+                [InlineKeyboardButton(f"⬇️ Download {title} On MoviesZoneFlix", url=link)]
             ])
 
             try:

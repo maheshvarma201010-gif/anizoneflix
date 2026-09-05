@@ -3,12 +3,12 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #050505;
-  --bg-secondary: #0c0c0c;
-  --accent-red: #ff0000;
-  --accent-gold: #ffb400;
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --accent-red: #e50914;
+  --accent-red-bright: #ff0000;
   --text-main: #ffffff;
-  --text-muted: #a0a0a0;
+  --text-muted: #d1d5db;
 }
 
 body {
@@ -18,22 +18,22 @@ body {
 }
 
 .ott-card {
-  @apply bg-zinc-900/80 rounded-xl overflow-hidden transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl hover:shadow-red-600/20 border border-white/5 hover:border-red-600/30;
+  @apply bg-black/90 rounded-xl overflow-hidden transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl hover:shadow-red-600/30 border border-white/10 hover:border-red-600/60;
 }
 
 .glass-panel {
-  background: rgba(15, 15, 15, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .btn-primary {
-  @apply bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-md transition-colors duration-200;
+  @apply bg-red-600 hover:bg-red-700 text-white font-black py-2.5 px-6 rounded-lg transition-all duration-200 shadow-lg shadow-red-600/30;
 }
 
 .btn-gold {
-  @apply bg-amber-500 hover:bg-amber-600 text-black font-bold py-2 px-6 rounded-md transition-colors duration-200;
+  @apply bg-white hover:bg-gray-200 text-black font-black py-2.5 px-6 rounded-lg transition-all duration-200 shadow-lg;
 }
 
 /* Skeleton Loader */
