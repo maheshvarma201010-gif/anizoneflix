@@ -614,6 +614,55 @@ class Database:
             logger.error(f"Read Error (get_song_channel): {e}")
             return None
 
+    # --- Configured Bot & Session Settings ---
+
+    async def set_configured_bot(self, username: str):
+        try:
+            if self._settings is None: return None
+            clean_username = username.strip().lstrip("@")
+            return await self._settings.update_one(
+                {"key": "configured_bot"},
+                {"$set": {"key": "configured_bot", "value": clean_username}},
+                upsert=True
+            )
+        except Exception as e:
+            logger.error(f"Persistence Error (set_configured_bot): {e}")
+            return None
+
+    async def get_configured_bot(self):
+        try:
+            if self._settings is None: return None
+            doc = await self._settings.find_one({"key": "configured_bot"})
+            if doc:
+                return doc.get("value")
+            return None
+        except Exception as e:
+            logger.error(f"Read Error (get_configured_bot): {e}")
+            return None
+
+    async def set_configured_session(self, session_string: str):
+        try:
+            if self._settings is None: return None
+            return await self._settings.update_one(
+                {"key": "configured_session"},
+                {"$set": {"key": "configured_session", "value": session_string.strip()}},
+                upsert=True
+            )
+        except Exception as e:
+            logger.error(f"Persistence Error (set_configured_session): {e}")
+            return None
+
+    async def get_configured_session(self):
+        try:
+            if self._settings is None: return None
+            doc = await self._settings.find_one({"key": "configured_session"})
+            if doc:
+                return doc.get("value")
+            return None
+        except Exception as e:
+            logger.error(f"Read Error (get_configured_session): {e}")
+            return None
+
     async def is_admin(self, user_id):
         try:
             if self._users is None: return False

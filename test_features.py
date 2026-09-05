@@ -6,9 +6,96 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from utils.parser import parse_ultra_advanced_group, parse_bulk_box_names
-from bot import parse_advanced_group_message, parse_buttons_string
+from bot import (
+    parse_advanced_group_message,
+    parse_buttons_string,
+    parse_range_link,
+    parse_group_names_list,
+    parse_genlink_bot_response
+)
 
 class TestBotFeatures(unittest.TestCase):
+
+    def test_parse_range_link(self):
+        # Full URL range
+        res1 = parse_range_link("https://t.me/hsjisksjs/23961-https://t.me/hsjisksjs/24035")
+        self.assertEqual(res1, ("hsjisksjs", 23961, 24035))
+
+        # Short URL range
+        res2 = parse_range_link("https://t.me/hsjisksjs/23961-24035")
+        self.assertEqual(res2, ("hsjisksjs", 23961, 24035))
+
+        # Private channel format
+        res3 = parse_range_link("https://t.me/c/1234567890/100-https://t.me/c/1234567890/110")
+        self.assertEqual(res3, ("c/1234567890", 100, 110))
+
+        res4 = parse_range_link("https://t.me/c/1234567890/100-110")
+        self.assertEqual(res4, ("c/1234567890", 100, 110))
+
+        # Invalid range
+        self.assertIsNone(parse_range_link("https://example.com/test"))
+
+    def test_parse_group_names_list(self):
+        text = """
+1. Group Alpha
+2. Group Beta
+3. Group Gamma
+"""
+        groups = parse_group_names_list(text)
+        self.assertEqual(groups, ["Group Alpha", "Group Beta", "Group Gamma"])
+
+        invalid_text = """
+1. Group Alpha
+Group Beta without serial
+"""
+        self.assertIsNone(parse_group_names_list(invalid_text))
+
+    def test_parse_genlink_bot_response(self):
+        bot_response = """
+First Filename: Sword Art Online S01E01 480p x264 Bluray Multi Audio Esu.mkv
+First Caption: 🎬 Sword Art Online S01E01 480p x264 Bluray Multi Audio Esub (crunchyroll dub).mkv
+
+📦 Size: 109.52MB
+⏱ Duration: 1423
+🌐 Languages: हिन्दी, தமிழ், తెలుగు, English, 日本語
+
+Last Filename: Sword Art Online S01E01 480p x264 Bluray Multi Audio Esu.mkv
+Last Caption: 🎬 Sword Art Online S01E01 480p x264 Bluray Multi Audio Esub (crunchyroll dub).mkv
+
+📦 Size: 109.52MB
+⏱ Duration: 1423
+🌐 Languages: हिन्दी, தமிழ், తెలుగు, English, 日本語
+
+Here is your link:
+
+"https://telegram.me/AniZoneFlix_bot?start=Z2V0LTI0MDUwODI3NzM1MjU0NzY4"
+"""
+        parsed = parse_genlink_bot_response(bot_response)
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed["link"], "https://telegram.me/AniZoneFlix_bot?start=Z2V0LTI0MDUwODI3NzM1MjU0NzY4")
+        self.assertEqual(parsed["quality"], "480P")
+        self.assertEqual(parsed["episode"], 1)
+
+    def test_configured_bot_and_session_db_mock_methods(self):
+        from database.db import db
+        import asyncio
+
+        async def run_config_test():
+            bot_username = await db.get_configured_bot()
+            session_str = await db.get_configured_session()
+
+            await db.set_configured_bot("@AniZoneFlix_bot")
+            await db.set_configured_session("1B...mock_session_string")
+
+            res_bot = await db.get_configured_bot()
+            res_ss = await db.get_configured_session()
+
+            if res_bot:
+                self.assertEqual(res_bot, "AniZoneFlix_bot")
+            if res_ss:
+                self.assertEqual(res_ss, "1B...mock_session_string")
+
+        asyncio.run(run_config_test())
 
     def test_existing_advanced_group_parser(self):
         # Existing Advanced Group format:
