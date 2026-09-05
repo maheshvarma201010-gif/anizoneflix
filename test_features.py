@@ -159,10 +159,15 @@ Episode 15 - The New Demon Lord
 
     def test_addbot_report_and_bot_filter(self):
         from bot.bot_manager import report_addbot_issue
+        from bot.plugins.addbot import validate_bot_token
         import asyncio
         from unittest.mock import MagicMock
 
         async def run_report_test():
+            # Test token validation regex
+            self.assertTrue(validate_bot_token("123456789:ABCdefGhIJKlmnoPQRstuvwxYZ_123456789"))
+            self.assertFalse(validate_bot_token("invalid_token_string"))
+
             # Test report_addbot_issue with unconfigured ADMIN_IDS safely
             await report_addbot_issue("TestBot", "Simulated error")
 

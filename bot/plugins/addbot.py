@@ -11,7 +11,7 @@ logger = logging.getLogger("ANIZONEFLIX_BOT_PLUGINS_ADMIN_ADDBOT")
 
 def validate_bot_token(token: str) -> bool:
     """Validate format of a Bot Token (flexible secret length)"""
-    pattern = r"^\d+:[A-Za-z0-9_-]{35,50}$"
+    pattern = r"^\d+:[A-Za-z0-9_-]+$"
     return bool(re.match(pattern, token))
 
 @Client.on_message(filters.command("addbot") & filters.private)
@@ -44,19 +44,21 @@ async def addbot_command_handler(client: Client, message: Message):
     logger.info(f"Validating bot token with Telegram...")
     status_msg = await message.reply("⏳ **Validating token with Telegram...**")
 
-    test_client = None
     bot_info = None
     try:
-        test_client = Client(
-            name=f"temp_validate_{message.from_user.id}",
-            api_id=Config.API_ID,
-            api_hash=Config.API_HASH,
-            bot_token=token,
-            in_memory=True
-        )
-        await test_client.start()
-        bot_info = await test_client.get_me()
-        await test_client.stop()
+        import httpx
+        async with httpx.AsyncClient(timeout=15.0) as http_client:
+            res = await http_client.get(f"https://api.telegram.org/bot{token}/getMe")
+            if res.status_code != 200:
+                err_desc = res.json().get("description", "Invalid Bot Token")
+                await status_msg.edit(f"❌ **Token Verification Failed:** {err_desc}")
+                return
+            res_data = res.json().get("result", {})
+            bot_info = type("BotInfo", (), {
+                "id": res_data.get("id"),
+                "first_name": res_data.get("first_name"),
+                "username": res_data.get("username")
+            })()
     except Exception as e:
         logger.error(f"Token validation failed: {e}")
         await status_msg.edit(f"❌ **Token Verification Failed:** {e}")

@@ -241,9 +241,19 @@ class AddedBotManager:
         for token in list(self.clients.keys()):
             await self.stop_bot(token)
 
-    def _register_handlers(self, client: Client, configured_group_id: int):
+    def _register_handlers(self, client: Client, configured_group_id):
 
-        @client.on_message(filters.text & filters.chat(configured_group_id))
+        # Support filtering on both integer chat ID and string username/representation
+        chat_filter = filters.chat(configured_group_id)
+        try:
+            if isinstance(configured_group_id, str) and (configured_group_id.startswith("-") or configured_group_id.isdigit()):
+                chat_filter = filters.chat([configured_group_id, int(configured_group_id)])
+            elif isinstance(configured_group_id, int):
+                chat_filter = filters.chat([configured_group_id, str(configured_group_id)])
+        except Exception:
+            pass
+
+        @client.on_message(filters.text & chat_filter)
         async def handle_group_text(c: Client, message: Message):
             # Ignore messages from bots or empty sender to prevent self-reply spam
             if not message.from_user or message.from_user.is_bot:

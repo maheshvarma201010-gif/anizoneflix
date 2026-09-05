@@ -2357,6 +2357,13 @@ def register_handlers(bot: Client):
                 if "t.me/" in group_input:
                     group_input = "@" + group_input.split("t.me/")[-1].split("/")[0]
 
+                # Automatically normalize positive numbers / missing -100 prefix for supergroups
+                if group_input.replace("-", "").isdigit():
+                    raw_num = group_input.replace("-", "")
+                    if len(raw_num) >= 10 and not raw_num.startswith("100"):
+                        raw_num = "100" + raw_num
+                    group_input = f"-{raw_num}"
+
                 await message.reply("⏳ **Resolving and verifying group properties...**")
 
                 # Verify that group/username is valid
