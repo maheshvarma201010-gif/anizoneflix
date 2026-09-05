@@ -87,11 +87,24 @@ class MultiBotManager:
                     for k in range(max_words, 0, -1):
                         for i in range(len(words) - k + 1):
                             candidate = " ".join(words[i:i + k]).strip()
-                            if len(candidate) < 2:
-                                continue # Skip single-letter searches to avoid noisy matches
+                            if not candidate:
+                                continue
 
-                            cursor = db.media.find({"title": {"$regex": f".*{re.escape(candidate)}.*", "$options": "i"}})
-                            found = await cursor.to_list(length=10)
+                            # Ignore common single-letter stop words ("a", "i") unless phrase is just 1 word
+                            if len(candidate) == 1 and candidate.lower() in ["a", "i"] and len(words) > 1:
+                                continue
+
+                            # Single-character queries (e.g. "p", "b"): search titles starting with or containing letter
+                            if len(candidate) == 1:
+                                cursor = db.media.find({"title": {"$regex": f"^{re.escape(candidate)}", "$options": "i"}})
+                                found = await cursor.to_list(length=15)
+                                if not found:
+                                    cursor = db.media.find({"title": {"$regex": f".*{re.escape(candidate)}.*", "$options": "i"}})
+                                    found = await cursor.to_list(length=15)
+                            else:
+                                cursor = db.media.find({"title": {"$regex": f".*{re.escape(candidate)}.*", "$options": "i"}})
+                                found = await cursor.to_list(length=15)
+
                             if found:
                                 matches = found
                                 matched_query = candidate
