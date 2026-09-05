@@ -76,6 +76,14 @@ Here is your link:
         self.assertEqual(parsed["quality"], "480P")
         self.assertEqual(parsed["episode"], 1)
 
+        # Test filter_name matching
+        parsed_match = parse_genlink_bot_response(bot_response, filter_name="Sword Art Online")
+        self.assertIsNotNone(parsed_match)
+
+        # Test filter_name mismatch filtering out
+        parsed_mismatch = parse_genlink_bot_response(bot_response, filter_name="Naruto Shippuden")
+        self.assertIsNone(parsed_mismatch)
+
     def test_configured_bot_and_session_db_mock_methods(self):
         from database.db import db
         import asyncio
