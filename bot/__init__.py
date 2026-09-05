@@ -57,6 +57,8 @@ async def set_commands(client):
         BotCommand("schedule", "Manage Airing Schedule"),
         BotCommand("del", "Permanent Archive Erasure"),
         BotCommand("category_page", "Migrate Page Category"),
+        BotCommand("songs", "Manage Background Songs"),
+        BotCommand("uptime", "24/7 Bot Uptime Monitor"),
         BotCommand("save", "Backup & Restore Data"),
         BotCommand("cancel", "Abort Active Process"),
         BotCommand("ping", "System Latency Check")
@@ -284,6 +286,7 @@ def register_handlers(bot: Client):
             "**⚙️ MANAGEMENT**\n"
             "• `/categories`: Manage genres & tags.\n"
             "• `/schedule`: Manage Airing Schedules.\n"
+            "• `/songs`: Manage Background Songs.\n"
             "• `/del <url/slug>`: Permanent archive removal.\n"
             "• `/cancel`: Abort active processes.\n\n"
             "**💎 PREMIUM FEATURES**\n"
@@ -419,6 +422,7 @@ def register_handlers(bot: Client):
                 )
             else:
                 buttons = [
+                    [InlineKeyboardButton("👑 Admin Choice (Manage Content Groups)", callback_data=f"manage_groups_{aid}")],
                     [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{aid}")],
                     [InlineKeyboardButton("🗃 Custom Boxes", callback_data=f"manage_boxes_{aid}")],
                     [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
@@ -566,6 +570,233 @@ def register_handlers(bot: Client):
         except Exception as e:
             logger.error(f"Delete Error: {e}")
             await message.reply("❌ **Erasure Failure.**")
+
+    @bot.on_message(filters.command(["uptime", "UPTIME"]))
+    async def uptime_command_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Access Denied.** Unauthorized user.")
+
+        await send_uptime_menu(client, message)
+
+    async def send_uptime_menu(client, message_or_cb):
+        bots = await db.get_all_monitored_bots()
+
+        text = "⚡ **24/7 Bot Uptime Monitoring Suite**\n\n"
+        text += f"📊 **Monitored Bots:** `{len(bots)}` (Continuous 1s check)\n\n"
+
+        if bots:
+            text += "**Live Monitor Feed:**\n"
+            for idx, b in enumerate(bots, 1):
+                status = b.get("status", "pending")
+                icon = "🟢" if status == "online" else ("🔴" if status == "offline" else "🟡")
+                code_str = f" [HTTP {b.get('status_code')}]" if b.get('status_code') else ""
+                ms_str = f" ({b.get('response_time_ms')}ms)" if b.get('response_time_ms') is not None else ""
+                url_str = b.get("url", "")
+                text += f"**{idx}.** {icon} **{b.get('name', 'Bot')}**{code_str}{ms_str}\n🔗 `{url_str}`\n\n"
+        else:
+            text += "ℹ️ *No bots currently monitored. Click 'Add Bot' below to register a bot URL for continuous 24/7 uptime monitoring.*"
+
+        buttons = [
+            [InlineKeyboardButton("➕ Add Bot", callback_data="add_uptime_bot_prompt")]
+        ]
+
+        if bots:
+            for idx, b in enumerate(bots, 1):
+                bid = b.get("bot_id") or str(b.get("_id"))
+                bname = (b.get("name", f"Bot {idx}")[:14] + "..") if len(b.get("name", "")) > 16 else b.get("name", f"Bot {idx}")
+                buttons.append([
+                    InlineKeyboardButton(f"🔄 Replace {bname}", callback_data=f"replace_uptime_{bid}"),
+                    InlineKeyboardButton(f"🗑", callback_data=f"del_uptime_{bid}")
+                ])
+
+        buttons.append([InlineKeyboardButton("🔄 Refresh Status", callback_data="uptime_refresh"), InlineKeyboardButton("❌ Close", callback_data="cancel_op")])
+
+        if isinstance(message_or_cb, CallbackQuery):
+            try:
+                await message_or_cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+                await message_or_cb.answer()
+            except MessageNotModified:
+                await message_or_cb.answer("Already Up-to-date")
+        else:
+            await message_or_cb.reply(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+    @bot.on_callback_query(filters.regex("^uptime_refresh$"))
+    async def uptime_refresh_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+        await send_uptime_menu(client, callback_query)
+
+    @bot.on_callback_query(filters.regex("^add_uptime_bot_prompt$"))
+    async def add_uptime_bot_prompt_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        user_state[callback_query.from_user.id] = {"action": "ask_uptime_bot_url"}
+        await callback_query.message.edit_text(
+            "➕ **Add Bot for Uptime Monitoring**\n\n"
+            "Please send the **HTTP / HTTPS URL** of the bot/service to monitor 24/7:\n\n"
+            "Example: `https://my-telegram-bot.onrender.com`\n\n"
+            "Send /cancel to abort.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]])
+        )
+        await callback_query.answer()
+
+    @bot.on_callback_query(filters.regex("^replace_uptime_"))
+    async def replace_uptime_bot_prompt_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        bot_id = callback_query.data.split("replace_uptime_")[-1]
+        b = await db.get_monitored_bot(bot_id)
+        if not b:
+            return await callback_query.answer("❌ Monitored bot not found", show_alert=True)
+
+        user_state[callback_query.from_user.id] = {"action": "ask_replace_uptime_url", "bot_id": bot_id}
+        await callback_query.message.edit_text(
+            f"🔄 **Replace Monitored Bot: {b.get('name', 'Bot')}**\n\n"
+            f"Current URL: `{b.get('url')}`\n\n"
+            "Please send the new **HTTP / HTTPS URL**:\n\n"
+            "Send /cancel to abort.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]])
+        )
+        await callback_query.answer()
+
+    @bot.on_callback_query(filters.regex("^del_uptime_"))
+    async def del_uptime_bot_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        bot_id = callback_query.data.split("del_uptime_")[-1]
+        b = await db.get_monitored_bot(bot_id)
+        if b:
+            await db.delete_monitored_bot(bot_id)
+            await callback_query.answer(f"🗑 Stopped monitoring '{b.get('name', 'Bot')}'", show_alert=True)
+        else:
+            await callback_query.answer("❌ Bot record already deleted", show_alert=True)
+
+        await send_uptime_menu(client, callback_query)
+
+    @bot.on_message(filters.command(["songs", "SONGS"]))
+    async def songs_command_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Access Denied.** Unauthorized user.")
+
+        await send_songs_menu(client, message)
+
+    async def send_songs_menu(client, message_or_cb):
+        songs = await db.get_all_songs()
+        channel_id = await db.get_song_channel()
+
+        text = "🎵 **Background Songs Management**\n\n"
+        text += f"📢 **Dedicated Song Channel:** `{channel_id or 'Not Configured'}`\n"
+        text += f"🎼 **Total Songs:** `{len(songs)}`\n\n"
+
+        if songs:
+            text += "**Current Playlist:**\n"
+            for idx, song in enumerate(songs, 1):
+                text += f"**{idx}.** {song.get('title', 'Untitled Song')}\n"
+        else:
+            text += "ℹ️ *No background songs found. Upload a song to enable web audio playback.*"
+
+        buttons = [
+            [InlineKeyboardButton("➕ Add New Song", callback_data="add_song_prompt")],
+            [InlineKeyboardButton("📢 Set Song Channel", callback_data="set_song_channel_prompt")]
+        ]
+
+        if songs:
+            for idx, song in enumerate(songs, 1):
+                sid = song.get("song_id") or str(song.get("_id"))
+                stitle = (song.get("title", f"Song {idx}")[:15] + "..") if len(song.get("title", "")) > 18 else song.get("title", f"Song {idx}")
+                buttons.append([
+                    InlineKeyboardButton(f"🔄 Replace {stitle}", callback_data=f"replace_song_{sid}"),
+                    InlineKeyboardButton(f"🗑", callback_data=f"del_song_{sid}")
+                ])
+
+        buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data="songs_refresh"), InlineKeyboardButton("❌ Close", callback_data="cancel_op")])
+
+        if isinstance(message_or_cb, CallbackQuery):
+            try:
+                await message_or_cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+                await message_or_cb.answer()
+            except MessageNotModified:
+                await message_or_cb.answer("Already Up-to-date")
+        else:
+            await message_or_cb.reply(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+    @bot.on_callback_query(filters.regex("^songs_refresh$"))
+    async def songs_refresh_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+        await send_songs_menu(client, callback_query)
+
+    @bot.on_callback_query(filters.regex("^add_song_prompt$"))
+    async def add_song_prompt_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        user_state[callback_query.from_user.id] = {"action": "ask_song_file"}
+        await callback_query.message.edit_text(
+            "🎵 **Add Background Song**\n\n"
+            "Please send or upload the **Audio** or **Video** document (MP3, M4A, WAV, MP4, etc.) for the background music:\n\n"
+            "Send /cancel to abort.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]])
+        )
+        await callback_query.answer()
+
+    @bot.on_callback_query(filters.regex("^replace_song_"))
+    async def replace_song_prompt_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        song_id = callback_query.data.split("replace_song_")[-1]
+        song = await db.get_song(song_id)
+        if not song:
+            return await callback_query.answer("❌ Song not found", show_alert=True)
+
+        user_state[callback_query.from_user.id] = {"action": "ask_replace_song_file", "song_id": song_id}
+        await callback_query.message.edit_text(
+            f"🔄 **Replace Song: {song.get('title', 'Untitled')}**\n\n"
+            "Please send or upload the new **Audio** or **Video** document (MP3, M4A, WAV, MP4, etc.) to replace this song:\n\n"
+            "Send /cancel to abort.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]])
+        )
+        await callback_query.answer()
+
+    @bot.on_callback_query(filters.regex("^del_song_"))
+    async def del_song_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        song_id = callback_query.data.split("del_song_")[-1]
+        song = await db.get_song(song_id)
+        if song:
+            file_path = song.get("file_path", "")
+            if file_path and file_path.startswith("/static/"):
+                full_path = os.path.join(".", file_path.lstrip("/"))
+                if os.path.exists(full_path):
+                    try: os.remove(full_path)
+                    except: pass
+            await db.delete_song(song_id)
+            await callback_query.answer(f"🗑 Deleted '{song.get('title', 'Song')}'", show_alert=True)
+        else:
+            await callback_query.answer("❌ Song already deleted", show_alert=True)
+
+        await send_songs_menu(client, callback_query)
+
+    @bot.on_callback_query(filters.regex("^set_song_channel_prompt$"))
+    async def set_song_channel_prompt_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        user_state[callback_query.from_user.id] = {"action": "ask_song_channel"}
+        await callback_query.message.edit_text(
+            "📢 **Configure Dedicated Song Channel**\n\n"
+            "Please send the **Channel Username** or **Numeric Channel ID** (e.g., `@anizone_songs` or `-1001234567890`):\n\n"
+            "Make sure the bot is an admin in the song channel!\n"
+            "Send /cancel to abort.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]])
+        )
+        await callback_query.answer()
 
     @bot.on_message(filters.command("manual"))
     async def manual_handler(client, message):
@@ -1669,8 +1900,10 @@ def register_handlers(bot: Client):
         await db.anime.update_one(
             {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
             {
-                "$set": {"seasons_links": dict(groups)},
-                "$addToSet": {"newly_added_groups": state["cgrp_name"]},
+                "$set": {
+                    "seasons_links": dict(groups),
+                    "newly_added_groups": [state["cgrp_name"]]
+                },
                 "$currentDate": {"updated_at": True}
             }
         )
@@ -1994,7 +2227,7 @@ def register_handlers(bot: Client):
 
     # --- INTERACTION HANDLER (GROUP 1) ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page", "addbot"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page", "addbot", "songs", "SONGS", "uptime", "UPTIME"]), group=1)
     async def interaction_handler(client, message):
         if not message.from_user: return
         uid = message.from_user.id
@@ -2003,10 +2236,114 @@ def register_handlers(bot: Client):
         state = user_state.get(uid)
         if not state: return
 
-        if not message.text and state.get("action") != "awaiting_restore_zip":
+        action = state.get("action", "")
+
+        if not message.text and action not in ["awaiting_restore_zip", "ask_song_file", "ask_replace_song_file"]:
             return await message.reply("❌ **Invalid Input.** Please send text.")
 
-        action = state.get("action", "")
+        if action == "ask_uptime_bot_url":
+            url = message.text.strip()
+            if not (url.startswith("http://") or url.startswith("https://")):
+                return await message.reply("❌ **Invalid URL.** Must begin with `http://` or `https://`. Please send again:")
+
+            bot_id = await db.add_monitored_bot(url)
+            del user_state[uid]
+            await message.reply(f"✅ **Bot Registered for 24/7 Monitoring!**\n🔗 **URL:** `{url}`\n\nThe continuous 1-second ping monitor is active.")
+            return
+
+        elif action == "ask_replace_uptime_url":
+            url = message.text.strip()
+            if not (url.startswith("http://") or url.startswith("https://")):
+                return await message.reply("❌ **Invalid URL.** Must begin with `http://` or `https://`. Please send again:")
+
+            bot_id = state.get("bot_id")
+            await db.replace_monitored_bot(bot_id, url)
+            del user_state[uid]
+            await message.reply(f"✅ **Monitored Bot URL Successfully Replaced!**\n🔗 **New URL:** `{url}`")
+            return
+
+        if action == "ask_song_channel":
+            channel_input = message.text.strip()
+            await db.set_song_channel(channel_input)
+            del user_state[uid]
+            await message.reply(f"✅ **Dedicated Song Channel set to:** `{channel_input}`")
+            return
+
+        elif action in ["ask_song_file", "ask_replace_song_file"]:
+            media = message.audio or message.video or message.document
+            if not media and not (message.text and message.text.startswith("http")):
+                return await message.reply("❌ **Invalid Media.** Please send/upload an audio or video file (MP3, M4A, WAV, MP4, etc.) or a direct media URL.")
+
+            msg = await message.reply("⏳ **Processing & storing background song...**")
+            file_name = "background_song"
+            file_id = None
+
+            if media:
+                file_id = getattr(media, "file_id", None)
+                file_name = getattr(media, "file_name", None) or getattr(media, "title", None) or "song.mp3"
+            elif message.text:
+                file_name = message.text.split("/")[-1].split("?")[0] or "song.mp3"
+
+            # Create media directory
+            songs_dir = os.path.join("static", "uploads", "songs")
+            os.makedirs(songs_dir, exist_ok=True)
+
+            song_id = state.get("song_id") or str(ObjectId())
+            safe_filename = f"{song_id}_{slugify(file_name)}".strip("_")
+            if not safe_filename.endswith((".mp3", ".m4a", ".wav", ".mp4", ".ogg", ".aac")):
+                safe_filename += ".mp3"
+
+            dest_path = os.path.join(songs_dir, safe_filename)
+            file_path = f"/static/uploads/songs/{safe_filename}"
+
+            try:
+                if media:
+                    await message.download(file_name=dest_path)
+                elif message.text:
+                    import httpx
+                    async with httpx.AsyncClient(timeout=30.0) as http_client:
+                        resp = await http_client.get(message.text.strip())
+                        if resp.status_code == 200:
+                            with open(dest_path, "wb") as f:
+                                f.write(resp.content)
+
+                # Post file to dedicated channel if configured
+                song_channel = await db.get_song_channel()
+                channel_msg_id = None
+                if song_channel:
+                    try:
+                        sent_msg = await client.send_document(
+                            chat_id=song_channel,
+                            document=dest_path,
+                            caption=f"🎵 **Background Song:** {file_name}\nID: `{song_id}`"
+                        )
+                        channel_msg_id = sent_msg.id
+                    except Exception as ch_err:
+                        logger.error(f"Failed to send song to channel: {ch_err}")
+
+                song_data = {
+                    "song_id": song_id,
+                    "title": file_name,
+                    "file_id": file_id,
+                    "file_path": file_path,
+                    "channel_msg_id": channel_msg_id,
+                    "created_at": message.date.timestamp() if message.date else 0
+                }
+
+                if action == "ask_replace_song_file":
+                    await db.replace_song(song_id, song_data)
+                    await msg.edit(f"✅ **Song Successfully Replaced!**\n🎵 **Title:** `{file_name}`")
+                else:
+                    await db.add_song(song_data)
+                    await msg.edit(f"✅ **Song Successfully Added!**\n🎵 **Title:** `{file_name}`")
+
+                del user_state[uid]
+                return
+            except Exception as e:
+                logger.error(f"Error saving song file: {e}")
+                await msg.edit(f"❌ **Failed to process song:** `{str(e)}`")
+                del user_state[uid]
+                return
         try:
             if action == "addbot_await_group":
                 # Safely resolve group/chat username or numeric ID or invite links
@@ -2019,6 +2356,13 @@ def register_handlers(bot: Client):
 
                 if "t.me/" in group_input:
                     group_input = "@" + group_input.split("t.me/")[-1].split("/")[0]
+
+                # Automatically normalize positive numbers / missing -100 prefix for supergroups
+                if group_input.replace("-", "").isdigit():
+                    raw_num = group_input.replace("-", "")
+                    if len(raw_num) >= 10 and not raw_num.startswith("100"):
+                        raw_num = "100" + raw_num
+                    group_input = f"-{raw_num}"
 
                 await message.reply("⏳ **Resolving and verifying group properties...**")
 
@@ -2098,6 +2442,10 @@ def register_handlers(bot: Client):
                 except Exception as e:
                     logger.error(f"Error during addbot validation flow: {e}")
                     await message.reply(f"❌ **An unexpected error occurred during validation:** {e}")
+                    try:
+                        from bot.bot_manager import report_addbot_issue
+                        await report_addbot_issue(state.get("token", "")[:15] + "...", f"Addbot group validation failure: {str(e)}")
+                    except: pass
                 return
             elif action == "ask_search_query":
                 return await search_handler(client, message, is_retry=True)
@@ -2378,8 +2726,10 @@ def register_handlers(bot: Client):
                     await db.anime.update_one(
                         {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
                         {
-                            "$set": {"custom_boxes": boxes},
-                            "$addToSet": {"newly_added_groups": {"$each": new_grp_names}},
+                            "$set": {
+                                "custom_boxes": boxes,
+                                "newly_added_groups": new_grp_names
+                            },
                             "$currentDate": {"updated_at": True}
                         }
                     )
@@ -2431,8 +2781,10 @@ def register_handlers(bot: Client):
                 await db.anime.update_one(
                     {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
                     {
-                        "$set": {"custom_boxes": boxes},
-                        "$addToSet": {"newly_added_groups": {"$each": list(parsed_groups.keys())}},
+                        "$set": {
+                            "custom_boxes": boxes,
+                            "newly_added_groups": list(parsed_groups.keys())
+                        },
                         "$currentDate": {"updated_at": True}
                     }
                 )
@@ -2565,8 +2917,10 @@ def register_handlers(bot: Client):
                     await db.anime.update_one(
                         {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
                         {
-                            "$set": {"custom_boxes": boxes},
-                            "$addToSet": {"newly_added_groups": state["temp_grp_name"]},
+                            "$set": {
+                                "custom_boxes": boxes,
+                                "newly_added_groups": [state["temp_grp_name"]]
+                            },
                             "$currentDate": {"updated_at": True}
                         }
                     )
@@ -2599,8 +2953,10 @@ def register_handlers(bot: Client):
                     await db.anime.update_one(
                         {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
                         {
-                            "$set": {"custom_boxes": boxes},
-                            "$addToSet": {"newly_added_groups": state["temp_grp_name"]},
+                            "$set": {
+                                "custom_boxes": boxes,
+                                "newly_added_groups": [state["temp_grp_name"]]
+                            },
                             "$currentDate": {"updated_at": True}
                         }
                     )
@@ -2775,8 +3131,10 @@ def register_handlers(bot: Client):
                     await db.anime.update_one(
                         {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
                         {
-                            "$set": {"seasons_links": new_links},
-                            "$addToSet": {"newly_added_groups": state["group_name"]},
+                            "$set": {
+                                "seasons_links": new_links,
+                                "newly_added_groups": [state["group_name"]]
+                            },
                             "$currentDate": {"updated_at": True}
                         }
                     )

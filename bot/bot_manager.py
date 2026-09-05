@@ -13,6 +13,31 @@ logger = logging.getLogger("ANIZONEFLIX_BOT_MANAGER")
 search_cache = {}
 MAX_CACHE_SIZE = 1000
 
+async def report_addbot_issue(bot_identifier: str, reason: str):
+    """Sends an automated report to the bot owner/admins whenever an added bot fails or encounters an error."""
+    try:
+        from config.config import Config
+        if not Config.ADMIN_IDS:
+            logger.warning(f"No ADMIN_IDS configured for reporting addbot error: {bot_identifier} -> {reason}")
+            return
+
+        text = (
+            "🚨 **ADDBOT ALERT: CRITICAL FAILURE REPORT**\n\n"
+            f"🤖 **Bot Target:** `{bot_identifier}`\n"
+            f"⚠️ **Error Details:** `{reason}`\n\n"
+            " Please inspect bot token validity and chat administrator permissions."
+        )
+
+        from bot import bot as main_bot
+        for admin_id in Config.ADMIN_IDS:
+            try:
+                if main_bot and getattr(main_bot, "is_connected", False):
+                    await main_bot.send_message(chat_id=admin_id, text=text)
+            except Exception as e:
+                logger.error(f"Failed to send addbot report to admin {admin_id}: {e}")
+    except Exception as exc:
+        logger.error(f"Failed to execute report_addbot_issue: {exc}")
+
 def extract_candidate_queries(text: str) -> list:
     """
     Extracts high-probability anime title search candidates from a text.
@@ -199,6 +224,7 @@ class AddedBotManager:
             return True
         except Exception as e:
             logger.error(f"Failed to start bot {bot_info.get('username')}: {e}")
+            await report_addbot_issue(bot_info.get("username") or token[:10], f"Failed to start bot client: {str(e)}")
             return False
 
     async def stop_bot(self, token: str):
@@ -215,10 +241,24 @@ class AddedBotManager:
         for token in list(self.clients.keys()):
             await self.stop_bot(token)
 
-    def _register_handlers(self, client: Client, configured_group_id: int):
+    def _register_handlers(self, client: Client, configured_group_id):
 
-        @client.on_message(filters.text & filters.chat(configured_group_id))
+        # Support filtering on both integer chat ID and string username/representation
+        chat_filter = filters.chat(configured_group_id)
+        try:
+            if isinstance(configured_group_id, str) and (configured_group_id.startswith("-") or configured_group_id.isdigit()):
+                chat_filter = filters.chat([configured_group_id, int(configured_group_id)])
+            elif isinstance(configured_group_id, int):
+                chat_filter = filters.chat([configured_group_id, str(configured_group_id)])
+        except Exception:
+            pass
+
+        @client.on_message(filters.text & chat_filter)
         async def handle_group_text(c: Client, message: Message):
+            # Ignore messages from bots or empty sender to prevent self-reply spam
+            if not message.from_user or message.from_user.is_bot:
+                return
+
             if message.text.startswith("/"):
                 return
 

@@ -35,6 +35,8 @@ class Database:
         self._users = None
         self._categories = None
         self._schedules = None
+        self._songs = None
+        self._settings = None
 
     async def connect(self):
         """Initialize connection with absolute persistence focus and retries"""
@@ -65,6 +67,8 @@ class Database:
                 self._users = self._db.users
                 self._categories = self._db.categories
                 self._schedules = self._db.schedules
+                self._songs = self._db.songs
+                self._settings = self._db.settings
 
                 logger.info(f"Database Persistence Verified: {Config.DB_NAME} is active.")
                 return
@@ -96,8 +100,118 @@ class Database:
         return self._schedules if self._schedules is not None else self.MockCollection("schedules")
 
     @property
+    def songs(self):
+        return self._songs if self._songs is not None else self.MockCollection("songs")
+
+    @property
+    def settings(self):
+        return self._settings if self._settings is not None else self.MockCollection("settings")
+
+    @property
     def added_bots(self):
         return self._db.added_bots if self._db is not None else self.MockCollection("added_bots")
+
+    # --- Uptime Bot Monitoring ---
+
+    async def add_monitored_bot(self, url, name=None):
+        try:
+            coll = self.added_bots
+            bot_id = str(ObjectId())
+            if not name:
+                name = url.replace("https://", "").replace("http://", "").split("/")[0]
+            data = {
+                "bot_id": bot_id,
+                "url": url,
+                "name": name,
+                "status": "pending",
+                "status_code": None,
+                "response_time_ms": None,
+                "last_checked": None,
+                "created_at": asyncio.get_event_loop().time()
+            }
+            await coll.update_one({"bot_id": bot_id}, {"$set": data}, upsert=True)
+            return bot_id
+        except Exception as e:
+            logger.error(f"Persistence Error (add_monitored_bot): {e}")
+            return None
+
+    async def get_all_monitored_bots(self):
+        try:
+            coll = self.added_bots
+            cursor = coll.find()
+            docs = await cursor.to_list(length=1000)
+            return clean_doc(docs) or []
+        except Exception as e:
+            logger.error(f"Read Error (get_all_monitored_bots): {e}")
+            return []
+
+    async def get_monitored_bot(self, bot_id):
+        try:
+            coll = self.added_bots
+            doc = await coll.find_one({"bot_id": bot_id})
+            if not doc and len(bot_id) == 24:
+                try:
+                    doc = await coll.find_one({"_id": ObjectId(bot_id)})
+                except: pass
+            return clean_doc(doc)
+        except Exception as e:
+            logger.error(f"Read Error (get_monitored_bot): {e}")
+            return None
+
+    async def delete_monitored_bot(self, bot_id):
+        try:
+            coll = self.added_bots
+            res = await coll.delete_one({"bot_id": bot_id})
+            if res and res.deleted_count == 0 and len(bot_id) == 24:
+                try:
+                    res = await coll.delete_one({"_id": ObjectId(bot_id)})
+                except: pass
+            return res
+        except Exception as e:
+            logger.error(f"Persistence Error (delete_monitored_bot): {e}")
+            return None
+
+    async def replace_monitored_bot(self, bot_id, new_url, name=None):
+        try:
+            coll = self.added_bots
+            if not name:
+                name = new_url.replace("https://", "").replace("http://", "").split("/")[0]
+            update_data = {
+                "url": new_url,
+                "name": name,
+                "status": "pending",
+                "status_code": None,
+                "response_time_ms": None
+            }
+            res = await coll.update_one({"bot_id": bot_id}, {"$set": update_data})
+            if res and res.matched_count == 0 and len(bot_id) == 24:
+                try:
+                    res = await coll.update_one({"_id": ObjectId(bot_id)}, {"$set": update_data})
+                except: pass
+            return res
+        except Exception as e:
+            logger.error(f"Persistence Error (replace_monitored_bot): {e}")
+            return None
+
+    async def update_monitored_bot_status(self, bot_id, status, status_code=None, response_time_ms=None):
+        try:
+            coll = self.added_bots
+            import time
+            update_data = {
+                "status": status,
+                "status_code": status_code,
+                "response_time_ms": response_time_ms,
+                "last_checked": time.time()
+            }
+            res = await coll.update_one({"bot_id": bot_id}, {"$set": update_data})
+            if res and res.matched_count == 0 and len(bot_id) == 24:
+                try:
+                    res = await coll.update_one({"_id": ObjectId(bot_id)}, {"$set": update_data})
+                except: pass
+            return res
+        except Exception as e:
+            logger.error(f"Persistence Error (update_monitored_bot_status): {e}")
+            return None
 
     class MockCollection:
         """Emergency layer to prevent system crashes if Atlas is unreachable"""
@@ -419,6 +533,86 @@ class Database:
         except Exception as e:
             logger.error(f"Read Error (get_schedule): {e}")
             return []
+
+    # --- Background Songs Management ---
+
+    async def add_song(self, data):
+        try:
+            if self._songs is None: return None
+            # If song_id provided, update or insert
+            song_id = data.get("song_id")
+            if not song_id:
+                song_id = str(ObjectId())
+                data["song_id"] = song_id
+            res = await self._songs.update_one({"song_id": song_id}, {"$set": data}, upsert=True)
+            return song_id
+        except Exception as e:
+            logger.error(f"Persistence Error (add_song): {e}")
+            return None
+
+    async def get_all_songs(self):
+        try:
+            if self._songs is None: return []
+            cursor = self._songs.find().sort([("created_at", -1), ("_id", -1)])
+            docs = await cursor.to_list(length=1000)
+            return clean_doc(docs) or []
+        except Exception as e:
+            logger.error(f"Read Error (get_all_songs): {e}")
+            return []
+
+    async def get_song(self, song_id):
+        try:
+            if self._songs is None: return None
+            doc = await self._songs.find_one({"song_id": song_id})
+            if not doc and len(song_id) == 24:
+                try:
+                    doc = await self._songs.find_one({"_id": ObjectId(song_id)})
+                except: pass
+            return clean_doc(doc)
+        except Exception as e:
+            logger.error(f"Read Error (get_song): {e}")
+            return None
+
+    async def delete_song(self, song_id):
+        try:
+            if self._songs is None: return None
+            res = await self._songs.delete_one({"song_id": song_id})
+            if res.deleted_count == 0 and len(song_id) == 24:
+                try:
+                    res = await self._songs.delete_one({"_id": ObjectId(song_id)})
+                except: pass
+            return res
+        except Exception as e:
+            logger.error(f"Persistence Error (delete_song): {e}")
+            return None
+
+    async def replace_song(self, song_id, data):
+        try:
+            if self._songs is None: return None
+            data["song_id"] = song_id
+            return await self._songs.update_one({"song_id": song_id}, {"$set": data}, upsert=True)
+        except Exception as e:
+            logger.error(f"Persistence Error (replace_song): {e}")
+            return None
+
+    async def set_song_channel(self, channel_id):
+        try:
+            if self._settings is None: return None
+            return await self._settings.update_one({"key": "song_channel"}, {"$set": {"key": "song_channel", "value": channel_id}}, upsert=True)
+        except Exception as e:
+            logger.error(f"Persistence Error (set_song_channel): {e}")
+            return None
+
+    async def get_song_channel(self):
+        try:
+            if self._settings is None: return None
+            doc = await self._settings.find_one({"key": "song_channel"})
+            if doc:
+                return doc.get("value")
+            return None
+        except Exception as e:
+            logger.error(f"Read Error (get_song_channel): {e}")
+            return None
 
     async def is_admin(self, user_id):
         try:

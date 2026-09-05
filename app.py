@@ -56,6 +56,10 @@ async def lifespan(app: FastAPI):
         from bot.bot_manager import added_bot_manager
         asyncio.create_task(added_bot_manager.start_all())
 
+        # Start continuous 1-second Uptime Monitoring Worker
+        from utils.uptime import start_uptime_monitor
+        start_uptime_monitor()
+
         me = await bot.get_me()
         logger.info(f"Production Suite LIVE -> @{me.username}")
     except Exception as e:
@@ -251,6 +255,31 @@ async def anime_detail(request: Request, slug: str):
     except Exception as e:
         logger.error(f"Detail error for {slug}: {e}")
         return templates.TemplateResponse(request=request, name="404.html", context={"error": "Database error."}, status_code=500)
+
+@app.get("/api/songs")
+async def get_songs_api():
+    try:
+        data = await db.get_all_songs()
+        return safe_api_response(True, data)
+    except Exception as e:
+        return safe_api_response(False, None, str(e))
+
+@app.get("/api/songs/stream/{song_id}")
+async def stream_song_api(song_id: str):
+    try:
+        song = await db.get_song(song_id)
+        if not song or not song.get("file_path"):
+            raise HTTPException(status_code=404, detail="Song not found")
+        file_path = song.get("file_path", "").lstrip("/")
+        full_path = os.path.join(".", file_path)
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail="Song file missing")
+        from fastapi.responses import FileResponse
+        return FileResponse(full_path)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/anime")
 async def get_anime_api(skip: int = 0, limit: int = 100000):
