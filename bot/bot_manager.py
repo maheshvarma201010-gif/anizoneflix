@@ -60,6 +60,10 @@ class MultiBotManager:
             # Register Message Handler
             @client.on_message(filters.text & ~filters.command(["start", "help", "addbot"]))
             async def handle_user_query(c: Client, message: Message):
+                # STRICT ANTI-SPAM FILTER: Never reply to bots or self
+                if not message.from_user or message.from_user.is_bot:
+                    return
+
                 # Ensure the message is sent within the configured group
                 if message.chat.id != target_group_id:
                     return
@@ -68,14 +72,48 @@ class MultiBotManager:
                 if not query:
                     return
 
-                # Search database for matching movie/series titles
+                # Search database for matching movie/series titles using decreasing word count combinations
                 try:
-                    # Look for matching titles with case-insensitive regex
-                    cursor = db.media.find({"title": {"$regex": f".*{re.escape(query)}.*", "$options": "i"}})
-                    matches = await cursor.to_list(length=10)
+                    # Clean words and filter out empty strings
+                    words = [w for w in re.split(r"\s+", query) if w]
+                    if not words:
+                        return
+
+                    matches = []
+                    matched_query = ""
+
+                    # Decreasing word count algorithm (N words, N-1 words, ..., 1 word)
+                    max_words = len(words)
+                    for k in range(max_words, 0, -1):
+                        for i in range(len(words) - k + 1):
+                            candidate = " ".join(words[i:i + k]).strip()
+                            if not candidate:
+                                continue
+
+                            # Ignore common single-letter stop words ("a", "i") unless phrase is just 1 word
+                            if len(candidate) == 1 and candidate.lower() in ["a", "i"] and len(words) > 1:
+                                continue
+
+                            # Single-character queries (e.g. "p", "b"): search titles starting with or containing letter
+                            if len(candidate) == 1:
+                                cursor = db.media.find({"title": {"$regex": f"^{re.escape(candidate)}", "$options": "i"}})
+                                found = await cursor.to_list(length=15)
+                                if not found:
+                                    cursor = db.media.find({"title": {"$regex": f".*{re.escape(candidate)}.*", "$options": "i"}})
+                                    found = await cursor.to_list(length=15)
+                            else:
+                                cursor = db.media.find({"title": {"$regex": f".*{re.escape(candidate)}.*", "$options": "i"}})
+                                found = await cursor.to_list(length=15)
+
+                            if found:
+                                matches = found
+                                matched_query = candidate
+                                break
+                        if matches:
+                            break
 
                     if not matches:
-                        # Silent if no matches are found
+                        # Remain silent and calm if nothing is found
                         return
 
                     if len(matches) == 1:
@@ -85,7 +123,7 @@ class MultiBotManager:
                         sent_msg = await c.send_message(
                             chat_id=message.chat.id,
                             text=f"🎬 **{match['title']}**\n\n🔗 **Link:** {link}",
-                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🍿 Watch Now", url=link)]]),
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬇️ Download Now", url=link)]]),
                             reply_to_message_id=message.id
                         )
                         # Auto delete reply after 10 seconds
@@ -120,7 +158,7 @@ class MultiBotManager:
                         # Edit message directly without sending a new one
                         await cb.message.edit_text(
                             text=f"🎬 **{match['title']}**\n\n🔗 **Link:** {link}",
-                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🍿 Watch Now", url=link)]])
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬇️ Download Now", url=link)]])
                         )
                         # Auto delete edited message after 10 seconds
                         asyncio.create_task(auto_delete_message(cb.message, 10))

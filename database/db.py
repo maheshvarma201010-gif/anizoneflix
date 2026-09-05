@@ -35,6 +35,8 @@ class Database:
         self._categories = None
         self._settings = None
         self._bots = None
+        self._songs = None
+        self._uptime_bots = None
 
     async def connect(self):
         """Initialize connection with absolute persistence focus and retries"""
@@ -67,6 +69,8 @@ class Database:
                 self._categories = self._db.categories
                 self._settings = self._db.settings
                 self._bots = self._db.bots
+                self._songs = self._db.songs
+                self._uptime_bots = self._db.uptime_bots
 
                 logger.info(f"Database Persistence Verified: {Config.DB_NAME} is active.")
                 await self._seed_mock_data_if_empty()
@@ -90,6 +94,8 @@ class Database:
             self._categories = self._db.categories
             self._settings = self._db.settings
             self._bots = self._db.bots
+            self._songs = self._db.songs
+            self._uptime_bots = self._db.uptime_bots
             logger.info("Mock Database connected successfully.")
             await self._seed_mock_data_if_empty()
         except Exception as e:
@@ -237,6 +243,14 @@ class Database:
     def bots(self):
         return self._bots if self._bots is not None else self.MockCollection("bots")
 
+    @property
+    def songs(self):
+        return self._songs if self._songs is not None else self.MockCollection("songs")
+
+    @property
+    def uptime_bots(self):
+        return self._uptime_bots if self._uptime_bots is not None else self.MockCollection("uptime_bots")
+
     class MockCollection:
         """Emergency layer to prevent system crashes if Atlas is unreachable"""
         def __init__(self, name):
@@ -270,11 +284,75 @@ class Database:
 
     # --- Robust CRUD Methods (Persistence Focused) ---
 
+    async def resolve_unique_title_and_slug(self, base_title, media_id=None):
+        import re
+        from utils.utils import slugify
+
+        if not base_title:
+            return base_title, slugify(base_title or "")
+
+        base_title = base_title.strip()
+        base_slug = slugify(base_title)
+
+        if self._media is None:
+            return base_title, base_slug
+
+        query = {
+            "$or": [
+                {"title": {"$regex": f"^{re.escape(base_title)}$", "$options": "i"}},
+                {"slug": base_slug}
+            ]
+        }
+        if media_id:
+            query["id"] = {"$ne": str(media_id)}
+
+        existing = await self._media.find_one(query)
+        if not existing:
+            return base_title, base_slug
+
+        count = 1
+        while True:
+            candidate_title = f"{base_title}{count}"
+            candidate_slug = slugify(candidate_title)
+
+            cand_query = {
+                "$or": [
+                    {"title": {"$regex": f"^{re.escape(candidate_title)}$", "$options": "i"}},
+                    {"slug": candidate_slug}
+                ]
+            }
+            if media_id:
+                cand_query["id"] = {"$ne": str(media_id)}
+
+            cand_existing = await self._media.find_one(cand_query)
+            if not cand_existing:
+                return candidate_title, candidate_slug
+            count += 1
+
     async def add_media(self, data):
+        import time
         try:
             if self._media is None: return None
-            uid = data.get("tmdb_id") or data.get("id")
-            return await self._media.update_one({"id": str(uid)}, {"$set": data}, upsert=True)
+
+            # Ensure data has an id
+            if "id" not in data or not data["id"]:
+                from utils.utils import slugify
+                slug_val = data.get("slug") or slugify(data.get("title", "media"))
+                data["id"] = f"man_{slug_val}"
+
+            uid = str(data["id"])
+
+            # Ensure created_at timestamp exists
+            if "created_at" not in data or not data["created_at"]:
+                data["created_at"] = time.time()
+
+            # Check duplicate title / slug if title is present
+            if "title" in data:
+                title, slug = await self.resolve_unique_title_and_slug(data["title"], media_id=uid)
+                data["title"] = title
+                data["slug"] = slug
+
+            return await self._media.update_one({"id": uid}, {"$set": data}, upsert=True)
         except Exception as e:
             logger.error(f"Persistence Error (add_media): {e}")
             return None
@@ -405,6 +483,115 @@ class Database:
             return data
         except Exception as e:
             logger.error(f"Export Error: {e}")
+            return None
+
+    # --- Song Management CRUD ---
+
+    async def add_song(self, song_data):
+        try:
+            if self._songs is None: return None
+            import time, uuid
+            if "id" not in song_data:
+                song_data["id"] = str(uuid.uuid4())[:8]
+            if "created_at" not in song_data:
+                song_data["created_at"] = time.time()
+            return await self._songs.update_one({"id": song_data["id"]}, {"$set": song_data}, upsert=True)
+        except Exception as e:
+            logger.error(f"Persistence Error (add_song): {e}")
+            return None
+
+    async def get_all_songs(self):
+        try:
+            if self._songs is None: return []
+            cursor = self._songs.find().sort("created_at", -1)
+            docs = await cursor.to_list(length=100)
+            return clean_doc(docs) or []
+        except Exception as e:
+            logger.error(f"Read Error (get_all_songs): {e}")
+            return []
+
+    async def get_song_by_id(self, song_id):
+        try:
+            if self._songs is None: return None
+            doc = await self._songs.find_one({"id": song_id})
+            return clean_doc(doc)
+        except Exception as e:
+            logger.error(f"Read Error (get_song_by_id): {e}")
+            return None
+
+    async def delete_song(self, song_id):
+        try:
+            if self._songs is None: return None
+            return await self._songs.delete_one({"id": song_id})
+        except Exception as e:
+            logger.error(f"Persistence Error (delete_song): {e}")
+            return None
+
+    async def set_song_channel(self, channel_id):
+        try:
+            if self._settings is None: return None
+            return await self._settings.update_one({"key": "song_channel"}, {"$set": {"key": "song_channel", "value": channel_id}}, upsert=True)
+        except Exception as e:
+            logger.error(f"Persistence Error (set_song_channel): {e}")
+            return None
+
+    # --- Uptime Monitor CRUD ---
+
+    async def add_uptime_bot(self, bot_data):
+        try:
+            if self._uptime_bots is None: return None
+            import time, uuid
+            if "id" not in bot_data:
+                bot_data["id"] = str(uuid.uuid4())[:8]
+            if "created_at" not in bot_data:
+                bot_data["created_at"] = time.time()
+            return await self._uptime_bots.update_one({"id": bot_data["id"]}, {"$set": bot_data}, upsert=True)
+        except Exception as e:
+            logger.error(f"Persistence Error (add_uptime_bot): {e}")
+            return None
+
+    async def get_all_uptime_bots(self):
+        try:
+            if self._uptime_bots is None: return []
+            cursor = self._uptime_bots.find().sort("created_at", -1)
+            docs = await cursor.to_list(length=1000)
+            return clean_doc(docs) or []
+        except Exception as e:
+            logger.error(f"Read Error (get_all_uptime_bots): {e}")
+            return []
+
+    async def get_uptime_bot_by_id(self, bot_id):
+        try:
+            if self._uptime_bots is None: return None
+            doc = await self._uptime_bots.find_one({"id": bot_id})
+            return clean_doc(doc)
+        except Exception as e:
+            logger.error(f"Read Error (get_uptime_bot_by_id): {e}")
+            return None
+
+    async def delete_uptime_bot(self, bot_id):
+        try:
+            if self._uptime_bots is None: return None
+            return await self._uptime_bots.delete_one({"id": bot_id})
+        except Exception as e:
+            logger.error(f"Persistence Error (delete_uptime_bot): {e}")
+            return None
+
+    async def update_uptime_bot(self, bot_id, updates):
+        try:
+            if self._uptime_bots is None: return None
+            return await self._uptime_bots.update_one({"id": bot_id}, {"$set": updates})
+        except Exception as e:
+            logger.error(f"Persistence Error (update_uptime_bot): {e}")
+            return None
+
+    async def get_song_channel(self):
+        try:
+            if self._settings is None: return None
+            doc = await self._settings.find_one({"key": "song_channel"})
+            return doc.get("value") if doc else None
+        except Exception as e:
+            logger.error(f"Read Error (get_song_channel): {e}")
             return None
 
     async def import_data(self, data):

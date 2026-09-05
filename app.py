@@ -13,7 +13,7 @@ import sys
 from bot import bot, set_commands, register_handlers
 from utils.auth import get_current_admin, verify_token
 from utils.utils import slugify
-from fastapi.responses import RedirectResponse, JSONResponse, Response
+from fastapi.responses import RedirectResponse, JSONResponse, Response, FileResponse
 from contextlib import asynccontextmanager
 
 # Setup Logging
@@ -40,6 +40,14 @@ async def lifespan(app: FastAPI):
         # Start all multi-bots
         from bot.bot_manager import multibot_manager
         await multibot_manager.start_all()
+
+        # Start post-redeploy auto-extraction and duplicate page maintenance tasks
+        from utils.maintenance import start_maintenance_tasks
+        asyncio.create_task(start_maintenance_tasks(db))
+
+        # Start 24/7 Uptime Monitor service
+        from utils.uptime import run_uptime_monitor_loop
+        asyncio.create_task(run_uptime_monitor_loop(db))
     except Exception as e:
         logger.critical(f"STARTUP FAILURE: {e}")
         logger.error(traceback.format_exc())
@@ -69,6 +77,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+os.makedirs("static/songs", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/src", StaticFiles(directory="src"), name="src")
 
@@ -94,6 +103,24 @@ def safe_api_response(success=True, data=None, message=""):
         "data": data or [],
         "message": message
     })
+
+# --- SONGS API ROUTES ---
+
+@app.get("/api/songs")
+async def get_songs():
+    try:
+        songs = await db.get_all_songs()
+        return safe_api_response(success=True, data=songs)
+    except Exception as e:
+        logger.error(f"Error fetching songs: {e}")
+        return safe_api_response(success=False, message=str(e))
+
+@app.get("/api/songs/file/{filename}")
+async def get_song_file(filename: str):
+    file_path = os.path.join("static/songs", filename)
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    raise HTTPException(status_code=404, detail="Song file not found")
 
 # --- WEB ROUTES ---
 

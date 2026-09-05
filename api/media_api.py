@@ -40,23 +40,24 @@ class MediaAPI:
             logger.error(f"Request Error {url}: {e}")
         return None
 
-    async def search_tmdb(self, query):
+    async def search_tmdb(self, query, page=1):
         if not self.tmdb_key: return []
-        params = {"api_key": self.tmdb_key, "query": query}
+        params = {"api_key": self.tmdb_key, "query": query, "page": page, "include_adult": "false"}
         data = await self._get(f"{self.tmdb_url}/search/multi", params=params)
         if data and "results" in data:
             results = []
             for x in data["results"]:
                 if x.get("media_type") not in ["movie", "tv"]: continue
+                year = (x.get("release_date") or x.get("first_air_date") or "")[:4]
                 results.append({
                     "id": x["id"],
                     "title": x.get("title") or x.get("name"),
                     "type": x["media_type"],
                     "poster": f"https://image.tmdb.org/t/p/w500{x.get('poster_path')}" if x.get('poster_path') else None,
                     "backdrop": f"https://image.tmdb.org/t/p/original{x.get('backdrop_path')}" if x.get('backdrop_path') else None,
-                    "year": (x.get("release_date") or x.get("first_air_date") or "0000")[:4],
-                    "rating": x.get("vote_average", 0),
-                    "overview": x.get("overview")
+                    "year": year or "N/A",
+                    "rating": round(x.get("vote_average", 0), 1),
+                    "overview": x.get("overview") or ""
                 })
             return results
         return []
@@ -69,19 +70,25 @@ class MediaAPI:
     async def search_tvmaze(self, query):
         data = await self._get(f"{self.tvmaze_url}/search/shows", params={"q": query})
         if data:
-            return [{
-                "id": x["show"]["id"],
-                "title": x["show"]["name"],
-                "type": "tv",
-                "poster": x["show"]["image"]["medium"] if x["show"].get("image") else None,
-                "year": x["show"].get("premiered", "0000")[:4],
-                "rating": x["show"]["rating"].get("average", 0) if x["show"].get("rating") else 0,
-                "overview": x["show"].get("summary")
-            } for x in data]
+            results = []
+            for x in data:
+                show = x.get("show", {})
+                year = (show.get("premiered") or "")[:4]
+                img = show.get("image") or {}
+                results.append({
+                    "id": show.get("id"),
+                    "title": show.get("name"),
+                    "type": "tv",
+                    "poster": img.get("original") or img.get("medium"),
+                    "year": year or "N/A",
+                    "rating": show.get("rating", {}).get("average", 0) if show.get("rating") else 0,
+                    "overview": show.get("summary") or ""
+                })
+            return results
         return []
 
     async def get_tvmaze_details(self, show_id):
-        return await self._get(f"{self.tvmaze_url}/shows/{show_id}")
+        return await self._get(f"{self.tvmaze_url}/shows/{show_id}", params={"embed[]": ["cast", "episodes"]})
 
     async def get_omdb_metadata(self, title, year=None, imdb_id=None):
         """Fetch extensive meta rating/cast from OMDb"""
