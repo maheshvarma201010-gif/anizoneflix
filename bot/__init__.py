@@ -312,27 +312,41 @@ async def process_range_link_task(bot_client, status_msg, aid, chat_slug, start_
         if not isinstance(structured_seasons_links, dict):
             structured_seasons_links = {}
 
-        # Chunk outputs across groups or map sequentially per serial group
-        # Each group gets its outputs
-        chunk_size = max(1, (len(collected_outputs) + num_groups - 1) // num_groups)
+        # Group collected outputs by episode number or sequential episode index
+        # Serial number N (1-based) corresponds to group_names[N-1]
+        outputs_by_ep = {}
+        has_parsed_episodes = any(out.get("episode") is not None for out in collected_outputs)
 
-        for g_idx, g_name in enumerate(group_names):
-            g_outputs = collected_outputs[g_idx * chunk_size : (g_idx + 1) * chunk_size]
-            if not g_outputs and g_idx < len(collected_outputs):
-                g_outputs = [collected_outputs[g_idx]]
+        if has_parsed_episodes:
+            for out in collected_outputs:
+                ep_num = out.get("episode")
+                if ep_num is not None:
+                    if ep_num not in outputs_by_ep:
+                        outputs_by_ep[ep_num] = []
+                    outputs_by_ep[ep_num].append(out)
+                else:
+                    # Fallback if episode not parsed
+                    if 1 not in outputs_by_ep:
+                        outputs_by_ep[1] = []
+                    outputs_by_ep[1].append(out)
+        else:
+            # If no episode number in caption/filename, group outputs sequentially across group_names
+            # Each message in range or chunk of same quality across messages
+            # For example, if msg_id 1..N correspond to Episode 1..N
+            for idx, out in enumerate(collected_outputs, 1):
+                ep_num = idx if len(collected_outputs) == len(group_names) else ((idx - 1) // max(1, len(collected_outputs) // len(group_names)) + 1)
+                if ep_num not in outputs_by_ep:
+                    outputs_by_ep[ep_num] = []
+                outputs_by_ep[ep_num].append(out)
+
+        for g_idx, g_name in enumerate(group_names, 1):
+            g_outputs = outputs_by_ep.get(g_idx, [])
 
             if g_name not in structured_seasons_links or not isinstance(structured_seasons_links[g_name], dict):
                 structured_seasons_links[g_name] = {}
 
             for out in g_outputs:
                 q_label = out["quality"]
-                # Avoid button label collision if multiple same quality in same group
-                if q_label in structured_seasons_links[g_name]:
-                    dup_count = 2
-                    while f"{q_label} ({dup_count})" in structured_seasons_links[g_name]:
-                        dup_count += 1
-                    q_label = f"{q_label} ({dup_count})"
-
                 structured_seasons_links[g_name][q_label] = out["link"]
 
         # Save to database
