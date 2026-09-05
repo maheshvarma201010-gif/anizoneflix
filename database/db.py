@@ -111,6 +111,108 @@ class Database:
     def added_bots(self):
         return self._db.added_bots if self._db is not None else self.MockCollection("added_bots")
 
+    # --- Uptime Bot Monitoring ---
+
+    async def add_monitored_bot(self, url, name=None):
+        try:
+            coll = self.added_bots
+            bot_id = str(ObjectId())
+            if not name:
+                name = url.replace("https://", "").replace("http://", "").split("/")[0]
+            data = {
+                "bot_id": bot_id,
+                "url": url,
+                "name": name,
+                "status": "pending",
+                "status_code": None,
+                "response_time_ms": None,
+                "last_checked": None,
+                "created_at": asyncio.get_event_loop().time()
+            }
+            await coll.update_one({"bot_id": bot_id}, {"$set": data}, upsert=True)
+            return bot_id
+        except Exception as e:
+            logger.error(f"Persistence Error (add_monitored_bot): {e}")
+            return None
+
+    async def get_all_monitored_bots(self):
+        try:
+            coll = self.added_bots
+            cursor = coll.find()
+            docs = await cursor.to_list(length=1000)
+            return clean_doc(docs) or []
+        except Exception as e:
+            logger.error(f"Read Error (get_all_monitored_bots): {e}")
+            return []
+
+    async def get_monitored_bot(self, bot_id):
+        try:
+            coll = self.added_bots
+            doc = await coll.find_one({"bot_id": bot_id})
+            if not doc and len(bot_id) == 24:
+                try:
+                    doc = await coll.find_one({"_id": ObjectId(bot_id)})
+                except: pass
+            return clean_doc(doc)
+        except Exception as e:
+            logger.error(f"Read Error (get_monitored_bot): {e}")
+            return None
+
+    async def delete_monitored_bot(self, bot_id):
+        try:
+            coll = self.added_bots
+            res = await coll.delete_one({"bot_id": bot_id})
+            if res and res.deleted_count == 0 and len(bot_id) == 24:
+                try:
+                    res = await coll.delete_one({"_id": ObjectId(bot_id)})
+                except: pass
+            return res
+        except Exception as e:
+            logger.error(f"Persistence Error (delete_monitored_bot): {e}")
+            return None
+
+    async def replace_monitored_bot(self, bot_id, new_url, name=None):
+        try:
+            coll = self.added_bots
+            if not name:
+                name = new_url.replace("https://", "").replace("http://", "").split("/")[0]
+            update_data = {
+                "url": new_url,
+                "name": name,
+                "status": "pending",
+                "status_code": None,
+                "response_time_ms": None
+            }
+            res = await coll.update_one({"bot_id": bot_id}, {"$set": update_data})
+            if res and res.matched_count == 0 and len(bot_id) == 24:
+                try:
+                    res = await coll.update_one({"_id": ObjectId(bot_id)}, {"$set": update_data})
+                except: pass
+            return res
+        except Exception as e:
+            logger.error(f"Persistence Error (replace_monitored_bot): {e}")
+            return None
+
+    async def update_monitored_bot_status(self, bot_id, status, status_code=None, response_time_ms=None):
+        try:
+            coll = self.added_bots
+            import time
+            update_data = {
+                "status": status,
+                "status_code": status_code,
+                "response_time_ms": response_time_ms,
+                "last_checked": time.time()
+            }
+            res = await coll.update_one({"bot_id": bot_id}, {"$set": update_data})
+            if res and res.matched_count == 0 and len(bot_id) == 24:
+                try:
+                    res = await coll.update_one({"_id": ObjectId(bot_id)}, {"$set": update_data})
+                except: pass
+            return res
+        except Exception as e:
+            logger.error(f"Persistence Error (update_monitored_bot_status): {e}")
+            return None
+
     class MockCollection:
         """Emergency layer to prevent system crashes if Atlas is unreachable"""
         def __init__(self, name):

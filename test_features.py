@@ -131,5 +131,31 @@ Episode 15 - The New Demon Lord
 
         asyncio.run(run_songs_test())
 
+    def test_uptime_monitored_bots_db_mock_methods(self):
+        from database.db import db
+        import asyncio
+
+        async def run_uptime_test():
+            bots = await db.get_all_monitored_bots()
+            self.assertIsInstance(bots, list)
+
+            bot = await db.get_monitored_bot("non_existent_id")
+            self.assertIsNone(bot)
+
+            # Test adding, updating, and deleting monitored bot
+            bot_id = await db.add_monitored_bot("https://testbot.example.com", name="TestBot")
+            self.assertIsNotNone(bot_id)
+
+            bot_info = await db.get_monitored_bot(bot_id)
+            if bot_info:
+                self.assertEqual(bot_info.get("url"), "https://testbot.example.com")
+                self.assertEqual(bot_info.get("name"), "TestBot")
+
+            await db.update_monitored_bot_status(bot_id, "online", 200, 120)
+            await db.replace_monitored_bot(bot_id, "https://newtestbot.example.com")
+            await db.delete_monitored_bot(bot_id)
+
+        asyncio.run(run_uptime_test())
+
 if __name__ == "__main__":
     unittest.main()

@@ -58,6 +58,7 @@ async def set_commands(client):
         BotCommand("del", "Permanent Archive Erasure"),
         BotCommand("category_page", "Migrate Page Category"),
         BotCommand("songs", "Manage Background Songs"),
+        BotCommand("uptime", "24/7 Bot Uptime Monitor"),
         BotCommand("save", "Backup & Restore Data"),
         BotCommand("cancel", "Abort Active Process"),
         BotCommand("ping", "System Latency Check")
@@ -569,6 +570,111 @@ def register_handlers(bot: Client):
         except Exception as e:
             logger.error(f"Delete Error: {e}")
             await message.reply("❌ **Erasure Failure.**")
+
+    @bot.on_message(filters.command(["uptime", "UPTIME"]))
+    async def uptime_command_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Access Denied.** Unauthorized user.")
+
+        await send_uptime_menu(client, message)
+
+    async def send_uptime_menu(client, message_or_cb):
+        bots = await db.get_all_monitored_bots()
+
+        text = "⚡ **24/7 Bot Uptime Monitoring Suite**\n\n"
+        text += f"📊 **Monitored Bots:** `{len(bots)}` (Continuous 1s check)\n\n"
+
+        if bots:
+            text += "**Live Monitor Feed:**\n"
+            for idx, b in enumerate(bots, 1):
+                status = b.get("status", "pending")
+                icon = "🟢" if status == "online" else ("🔴" if status == "offline" else "🟡")
+                code_str = f" [HTTP {b.get('status_code')}]" if b.get('status_code') else ""
+                ms_str = f" ({b.get('response_time_ms')}ms)" if b.get('response_time_ms') is not None else ""
+                url_str = b.get("url", "")
+                text += f"**{idx}.** {icon} **{b.get('name', 'Bot')}**{code_str}{ms_str}\n🔗 `{url_str}`\n\n"
+        else:
+            text += "ℹ️ *No bots currently monitored. Click 'Add Bot' below to register a bot URL for continuous 24/7 uptime monitoring.*"
+
+        buttons = [
+            [InlineKeyboardButton("➕ Add Bot", callback_data="add_uptime_bot_prompt")]
+        ]
+
+        if bots:
+            for idx, b in enumerate(bots, 1):
+                bid = b.get("bot_id") or str(b.get("_id"))
+                bname = (b.get("name", f"Bot {idx}")[:14] + "..") if len(b.get("name", "")) > 16 else b.get("name", f"Bot {idx}")
+                buttons.append([
+                    InlineKeyboardButton(f"🔄 Replace {bname}", callback_data=f"replace_uptime_{bid}"),
+                    InlineKeyboardButton(f"🗑", callback_data=f"del_uptime_{bid}")
+                ])
+
+        buttons.append([InlineKeyboardButton("🔄 Refresh Status", callback_data="uptime_refresh"), InlineKeyboardButton("❌ Close", callback_data="cancel_op")])
+
+        if isinstance(message_or_cb, CallbackQuery):
+            try:
+                await message_or_cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+                await message_or_cb.answer()
+            except MessageNotModified:
+                await message_or_cb.answer("Already Up-to-date")
+        else:
+            await message_or_cb.reply(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+    @bot.on_callback_query(filters.regex("^uptime_refresh$"))
+    async def uptime_refresh_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+        await send_uptime_menu(client, callback_query)
+
+    @bot.on_callback_query(filters.regex("^add_uptime_bot_prompt$"))
+    async def add_uptime_bot_prompt_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        user_state[callback_query.from_user.id] = {"action": "ask_uptime_bot_url"}
+        await callback_query.message.edit_text(
+            "➕ **Add Bot for Uptime Monitoring**\n\n"
+            "Please send the **HTTP / HTTPS URL** of the bot/service to monitor 24/7:\n\n"
+            "Example: `https://my-telegram-bot.onrender.com`\n\n"
+            "Send /cancel to abort.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]])
+        )
+        await callback_query.answer()
+
+    @bot.on_callback_query(filters.regex("^replace_uptime_"))
+    async def replace_uptime_bot_prompt_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        bot_id = callback_query.data.split("replace_uptime_")[-1]
+        b = await db.get_monitored_bot(bot_id)
+        if not b:
+            return await callback_query.answer("❌ Monitored bot not found", show_alert=True)
+
+        user_state[callback_query.from_user.id] = {"action": "ask_replace_uptime_url", "bot_id": bot_id}
+        await callback_query.message.edit_text(
+            f"🔄 **Replace Monitored Bot: {b.get('name', 'Bot')}**\n\n"
+            f"Current URL: `{b.get('url')}`\n\n"
+            "Please send the new **HTTP / HTTPS URL**:\n\n"
+            "Send /cancel to abort.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]])
+        )
+        await callback_query.answer()
+
+    @bot.on_callback_query(filters.regex("^del_uptime_"))
+    async def del_uptime_bot_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        bot_id = callback_query.data.split("del_uptime_")[-1]
+        b = await db.get_monitored_bot(bot_id)
+        if b:
+            await db.delete_monitored_bot(bot_id)
+            await callback_query.answer(f"🗑 Stopped monitoring '{b.get('name', 'Bot')}'", show_alert=True)
+        else:
+            await callback_query.answer("❌ Bot record already deleted", show_alert=True)
+
+        await send_uptime_menu(client, callback_query)
 
     @bot.on_message(filters.command(["songs", "SONGS"]))
     async def songs_command_handler(client, message):
@@ -2121,7 +2227,7 @@ def register_handlers(bot: Client):
 
     # --- INTERACTION HANDLER (GROUP 1) ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page", "addbot", "songs", "SONGS"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page", "addbot", "songs", "SONGS", "uptime", "UPTIME"]), group=1)
     async def interaction_handler(client, message):
         if not message.from_user: return
         uid = message.from_user.id
@@ -2134,6 +2240,27 @@ def register_handlers(bot: Client):
 
         if not message.text and action not in ["awaiting_restore_zip", "ask_song_file", "ask_replace_song_file"]:
             return await message.reply("❌ **Invalid Input.** Please send text.")
+
+        if action == "ask_uptime_bot_url":
+            url = message.text.strip()
+            if not (url.startswith("http://") or url.startswith("https://")):
+                return await message.reply("❌ **Invalid URL.** Must begin with `http://` or `https://`. Please send again:")
+
+            bot_id = await db.add_monitored_bot(url)
+            del user_state[uid]
+            await message.reply(f"✅ **Bot Registered for 24/7 Monitoring!**\n🔗 **URL:** `{url}`\n\nThe continuous 1-second ping monitor is active.")
+            return
+
+        elif action == "ask_replace_uptime_url":
+            url = message.text.strip()
+            if not (url.startswith("http://") or url.startswith("https://")):
+                return await message.reply("❌ **Invalid URL.** Must begin with `http://` or `https://`. Please send again:")
+
+            bot_id = state.get("bot_id")
+            await db.replace_monitored_bot(bot_id, url)
+            del user_state[uid]
+            await message.reply(f"✅ **Monitored Bot URL Successfully Replaced!**\n🔗 **New URL:** `{url}`")
+            return
 
         if action == "ask_song_channel":
             channel_input = message.text.strip()

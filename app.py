@@ -56,6 +56,10 @@ async def lifespan(app: FastAPI):
         from bot.bot_manager import added_bot_manager
         asyncio.create_task(added_bot_manager.start_all())
 
+        # Start continuous 1-second Uptime Monitoring Worker
+        from utils.uptime import start_uptime_monitor
+        start_uptime_monitor()
+
         me = await bot.get_me()
         logger.info(f"Production Suite LIVE -> @{me.username}")
     except Exception as e:
