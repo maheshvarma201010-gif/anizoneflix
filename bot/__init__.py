@@ -1341,13 +1341,30 @@ def register_handlers(bot: Client):
             token = state["bot_token"]
             await db.bots.update_one({"token": token}, {"$set": {"token": token, "group_id": group_id}}, upsert=True)
             from bot.bot_manager import multibot_manager
-            asyncio.create_task(multibot_manager.start_bot(token, group_id))
-            await message.reply(
-                "🚀 **Multi-Bot Configured and Live!**\n\n"
-                f"🔹 **Bot Token:** `{token}`\n"
-                f"🔹 **Target Group:** `{group_id}`\n\n"
-                "The bot is now active and will reply with MoviesZoneFlix page links inside the group."
-            )
+            success = await multibot_manager.start_bot(token, group_id)
+            if success:
+                await message.reply(
+                    "🚀 **Multi-Bot Configured and Live!**\n\n"
+                    f"🔹 **Bot Token:** `{token}`\n"
+                    f"🔹 **Target Group:** `{group_id}`\n\n"
+                    "The bot is now active and will reply with MoviesZoneFlix page links inside the group."
+                )
+            else:
+                # Report failure to owner/admin
+                error_msg = (
+                    "🚨 **MULTI-BOT REGISTRATION REPORT / ERROR** 🚨\n\n"
+                    f"⚠️ Failed to start dynamic bot Listener!\n"
+                    f"🔹 **Token:** `{token}`\n"
+                    f"🔹 **Target Group:** `{group_id}`\n\n"
+                    "💡 *Owner Notice: Check if the bot token is valid and the bot has permission in the target group.*"
+                )
+                await message.reply(error_msg)
+                # Send report to owner ADMIN_IDS[0] if different from current user
+                if Config.ADMIN_IDS and Config.ADMIN_IDS[0] != message.from_user.id:
+                    try:
+                        await client.send_message(Config.ADMIN_IDS[0], error_msg)
+                    except Exception as err:
+                        logger.error(f"Failed to send owner error report: {err}")
             user_state.pop(uid, None)
 
         elif action in ["ask_upt_url", "ask_replace_upt_url"]:

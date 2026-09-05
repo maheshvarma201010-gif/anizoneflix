@@ -60,6 +60,10 @@ class MultiBotManager:
             # Register Message Handler
             @client.on_message(filters.text & ~filters.command(["start", "help", "addbot"]))
             async def handle_user_query(c: Client, message: Message):
+                # STRICT ANTI-SPAM FILTER: Never reply to bots or self
+                if not message.from_user or message.from_user.is_bot:
+                    return
+
                 # Ensure the message is sent within the configured group
                 if message.chat.id != target_group_id:
                     return
@@ -68,14 +72,35 @@ class MultiBotManager:
                 if not query:
                     return
 
-                # Search database for matching movie/series titles
+                # Search database for matching movie/series titles using decreasing word count combinations
                 try:
-                    # Look for matching titles with case-insensitive regex
-                    cursor = db.media.find({"title": {"$regex": f".*{re.escape(query)}.*", "$options": "i"}})
-                    matches = await cursor.to_list(length=10)
+                    # Clean words and filter out empty strings
+                    words = [w for w in re.split(r"\s+", query) if w]
+                    if not words:
+                        return
+
+                    matches = []
+                    matched_query = ""
+
+                    # Decreasing word count algorithm (N words, N-1 words, ..., 1 word)
+                    max_words = len(words)
+                    for k in range(max_words, 0, -1):
+                        for i in range(len(words) - k + 1):
+                            candidate = " ".join(words[i:i + k]).strip()
+                            if len(candidate) < 2:
+                                continue # Skip single-letter searches to avoid noisy matches
+
+                            cursor = db.media.find({"title": {"$regex": f".*{re.escape(candidate)}.*", "$options": "i"}})
+                            found = await cursor.to_list(length=10)
+                            if found:
+                                matches = found
+                                matched_query = candidate
+                                break
+                        if matches:
+                            break
 
                     if not matches:
-                        # Silent if no matches are found
+                        # Remain silent and calm if nothing is found
                         return
 
                     if len(matches) == 1:
