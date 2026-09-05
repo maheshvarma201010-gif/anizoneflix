@@ -456,6 +456,33 @@ def register_handlers(bot: Client):
             await msg.edit(f"❌ **Database Error:** {str(e)}")
             logger.error(traceback.format_exc())
 
+    @bot.on_message(filters.command("uptime", ["/", "$"]) & filters.private)
+    async def uptime_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        bots = await db.get_all_uptime_bots()
+
+        text = (
+            "⚡ **MoviesZoneFlix 24/7 Uptime Monitor Core** ⚡\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📊 **Monitored Services:** `{len(bots)}`\n"
+            "⏱ **Monitoring Frequency:** `Every 1 second (24/7)`\n\n"
+        )
+
+        if not bots:
+            text += "📂 *No bot/server URLs currently added for 24/7 monitoring.*"
+        else:
+            text += "🟢 **Active Uptime Targets:**\n"
+            for i, b in enumerate(bots, 1):
+                status_emoji = "🟢" if b.get("status") == "online" else "🟡" if b.get("status") == "degraded" else "🔴"
+                text += f"{status_emoji} **{i}.** `{b.get('name', 'Bot')}`\n🌐 {b['url']}\n⚡ Status: `{b.get('status', 'checking').upper()}` • Latency: `{b.get('latency', 0)}ms`\n\n"
+
+        buttons = [
+            [InlineKeyboardButton("➕ Add Bot / Server URL", callback_data="upt_add")],
+            [InlineKeyboardButton("📋 Manage / Replace / Delete", callback_data="upt_list_1"),
+             InlineKeyboardButton("🔄 Refresh Status", callback_data="upt_refresh")]
+        ]
+        await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), disable_web_page_preview=True)
+
     @bot.on_message(filters.command("songs", ["/", "$"]) & filters.private)
     async def songs_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
@@ -995,6 +1022,99 @@ def register_handlers(bot: Client):
                 reply_markup=InlineKeyboardMarkup(back_btn)
             )
 
+        elif data == "upt_add":
+            user_state[uid] = {"action": "ask_upt_url"}
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="upt_main")]]
+            await cb.message.edit_text(
+                "➕ **Add Bot / Server URL for 24/7 Uptime Monitoring**\n\n"
+                "✍️ Please send the **URL** (e.g. `https://my-telegram-bot.onrender.com/ping` or `https://mybot.com`):",
+                reply_markup=InlineKeyboardMarkup(back_btn)
+            )
+
+        elif data.startswith("upt_list_"):
+            page = int(data.split("_")[2])
+            bots = await db.get_all_uptime_bots()
+            if not bots:
+                buttons = [[InlineKeyboardButton("➕ Add Bot", callback_data="upt_add"),
+                            InlineKeyboardButton("⬅️ Back", callback_data="upt_main")]]
+                return await cb.message.edit_text("📂 **No monitored bots/servers available.**", reply_markup=InlineKeyboardMarkup(buttons))
+
+            per_page = 5
+            total_pages = max(1, (len(bots) + per_page - 1) // per_page)
+            if page < 1: page = 1
+            if page > total_pages: page = total_pages
+
+            start_idx = (page - 1) * per_page
+            items = bots[start_idx:start_idx + per_page]
+
+            text = f"📋 **Manage Uptime Targets (Page {page}/{total_pages} • Total {len(bots)}):**\n\n"
+            buttons = []
+            for b in items:
+                status_emoji = "🟢" if b.get("status") == "online" else "🔴"
+                text += f"{status_emoji} **{b.get('name', 'Bot')}** (`{b['id']}`)\n🌐 {b['url']}\n\n"
+                buttons.append([
+                    InlineKeyboardButton(f"🔄 Replace {b.get('name', '')[:12]}", callback_data=f"upt_repl_{b['id']}"),
+                    InlineKeyboardButton("🗑 Delete", callback_data=f"upt_del_{b['id']}")
+                ])
+
+            nav_row = []
+            if page > 1: nav_row.append(InlineKeyboardButton("◀️ Prev", callback_data=f"upt_list_{page - 1}"))
+            nav_row.append(InlineKeyboardButton(f"📄 {page}/{total_pages}", callback_data="noop"))
+            if page < total_pages: nav_row.append(InlineKeyboardButton("Next ▶️", callback_data=f"upt_list_{page + 1}"))
+
+            if nav_row: buttons.append(nav_row)
+            buttons.append([InlineKeyboardButton("⬅️ Main Menu", callback_data="upt_main")])
+
+            await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons), disable_web_page_preview=True)
+
+        elif data.startswith("upt_del_"):
+            bot_id = data.replace("upt_del_", "")
+            await db.delete_uptime_bot(bot_id)
+            await cb.answer("🗑 Bot URL deleted from 24/7 monitor!", show_alert=True)
+            bots = await db.get_all_uptime_bots()
+            if not bots:
+                buttons = [[InlineKeyboardButton("➕ Add Bot", callback_data="upt_add"),
+                            InlineKeyboardButton("⬅️ Back", callback_data="upt_main")]]
+                return await cb.message.edit_text("📂 **No monitored bots/servers available.**", reply_markup=InlineKeyboardMarkup(buttons))
+            cb.data = "upt_list_1"
+            await bot_callbacks(client, cb)
+
+        elif data.startswith("upt_repl_"):
+            bot_id = data.replace("upt_repl_", "")
+            user_state[uid] = {"action": "ask_replace_upt_url", "replace_id": bot_id}
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="upt_list_1")]]
+            await cb.message.edit_text(
+                f"🔄 **Replace Bot URL (`{bot_id}`)**\n\n"
+                "✍️ Please send the new **URL** to replace this bot target:",
+                reply_markup=InlineKeyboardMarkup(back_btn)
+            )
+
+        elif data in ["upt_main", "upt_refresh"]:
+            user_state.pop(uid, None)
+            bots = await db.get_all_uptime_bots()
+
+            text = (
+                "⚡ **MoviesZoneFlix 24/7 Uptime Monitor Core** ⚡\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"📊 **Monitored Services:** `{len(bots)}`\n"
+                "⏱ **Monitoring Frequency:** `Every 1 second (24/7)`\n\n"
+            )
+
+            if not bots:
+                text += "📂 *No bot/server URLs currently added for 24/7 monitoring.*"
+            else:
+                text += "🟢 **Active Uptime Targets:**\n"
+                for i, b in enumerate(bots, 1):
+                    status_emoji = "🟢" if b.get("status") == "online" else "🟡" if b.get("status") == "degraded" else "🔴"
+                    text += f"{status_emoji} **{i}.** `{b.get('name', 'Bot')}`\n🌐 {b['url']}\n⚡ Status: `{b.get('status', 'checking').upper()}` • Latency: `{b.get('latency', 0)}ms`\n\n"
+
+            buttons = [
+                [InlineKeyboardButton("➕ Add Bot / Server URL", callback_data="upt_add")],
+                [InlineKeyboardButton("📋 Manage / Replace / Delete", callback_data="upt_list_1"),
+                 InlineKeyboardButton("🔄 Refresh Status", callback_data="upt_refresh")]
+            ]
+            await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons), disable_web_page_preview=True)
+
         elif data == "song_main":
             user_state.pop(uid, None)
             songs = await db.get_all_songs()
@@ -1230,6 +1350,29 @@ def register_handlers(bot: Client):
             )
             user_state.pop(uid, None)
 
+        elif action in ["ask_upt_url", "ask_replace_upt_url"]:
+            url = message.text.strip()
+            if not (url.startswith("http://") or url.startswith("https://")):
+                return await message.reply("❌ Invalid URL! Must start with `http://` or `https://`.")
+
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            name = parsed.netloc or url[:20]
+
+            import uuid, time
+            bot_id = state.get("replace_id") or str(uuid.uuid4())[:8]
+            bot_doc = {
+                "id": bot_id,
+                "name": name,
+                "url": url,
+                "status": "checking",
+                "latency": 0,
+                "created_at": time.time()
+            }
+            await db.add_uptime_bot(bot_doc)
+            await message.reply(f"🚀 **Bot / Server URL Saved for 24/7 Monitoring!**\n\n🔹 **Name:** `{name}`\n🔹 **URL:** {url}\n⚡ Monitoring active every 1 second.")
+            user_state.pop(uid, None)
+
         elif action in ["ask_song_file", "ask_replace_song_file"]:
             media_obj = message.audio or message.document or message.video or message.voice
             if not media_obj:
@@ -1301,6 +1444,8 @@ async def set_commands(client: Client):
             BotCommand("posttochannel", "Post link to channel"),
             BotCommand("categories", "Manage Genres"),
             BotCommand("addbot", "Add a Multi-Bot listener"),
+            BotCommand("songs", "Manage Background Songs"),
+            BotCommand("uptime", "24/7 Uptime Monitor"),
             BotCommand("cancel", "Cancel Process")
         ])
     except: pass

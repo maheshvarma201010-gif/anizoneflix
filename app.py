@@ -44,6 +44,10 @@ async def lifespan(app: FastAPI):
         # Start post-redeploy auto-extraction and duplicate page maintenance tasks
         from utils.maintenance import start_maintenance_tasks
         asyncio.create_task(start_maintenance_tasks(db))
+
+        # Start 24/7 Uptime Monitor service
+        from utils.uptime import run_uptime_monitor_loop
+        asyncio.create_task(run_uptime_monitor_loop(db))
     except Exception as e:
         logger.critical(f"STARTUP FAILURE: {e}")
         logger.error(traceback.format_exc())

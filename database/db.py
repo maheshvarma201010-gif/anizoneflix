@@ -36,6 +36,7 @@ class Database:
         self._settings = None
         self._bots = None
         self._songs = None
+        self._uptime_bots = None
 
     async def connect(self):
         """Initialize connection with absolute persistence focus and retries"""
@@ -69,6 +70,7 @@ class Database:
                 self._settings = self._db.settings
                 self._bots = self._db.bots
                 self._songs = self._db.songs
+                self._uptime_bots = self._db.uptime_bots
 
                 logger.info(f"Database Persistence Verified: {Config.DB_NAME} is active.")
                 await self._seed_mock_data_if_empty()
@@ -93,6 +95,7 @@ class Database:
             self._settings = self._db.settings
             self._bots = self._db.bots
             self._songs = self._db.songs
+            self._uptime_bots = self._db.uptime_bots
             logger.info("Mock Database connected successfully.")
             await self._seed_mock_data_if_empty()
         except Exception as e:
@@ -243,6 +246,10 @@ class Database:
     @property
     def songs(self):
         return self._songs if self._songs is not None else self.MockCollection("songs")
+
+    @property
+    def uptime_bots(self):
+        return self._uptime_bots if self._uptime_bots is not None else self.MockCollection("uptime_bots")
 
     class MockCollection:
         """Emergency layer to prevent system crashes if Atlas is unreachable"""
@@ -526,6 +533,56 @@ class Database:
             return await self._settings.update_one({"key": "song_channel"}, {"$set": {"key": "song_channel", "value": channel_id}}, upsert=True)
         except Exception as e:
             logger.error(f"Persistence Error (set_song_channel): {e}")
+            return None
+
+    # --- Uptime Monitor CRUD ---
+
+    async def add_uptime_bot(self, bot_data):
+        try:
+            if self._uptime_bots is None: return None
+            import time, uuid
+            if "id" not in bot_data:
+                bot_data["id"] = str(uuid.uuid4())[:8]
+            if "created_at" not in bot_data:
+                bot_data["created_at"] = time.time()
+            return await self._uptime_bots.update_one({"id": bot_data["id"]}, {"$set": bot_data}, upsert=True)
+        except Exception as e:
+            logger.error(f"Persistence Error (add_uptime_bot): {e}")
+            return None
+
+    async def get_all_uptime_bots(self):
+        try:
+            if self._uptime_bots is None: return []
+            cursor = self._uptime_bots.find().sort("created_at", -1)
+            docs = await cursor.to_list(length=1000)
+            return clean_doc(docs) or []
+        except Exception as e:
+            logger.error(f"Read Error (get_all_uptime_bots): {e}")
+            return []
+
+    async def get_uptime_bot_by_id(self, bot_id):
+        try:
+            if self._uptime_bots is None: return None
+            doc = await self._uptime_bots.find_one({"id": bot_id})
+            return clean_doc(doc)
+        except Exception as e:
+            logger.error(f"Read Error (get_uptime_bot_by_id): {e}")
+            return None
+
+    async def delete_uptime_bot(self, bot_id):
+        try:
+            if self._uptime_bots is None: return None
+            return await self._uptime_bots.delete_one({"id": bot_id})
+        except Exception as e:
+            logger.error(f"Persistence Error (delete_uptime_bot): {e}")
+            return None
+
+    async def update_uptime_bot(self, bot_id, updates):
+        try:
+            if self._uptime_bots is None: return None
+            return await self._uptime_bots.update_one({"id": bot_id}, {"$set": updates})
+        except Exception as e:
+            logger.error(f"Persistence Error (update_uptime_bot): {e}")
             return None
 
     async def get_song_channel(self):
