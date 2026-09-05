@@ -84,6 +84,10 @@ Here is your link:
         parsed_mismatch = parse_genlink_bot_response(bot_response, filter_name="Naruto Shippuden")
         self.assertIsNone(parsed_mismatch)
 
+        # Test dot "." filter_name (unfiltered)
+        parsed_dot = parse_genlink_bot_response(bot_response, filter_name=".")
+        self.assertIsNotNone(parsed_dot)
+
     def test_configured_bot_and_session_db_mock_methods(self):
         from database.db import db
         import asyncio

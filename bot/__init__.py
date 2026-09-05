@@ -156,7 +156,7 @@ def parse_genlink_bot_response(text, filter_name=None):
     if not text:
         return None
 
-    if filter_name and filter_name.strip().lower() not in text.lower():
+    if filter_name and filter_name.strip() != "." and filter_name.strip().lower() not in text.lower():
         return None
 
     # Extract link
@@ -181,21 +181,19 @@ def parse_genlink_bot_response(text, filter_name=None):
         if ep_str:
             episode = int(ep_str)
 
-    if filter_name and episode is None:
-        return None
-
     return {
         "link": link,
         "quality": quality,
         "episode": episode
     }
 
-async def process_range_link_task(bot_client, status_msg, aid, chat_slug, start_id, end_id, group_names, target_bot=None, target_box_idx=None, filter_name=None):
+async def process_range_link_task(bot_client, status_msg, aid, chat_slug, start_id, end_id, group_names, target_bot=None, target_box_idx=None, filter_name=None, mode="genlink"):
     """
     Background processing task for range link processing.
-    Sends /genlink https://t.me/<chat_slug>/<msg_id> for each message ID in range,
-    collects output link & quality, organizes by serial-numbered groups,
-    and updates database.
+    Supports two modes:
+    - mode="genlink": Sends /genlink https://t.me/<chat_slug>/<msg_id> sequentially for each message ID in range.
+    - mode="serial": Triggers /serielbatch in configured bot, responds to prompts for Range Link and Filter Name, and monitors output stream.
+    Collects output link & quality, organizes by serial-numbered groups, and updates database.
     """
     try:
         configured_bot = target_bot or (await db.get_configured_bot())
@@ -207,7 +205,7 @@ async def process_range_link_task(bot_client, status_msg, aid, chat_slug, start_
             return await status_msg.edit_text("❌ **Automation Aborted:** Pyrogram session string not set. Please set it using `/ss`.")
 
         await status_msg.edit_text(
-            f"🔄 **Starting Link Generation Process...**\n\n"
+            f"🔄 **Starting Link Generation Process ({mode.upper()})...**\n\n"
             f"🤖 **Bot:** `@{configured_bot}`\n"
             f"🔢 **IDs:** `{start_id}` to `{end_id}`\n\n"
             "Connecting user session client..."
@@ -223,62 +221,152 @@ async def process_range_link_task(bot_client, status_msg, aid, chat_slug, start_
 
         await user_client.start()
 
-        # Temporary storage for collected outputs
-        # List of collected parsed dicts in sequence
         collected_outputs = []
         failed_ids = []
-
         total_msgs = end_id - start_id + 1
 
-        for current_idx, msg_id in enumerate(range(start_id, end_id + 1), 1):
-            if current_idx % 5 == 0 or current_idx == total_msgs:
-                try:
-                    await status_msg.edit_text(
-                        f"⏳ **Processing Messages ({current_idx}/{total_msgs})...**\n\n"
-                        f"Current Message ID: `{msg_id}`\n"
-                        f"Collected: `{len(collected_outputs)}`"
-                    )
-                except Exception:
-                    pass
+        if mode == "serial":
+            # --- SERIAL BATCH FLOW ---
+            await status_msg.edit_text(
+                f"🔄 **Sending `/serielbatch` to @{configured_bot}...**"
+            )
 
-            target_link = f"https://t.me/{chat_slug}/{msg_id}"
-            cmd_text = f"/genlink {target_link}"
+            # Send /serielbatch
+            batch_cmd = await user_client.send_message(configured_bot, "/serielbatch")
 
-            try:
-                # Send command to configured bot
-                sent_req = await user_client.send_message(configured_bot, cmd_text)
-
-                # Wait for response from configured bot
-                bot_reply = None
-                for _ in range(15):
-                    await asyncio.sleep(1)
-                    async for history_msg in user_client.get_chat_history(configured_bot, limit=5):
-                        if history_msg.id > sent_req.id and not history_msg.outgoing:
-                            bot_reply = history_msg
-                            break
-                    if bot_reply:
+            # Wait for bot prompt: "📌 Send the Range Link:"
+            prompt_range_msg = None
+            for _ in range(15):
+                await asyncio.sleep(1)
+                async for history_msg in user_client.get_chat_history(configured_bot, limit=5):
+                    if history_msg.id > batch_cmd.id and not history_msg.outgoing:
+                        prompt_range_msg = history_msg
                         break
+                if prompt_range_msg:
+                    break
 
-                if bot_reply and (bot_reply.text or bot_reply.caption):
-                    reply_text = bot_reply.text or bot_reply.caption
-                    parsed = parse_genlink_bot_response(reply_text, filter_name=filter_name)
-                    if parsed:
-                        collected_outputs.append({
-                            "msg_id": msg_id,
-                            "link": parsed["link"],
-                            "quality": parsed["quality"],
-                            "episode": parsed["episode"]
-                        })
+            # Send Range Link
+            range_link_str = f"https://t.me/{chat_slug}/{start_id}-https://t.me/{chat_slug}/{end_id}"
+            await status_msg.edit_text(
+                f"📌 **Sending Range Link to @{configured_bot}...**\n`{range_link_str}`"
+            )
+            sent_range_msg = await user_client.send_message(configured_bot, range_link_str)
+
+            # Wait for bot prompt: "🔎 Send the Filter Name:"
+            prompt_filter_msg = None
+            for _ in range(15):
+                await asyncio.sleep(1)
+                async for history_msg in user_client.get_chat_history(configured_bot, limit=5):
+                    if history_msg.id > sent_range_msg.id and not history_msg.outgoing:
+                        prompt_filter_msg = history_msg
+                        break
+                if prompt_filter_msg:
+                    break
+
+            # Send Filter Name
+            filter_str = filter_name.strip() if (filter_name and filter_name.strip()) else "."
+            await status_msg.edit_text(
+                f"🔎 **Sending Filter Name to @{configured_bot}...**\n`{filter_str}`"
+            )
+            sent_filter_msg = await user_client.send_message(configured_bot, filter_str)
+
+            # Monitor incoming output stream from configured_bot
+            await status_msg.edit_text(
+                f"⏳ **Monitoring Output Stream from @{configured_bot}...**\n\n"
+                f"Filter: `{filter_str}`\n"
+                f"Collected: `0`"
+            )
+
+            last_msg_id = sent_filter_msg.id
+            processed_msg_ids = set()
+            start_time = asyncio.get_event_loop().time()
+            last_activity_time = start_time
+
+            while True:
+                await asyncio.sleep(1)
+                now = asyncio.get_event_loop().time()
+                new_found = False
+
+                async for history_msg in user_client.get_chat_history(configured_bot, limit=20):
+                    if history_msg.id > last_msg_id and not history_msg.outgoing and history_msg.id not in processed_msg_ids:
+                        processed_msg_ids.add(history_msg.id)
+                        reply_text = history_msg.text or history_msg.caption or ""
+                        parsed = parse_genlink_bot_response(reply_text, filter_name=filter_name)
+                        if parsed:
+                            collected_outputs.append({
+                                "msg_id": len(collected_outputs) + start_id,
+                                "link": parsed["link"],
+                                "quality": parsed["quality"],
+                                "episode": parsed["episode"]
+                            })
+                            new_found = True
+                            last_activity_time = now
+                            try:
+                                await status_msg.edit_text(
+                                    f"⏳ **Serial Batch Monitoring ({len(collected_outputs)} links collected)...**\n\n"
+                                    f"Latest: `{parsed['quality']}` - `{parsed['link']}`"
+                                )
+                            except Exception:
+                                pass
+
+                if new_found and len(collected_outputs) >= total_msgs:
+                    break
+
+                idle_time = now - last_activity_time
+                if collected_outputs and idle_time > 15:
+                    break
+                if not collected_outputs and idle_time > 30:
+                    break
+
+        else:
+            # --- GENLINK SEQUENTIAL FLOW ---
+            for current_idx, msg_id in enumerate(range(start_id, end_id + 1), 1):
+                if current_idx % 5 == 0 or current_idx == total_msgs:
+                    try:
+                        await status_msg.edit_text(
+                            f"⏳ **Processing Messages ({current_idx}/{total_msgs})...**\n\n"
+                            f"Current Message ID: `{msg_id}`\n"
+                            f"Collected: `{len(collected_outputs)}`"
+                        )
+                    except Exception:
+                        pass
+
+                target_link = f"https://t.me/{chat_slug}/{msg_id}"
+                cmd_text = f"/genlink {target_link}"
+
+                try:
+                    sent_req = await user_client.send_message(configured_bot, cmd_text)
+
+                    bot_reply = None
+                    for _ in range(15):
+                        await asyncio.sleep(1)
+                        async for history_msg in user_client.get_chat_history(configured_bot, limit=5):
+                            if history_msg.id > sent_req.id and not history_msg.outgoing:
+                                bot_reply = history_msg
+                                break
+                        if bot_reply:
+                            break
+
+                    if bot_reply and (bot_reply.text or bot_reply.caption):
+                        reply_text = bot_reply.text or bot_reply.caption
+                        parsed = parse_genlink_bot_response(reply_text, filter_name=filter_name)
+                        if parsed:
+                            collected_outputs.append({
+                                "msg_id": msg_id,
+                                "link": parsed["link"],
+                                "quality": parsed["quality"],
+                                "episode": parsed["episode"]
+                            })
+                        else:
+                            failed_ids.append(msg_id)
                     else:
                         failed_ids.append(msg_id)
-                else:
+
+                except Exception as msg_err:
+                    logger.error(f"Error processing message {msg_id}: {msg_err}")
                     failed_ids.append(msg_id)
 
-            except Exception as msg_err:
-                logger.error(f"Error processing message {msg_id}: {msg_err}")
-                failed_ids.append(msg_id)
-
-            await asyncio.sleep(1) # polite delay between requests
+                await asyncio.sleep(1)
 
         try:
             await user_client.stop()
@@ -1069,12 +1157,56 @@ def register_handlers(bot: Client):
         target_box_idx = None
         if data.startswith("main_"):
             aid = data.split("main_")[-1]
-            box_dest_str = "Main Section (Default)"
         else:
             parts = data.split("_")
             target_box_idx = int(parts[0])
             aid = parts[1]
 
+        user_state[uid]["target_box_idx"] = target_box_idx
+        user_state[uid]["action"] = "ask_range_mode"
+
+        anime_title = state.get("anime_title", aid)
+        box_suffix = f"main_{aid}" if target_box_idx is None else f"{target_box_idx}_{aid}"
+
+        buttons = [
+            [
+                InlineKeyboardButton("⚡ Genlink", callback_data=f"sel_range_mode_genlink_{box_suffix}"),
+                InlineKeyboardButton("📺 Serial", callback_data=f"sel_range_mode_serial_{box_suffix}")
+            ],
+            [InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]
+        ]
+
+        await callback_query.message.edit_text(
+            f"🎯 **Select Link Generation Mode:**\n\n"
+            f"🎬 **Target Page:** `{anime_title}`\n\n"
+            "• **Genlink**: Sends `/genlink <link>` sequentially for each message.\n"
+            "• **Serial**: Uses `/serielbatch` automation stream in configured bot.",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+        await callback_query.answer()
+
+    @bot.on_callback_query(filters.regex("^sel_range_mode_"))
+    async def sel_range_mode_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        uid = callback_query.from_user.id
+        state = user_state.get(uid)
+        if not state:
+            return await callback_query.answer("❌ Session Expired", show_alert=True)
+
+        # callback data format: sel_range_mode_<genlink|serial>_<main|box_idx>_<aid>
+        raw = callback_query.data.split("sel_range_mode_")[-1]
+        parts = raw.split("_")
+        mode = parts[0] # genlink or serial
+
+        target_box_idx = None
+        if parts[1] == "main":
+            aid = parts[2]
+            box_dest_str = "Main Section (Default)"
+        else:
+            target_box_idx = int(parts[1])
+            aid = parts[2]
             anime_doc = await db.get_anime(aid)
             boxes = anime_doc.get("custom_boxes", []) if anime_doc else []
             box_name = boxes[target_box_idx]["name"] if target_box_idx < len(boxes) else "Custom Box"
@@ -1091,7 +1223,7 @@ def register_handlers(bot: Client):
         user_state.pop(uid, None)
 
         status_msg = await callback_query.message.edit_text(
-            f"🚀 **Range Link Automation Initiated!**\n\n"
+            f"🚀 **Range Link Automation Initiated ({mode.upper()})!**\n\n"
             f"🎬 **Target Page:** `{anime_title}` (`{aid}`)\n"
             f"🤖 **Selected Bot:** `@{selected_bot}`\n"
             f"🔍 **Filter Name:** `{filter_name or 'N/A'}`\n"
@@ -1099,11 +1231,14 @@ def register_handlers(bot: Client):
             f"🔢 **Message Range:** `{start_id}` to `{end_id}` ({end_id - start_id + 1} messages)\n"
             f"👥 **Groups Configured:** {len(group_names)}\n"
             f"📂 **Destination:** {box_dest_str}\n\n"
-            "⏳ Processing sequentially..."
+            f"⏳ Mode: `{mode}`..."
         )
         await callback_query.answer()
 
-        asyncio.create_task(process_range_link_task(client, status_msg, aid, chat_slug, start_id, end_id, group_names, target_bot=selected_bot, target_box_idx=target_box_idx, filter_name=filter_name))
+        asyncio.create_task(process_range_link_task(
+            client, status_msg, aid, chat_slug, start_id, end_id, group_names,
+            target_bot=selected_bot, target_box_idx=target_box_idx, filter_name=filter_name, mode=mode
+        ))
 
     @bot.on_callback_query(filters.regex("^setbot_refresh$"))
     async def setbot_refresh_cb(client, callback_query):
@@ -2836,30 +2971,23 @@ def register_handlers(bot: Client):
                     reply_markup=InlineKeyboardMarkup(buttons)
                 )
 
-            # No custom boxes available: Proceed directly in main section
-            selected_bot = state.get("selected_bot") or (await db.get_configured_bot())
-            chat_slug = state["chat_slug"]
-            start_id = state["start_id"]
-            end_id = state["end_id"]
-            group_names = state["group_names"]
-            filter_name = state.get("filter_name")
-
-            del user_state[uid]
-
-            status_msg = await message.reply(
-                f"🚀 **Range Link Automation Initiated!**\n\n"
-                f"🎬 **Target Page:** `{anime['title']}` (`{aid}`)\n"
-                f"🤖 **Selected Bot:** `@{selected_bot}`\n"
-                f"🔍 **Filter Name:** `{filter_name or 'N/A'}`\n"
-                f"💬 **Channel/Chat:** `{chat_slug}`\n"
-                f"🔢 **Message Range:** `{start_id}` to `{end_id}` ({end_id - start_id + 1} messages)\n"
-                f"👥 **Groups Configured:** {len(group_names)}\n"
-                f"📂 **Destination:** Main Section (Default)\n\n"
-                "⏳ Processing sequentially..."
+            # Ask mode selection (Genlink vs Serial)
+            buttons = [
+                [
+                    InlineKeyboardButton("⚡ Genlink", callback_data=f"sel_range_mode_genlink_main_{aid}"),
+                    InlineKeyboardButton("📺 Serial", callback_data=f"sel_range_mode_serial_main_{aid}")
+                ],
+                [InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]
+            ]
+            user_state[uid]["target_box_idx"] = None
+            user_state[uid]["action"] = "ask_range_mode"
+            return await message.reply(
+                f"🎯 **Select Link Generation Mode:**\n\n"
+                f"🎬 **Target Page:** `{anime['title']}`\n\n"
+                "• **Genlink**: Sends `/genlink <link>` sequentially for each message.\n"
+                "• **Serial**: Uses `/serielbatch` automation stream in configured bot.",
+                reply_markup=InlineKeyboardMarkup(buttons)
             )
-
-            asyncio.create_task(process_range_link_task(client, status_msg, aid, chat_slug, start_id, end_id, group_names, target_bot=selected_bot, target_box_idx=None, filter_name=filter_name))
-            return
 
         if action == "ask_setbot_username":
             bot_username = message.text.strip().lstrip("@")
