@@ -112,6 +112,13 @@ class AnimeAPI:
             return [{"source": "tmdb", "id": x["id"], "title": x.get("name") or x.get("title"), "image": f"https://image.tmdb.org/t/p/w500{x.get('poster_path')}", "year": (x.get("first_air_date") or x.get("release_date", ""))[:4]} for x in data["results"] if x.get("poster_path")]
         return []
 
+    async def safe_search_task(self, coro, timeout_secs=3.5):
+        try:
+            return await asyncio.wait_for(coro, timeout=timeout_secs)
+        except Exception as e:
+            logger.debug(f"Search provider task error/timeout: {e}")
+            return []
+
     async def search_all(self, query):
         """High-Performance Aggregator"""
         query_clean = query.strip()
@@ -125,11 +132,11 @@ class AnimeAPI:
         tasks = []
         for q in queries_to_search:
             tasks.extend([
-                self.search_jikan(q),
-                self.search_anilist(q),
-                self.search_kitsu(q),
-                self.search_shikimori(q),
-                self.search_tmdb(q)
+                self.safe_search_task(self.search_jikan(q), 3.5),
+                self.safe_search_task(self.search_anilist(q), 3.5),
+                self.safe_search_task(self.search_kitsu(q), 3.5),
+                self.safe_search_task(self.search_shikimori(q), 3.5),
+                self.safe_search_task(self.search_tmdb(q), 3.5)
             ])
 
         try:

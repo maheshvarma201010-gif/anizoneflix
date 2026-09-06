@@ -1026,22 +1026,41 @@ def register_handlers(bot: Client):
             return await message.reply("🛰 **Intelligence Aggregator**\n\nPlease send the **Title** of the series:")
 
         msg = await message.reply("📡 **Scanning Intelligence Feeds...**")
+        results = []
         try:
-            results = await asyncio.wait_for(anime_api.search_all(query), timeout=5)
-            if not results:
-                user_state[message.from_user.id] = {"action": "ask_search_query"}
-                return await msg.edit("😔 **Search Exhausted.** No matches found. Try again:")
-
-            search_results[message.from_user.id] = results
-            text = "🎯 **Select Match from Feed:**\n\n"
-            for i, res in enumerate(results[:10], 1):
-                text += f"**{i}.** {res['title']} ({res['year']}) `[{res['source'].upper()}]`\n"
-
-            await msg.edit(text)
-            user_state[message.from_user.id] = {"action": "select_anime"}
+            results = await asyncio.wait_for(anime_api.search_all(query), timeout=15)
         except Exception as e:
-            logger.error(f"Search Error: {e}")
-            await msg.edit("❌ **Intelligence Feed Failure.** Try again.")
+            logger.error(f"External Search Error/Timeout: {e}")
+
+        # Fall back to database search if external search returned empty
+        if not results:
+            try:
+                db_matches = await db.search_anime_intelligent(query)
+                if db_matches:
+                    results = [
+                        {
+                            "source": "database",
+                            "id": str(m["_id"]),
+                            "title": m["title"],
+                            "image": m.get("image"),
+                            "year": m.get("year", "N/A")
+                        }
+                        for m in db_matches
+                    ]
+            except Exception as dbe:
+                logger.error(f"DB Fallback Search Error: {dbe}")
+
+        if not results:
+            user_state[message.from_user.id] = {"action": "ask_search_query"}
+            return await msg.edit("😔 **Search Exhausted.** No matches found. Try again:")
+
+        search_results[message.from_user.id] = results
+        text = "🎯 **Select Match from Feed:**\n\n"
+        for i, res in enumerate(results[:10], 1):
+            text += f"**{i}.** {res['title']} ({res.get('year') or 'N/A'}) `[{res['source'].upper()}]`\n"
+
+        await msg.edit(text)
+        user_state[message.from_user.id] = {"action": "select_anime"}
 
     @bot.on_message(filters.command("add_post"))
     async def auto_post_handler(client, message):
