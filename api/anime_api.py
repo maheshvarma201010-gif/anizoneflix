@@ -85,6 +85,26 @@ class AnimeAPI:
             return [{"source": "kitsu", "id": x["id"], "title": x["attributes"]["canonicalTitle"], "image": x["attributes"]["posterImage"]["large"], "year": x["attributes"].get("startDate", "")[:4]} for x in data["data"]]
         return []
 
+    async def search_shikimori(self, query):
+        data = await self._get(f"{self.apis['shikimori']}/animes", params={"search": query, "limit": 5})
+        if data and isinstance(data, list):
+            results = []
+            for x in data:
+                img = x.get("image", {}).get("original", "")
+                if img and img.startswith("/"):
+                    img = f"https://shikimori.one{img}"
+
+                title_clean = x.get("name") or x.get("russian")
+                results.append({
+                    "source": "shikimori",
+                    "id": x["id"],
+                    "title": title_clean,
+                    "image": img if "missing" not in img else None,
+                    "year": (x.get("aired_on") or "")[:4] if x.get("aired_on") else None
+                })
+            return results
+        return []
+
     async def search_tmdb(self, query):
         if not self.tmdb_key: return []
         data = await self._get(f"{self.apis['tmdb']}/search/multi", params={"api_key": self.tmdb_key, "query": query})
@@ -94,12 +114,24 @@ class AnimeAPI:
 
     async def search_all(self, query):
         """High-Performance Aggregator"""
-        tasks = [
-            self.search_jikan(query),
-            self.search_anilist(query),
-            self.search_kitsu(query),
-            self.search_tmdb(query)
-        ]
+        query_clean = query.strip()
+        queries_to_search = [query_clean]
+
+        # Handle specific search term aliases (e.g. Lord of Mysteries / Guimi Zhi Zhu)
+        if "lord of mysteries" in query_clean.lower():
+            queries_to_search.append("Lord of the Mysteries")
+            queries_to_search.append("Guimi Zhi Zhu")
+
+        tasks = []
+        for q in queries_to_search:
+            tasks.extend([
+                self.search_jikan(q),
+                self.search_anilist(q),
+                self.search_kitsu(q),
+                self.search_shikimori(q),
+                self.search_tmdb(q)
+            ])
+
         try:
             results = await asyncio.gather(*tasks, return_exceptions=True)
         except Exception as e:
@@ -111,6 +143,8 @@ class AnimeAPI:
         for res_list in results:
             if isinstance(res_list, list):
                 for item in res_list:
+                    if not item.get("title"):
+                        continue
                     uid = f"{item['title'].lower()}"
                     if uid not in seen:
                         flat.append(item)
@@ -184,6 +218,30 @@ class AnimeAPI:
                     "episodes": attr.get("episodeCount"),
                     "trailer": f"https://www.youtube.com/watch?v={attr['youtubeVideoId']}" if attr.get("youtubeVideoId") else None,
                     "studios": []
+                }
+        elif source == "shikimori":
+            data = await self._get(f"{self.apis['shikimori']}/animes/{id}")
+            if data and isinstance(data, dict):
+                img = data.get("image", {}).get("original", "")
+                if img and img.startswith("/"):
+                    img = f"https://shikimori.one{img}"
+
+                title_val = data.get("name")
+                eng_titles = data.get("english", [])
+                if eng_titles and isinstance(eng_titles, list) and eng_titles[0]:
+                    title_val = eng_titles[0]
+
+                details = {
+                    "title": title_val,
+                    "synopsis": data.get("description"),
+                    "score": float(data.get("score", 0)) if data.get("score") else 0,
+                    "image": img if "missing" not in img else None,
+                    "genres": [g["name"] for g in data.get("genres", [])] if data.get("genres") else [],
+                    "status": data.get("status"),
+                    "year": (data.get("aired_on") or "")[:4] if data.get("aired_on") else None,
+                    "episodes": data.get("episodes"),
+                    "trailer": None,
+                    "studios": [st["name"] for st in data.get("studios", [])] if data.get("studios") else []
                 }
         elif source == "tmdb":
             if self.tmdb_key:

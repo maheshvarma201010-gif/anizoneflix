@@ -72,12 +72,48 @@ async def set_commands(client):
     # Startup verification of configured post channel
     asyncio.create_task(verify_post_channel(client))
 
+async def safe_send_channel_message(client, channel_id, text, disable_web_page_preview=False):
+    target_chat = channel_id
+    if isinstance(channel_id, str):
+        channel_id_clean = channel_id.strip()
+        if channel_id_clean.startswith("-100") or channel_id_clean.replace("-", "").isdigit():
+            try:
+                target_chat = int(channel_id_clean)
+            except ValueError:
+                target_chat = channel_id_clean
+        else:
+            target_chat = channel_id_clean
+
+    try:
+        chat_obj = await client.get_chat(target_chat)
+        target_chat = chat_obj.id
+    except Exception as resolve_err:
+        logger.warning(f"get_chat peer resolve warning for {target_chat}: {resolve_err}")
+
+    try:
+        return await client.send_message(
+            chat_id=target_chat,
+            text=text,
+            disable_web_page_preview=disable_web_page_preview
+        )
+    except Exception as err:
+        if isinstance(target_chat, int):
+            try:
+                return await client.send_message(
+                    chat_id=str(target_chat),
+                    text=text,
+                    disable_web_page_preview=disable_web_page_preview
+                )
+            except Exception:
+                pass
+        raise err
+
 async def verify_post_channel(client):
     try:
         channel_id = await db.get_post_channel()
         if channel_id:
             logger.info(f"Verifying post channel permissions for {channel_id}...")
-            test_msg = await client.send_message(channel_id, "⚡ **AniZoneFlix Channel Verification Ping...**")
+            test_msg = await safe_send_channel_message(client, channel_id, "⚡ **AniZoneFlix Channel Verification Ping...**")
             await client.delete_messages(channel_id, test_msg.id)
             logger.info(f"Post channel {channel_id} verified successfully.")
     except Exception as e:
@@ -138,9 +174,10 @@ async def publish_post_to_channel(client, post_channel, heading, anime, page_lin
         f"{page_link}"
     )
 
-    sent_msg = await client.send_message(
-        chat_id=post_channel,
-        text=post_text,
+    sent_msg = await safe_send_channel_message(
+        client,
+        post_channel,
+        post_text,
         disable_web_page_preview=False
     )
     return sent_msg
@@ -823,7 +860,7 @@ def register_handlers(bot: Client):
         if (query.startswith("-100") or query.startswith("@") or query.replace("-", "").isdigit()) and "http" not in query:
             channel_id = query
             try:
-                test_msg = await client.send_message(channel_id, "⚡ **AniZoneFlix Channel Verification Ping...**")
+                test_msg = await safe_send_channel_message(client, channel_id, "⚡ **AniZoneFlix Channel Verification Ping...**")
                 await client.delete_messages(channel_id, test_msg.id)
                 await db.set_post_channel(channel_id)
                 return await message.reply(f"✅ **Post Channel Successfully Configured:** `{channel_id}`")
