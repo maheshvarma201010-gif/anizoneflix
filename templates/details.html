@@ -25,7 +25,7 @@
             </div>
 
             <div class="flex-1 text-center lg:text-left text-[var(--text-main)]">
-                <div class="flex flex-wrap justify-center lg:justify-start gap-2 mb-6">
+                <div class="flex flex-wrap justify-center lg:justify-start gap-2 mb-4">
                     {% if anime.category %}
                     <span class="px-4 py-1.5 bg-[var(--primary)] text-white text-[9px] font-black rounded-full uppercase tracking-[0.15em] shadow-xl shadow-[var(--primary-glow)]">{{ anime.category }}</span>
                     {% endif %}
@@ -33,6 +33,13 @@
                     <span class="px-3 py-1.5 glass text-[var(--text-dim)] text-[9px] font-bold rounded-full border-[var(--glass-border)] uppercase tracking-widest">{{ genre }}</span>
                     {% endfor %}
                 </div>
+
+                {% if anime.languages %}
+                <div class="flex flex-wrap justify-center lg:justify-start items-center gap-2 mb-6 text-[10px] font-bold uppercase tracking-widest text-[var(--text-dim)]">
+                    <span class="text-[var(--primary)] flex items-center gap-1.5 font-black"><i class="fa-solid fa-volume-high text-[var(--primary)]"></i> AUDIO LANGUAGES:</span>
+                    <span class="px-3 py-1 glass rounded-full text-white/90 border-[var(--glass-border)] tracking-wider">{{ anime.languages }}</span>
+                </div>
+                {% endif %}
 
                 <h1 class="text-4xl md:text-6xl font-black mb-6 leading-tight tracking-tighter uppercase text-[var(--text-main)]">{{ anime.title }}</h1>
 

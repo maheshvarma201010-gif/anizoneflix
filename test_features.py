@@ -84,6 +84,42 @@ Here is your link:
         parsed_mismatch = parse_genlink_bot_response(bot_response, filter_name="Naruto Shippuden")
         self.assertIsNone(parsed_mismatch)
 
+        # Test dot "." filter_name (unfiltered)
+        parsed_dot = parse_genlink_bot_response(bot_response, filter_name=".")
+        self.assertIsNotNone(parsed_dot)
+
+    def test_parse_all_genlink_blocks_bulk_message(self):
+        bulk_response = """
+<b>First Filename:</b> Sword Art Online S01E01 480p.mkv
+<b>First Caption:</b> SAO E01 480p
+<b>Last Filename:</b> Sword Art Online S01E01 480p.mkv
+<b>Last Caption:</b> SAO E01 480p
+
+<b>Here is your link:</b>
+
+<code>https://telegram.me/AniZoneFlix_bot?start=link1</code>
+
+<b>First Filename:</b> Sword Art Online S01E02 720p.mkv
+<b>First Caption:</b> SAO E02 720p
+<b>Last Filename:</b> Sword Art Online S01E02 720p.mkv
+<b>Last Caption:</b> SAO E02 720p
+
+<b>Here is your link:</b>
+
+<code>https://telegram.me/AniZoneFlix_bot?start=link2</code>
+"""
+        from bot import parse_all_genlink_blocks
+        results = parse_all_genlink_blocks(bulk_response, filter_name="Sword")
+        self.assertEqual(len(results), 2)
+
+        self.assertEqual(results[0]["link"], "https://telegram.me/AniZoneFlix_bot?start=link1")
+        self.assertEqual(results[0]["quality"], "480P")
+        self.assertEqual(results[0]["episode"], 1)
+
+        self.assertEqual(results[1]["link"], "https://telegram.me/AniZoneFlix_bot?start=link2")
+        self.assertEqual(results[1]["quality"], "720P")
+        self.assertEqual(results[1]["episode"], 2)
+
     def test_configured_bot_and_session_db_mock_methods(self):
         from database.db import db
         import asyncio
@@ -277,6 +313,40 @@ Episode 15 - The New Demon Lord
             self.assertFalse(mock_human_user.is_bot)
 
         asyncio.run(run_report_test())
+
+    def test_language_parsing_and_post_channel_db(self):
+        from bot import parse_language_input
+        from database.db import db
+        import asyncio
+
+        # Test language parsing
+        self.assertEqual(parse_language_input("tel,tam,hin,eng"), "Telugu • Tamil • Hindi • English")
+        self.assertEqual(parse_language_input("Telugu, Tamil, Japanese"), "Telugu • Tamil • Japanese")
+
+        # Test post channel settings
+        async def run_post_channel_test():
+            await db.set_post_channel("-1001234567890")
+            val = await db.get_post_channel()
+            if val:
+                self.assertEqual(val, "-1001234567890")
+
+        asyncio.run(run_post_channel_test())
+
+    def test_auto_fill_missing_metadata(self):
+        from api.anime_api import auto_fill_missing_metadata
+        import asyncio
+
+        async def run_metadata_test():
+            doc = {
+                "title": "Naruto",
+                "synopsis": "N/A",
+                "score": 0
+            }
+            res = await auto_fill_missing_metadata(doc)
+            self.assertIsNotNone(res)
+            self.assertEqual(res["title"], "Naruto")
+
+        asyncio.run(run_metadata_test())
 
 if __name__ == "__main__":
     unittest.main()

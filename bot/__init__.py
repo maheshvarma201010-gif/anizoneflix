@@ -46,6 +46,7 @@ async def is_authorized(user_id):
 async def set_commands(client):
     commands = [
         BotCommand("start", "Start the bot"),
+        BotCommand("post", "Publish Anime Post to Channel"),
         BotCommand("search", "Industrial-Grade Search"),
         BotCommand("add_post", "Rapid One-Shot Post"),
         BotCommand("add_page", "Manual Content Creation"),
@@ -67,6 +68,119 @@ async def set_commands(client):
     ]
     await client.set_bot_commands(commands)
     logger.info("Bot commands synchronized.")
+
+    # Startup verification of configured post channel
+    asyncio.create_task(verify_post_channel(client))
+
+async def safe_send_channel_message(client, channel_id, text, disable_web_page_preview=False):
+    target_chat = channel_id
+    if isinstance(channel_id, str):
+        channel_id_clean = channel_id.strip()
+        if channel_id_clean.startswith("-100") or channel_id_clean.replace("-", "").isdigit():
+            try:
+                target_chat = int(channel_id_clean)
+            except ValueError:
+                target_chat = channel_id_clean
+        else:
+            target_chat = channel_id_clean
+
+    try:
+        chat_obj = await client.get_chat(target_chat)
+        target_chat = chat_obj.id
+    except Exception as resolve_err:
+        logger.warning(f"get_chat peer resolve warning for {target_chat}: {resolve_err}")
+
+    try:
+        return await client.send_message(
+            chat_id=target_chat,
+            text=text,
+            disable_web_page_preview=disable_web_page_preview
+        )
+    except Exception as err:
+        if isinstance(target_chat, int):
+            try:
+                return await client.send_message(
+                    chat_id=str(target_chat),
+                    text=text,
+                    disable_web_page_preview=disable_web_page_preview
+                )
+            except Exception:
+                pass
+        raise err
+
+async def verify_post_channel(client):
+    try:
+        channel_id = await db.get_post_channel()
+        if channel_id:
+            logger.info(f"Verifying post channel permissions for {channel_id}...")
+            test_msg = await safe_send_channel_message(client, channel_id, "⚡ **AniZoneFlix Channel Verification Ping...**")
+            await client.delete_messages(channel_id, test_msg.id)
+            logger.info(f"Post channel {channel_id} verified successfully.")
+    except Exception as e:
+        logger.warning(f"Post channel verification warning for {channel_id}: {e}")
+
+async def publish_post_to_channel(client, post_channel, heading, anime, page_link):
+    title = anime.get("title", "Untitled")
+
+    # Genres
+    genres_raw = anime.get("genres", [])
+    if isinstance(genres_raw, list):
+        genres_str = " • ".join(genres_raw) if genres_raw else "Anime"
+    else:
+        genres_str = str(genres_raw)
+
+    # Audio
+    audio_str = anime.get("languages") or "Telugu • Tamil • Hindi • English • Japanese"
+
+    # Quality
+    quality_labels = []
+    seen_q = set()
+
+    seasons_links = anime.get("seasons_links", {})
+    if isinstance(seasons_links, dict):
+        for gname, gdata in seasons_links.items():
+            if isinstance(gdata, dict):
+                for label in gdata.keys():
+                    lbl_clean = str(label).strip()
+                    if lbl_clean and lbl_clean.lower() not in seen_q:
+                        seen_q.add(lbl_clean.lower())
+                        quality_labels.append(lbl_clean)
+
+    custom_boxes = anime.get("custom_boxes", [])
+    if isinstance(custom_boxes, list):
+        for box in custom_boxes:
+            groups = box.get("groups", {})
+            if isinstance(groups, dict):
+                for gname, gdata in groups.items():
+                    if isinstance(gdata, dict):
+                        for label in gdata.keys():
+                            lbl_clean = str(label).strip()
+                            if lbl_clean and lbl_clean.lower() not in seen_q:
+                                seen_q.add(lbl_clean.lower())
+                                quality_labels.append(lbl_clean)
+
+    if quality_labels:
+        quality_str = " | ".join(quality_labels)
+    else:
+        quality_str = "480p | 720p | 1080p"
+
+    post_text = (
+        f"{heading}\n\n"
+        f"🎬 Title: {title}\n"
+        f"🗣 Genres: {genres_str}\n"
+        f"🔊 Audio: {audio_str}\n"
+        f"📺 Quality: {quality_str}\n\n"
+        f"📥 Watch / Download:\n"
+        f"{page_link}"
+    )
+
+    sent_msg = await safe_send_channel_message(
+        client,
+        post_channel,
+        post_text,
+        disable_web_page_preview=False
+    )
+    return sent_msg
 
 def extract_slug(text):
     """Bulletproof slug extraction from any URL or raw text"""
@@ -124,31 +238,40 @@ def parse_range_link(text):
     if not text:
         return None
     text = text.strip()
-    pattern1 = r'https?://(?:t\.me|telegram\.me|telegram\.dog)/([a-zA-Z0-9_]+)/(\d+)-https?://(?:t\.me|telegram\.me|telegram\.dog)/\1/(\d+)'
-    m1 = re.search(pattern1, text)
-    if m1:
-        return m1.group(1), int(m1.group(2)), int(m1.group(3))
 
-    pattern2 = r'https?://(?:t\.me|telegram\.me|telegram\.dog)/([a-zA-Z0-9_]+)/(\d+)-(\d+)'
-    m2 = re.search(pattern2, text)
-    if m2:
-        return m2.group(1), int(m2.group(2)), int(m2.group(3))
+    # Match private channel links e.g. https://t.me/c/1234567890/100
+    private_matches = re.findall(r'https?://(?:t\.me|telegram\.me|telegram\.dog)/c/(\d+)/(\d+)', text)
+    if len(private_matches) >= 2:
+        c1, id1 = private_matches[0]
+        c2, id2 = private_matches[1]
+        if c1 == c2:
+            return f"c/{c1}", int(id1), int(id2)
+    elif len(private_matches) == 1:
+        c1, id1 = private_matches[0]
+        short_m = re.search(r'https?://(?:t\.me|telegram\.me|telegram\.dog)/c/' + re.escape(c1) + r'/' + re.escape(id1) + r'(?:[^\d]*?)-[^\d]*?(\d+)', text)
+        if short_m:
+            return f"c/{c1}", int(id1), int(short_m.group(1))
 
-    pattern3 = r'https?://(?:t\.me|telegram\.me|telegram\.dog)/c/(\d+)/(\d+)-https?://(?:t\.me|telegram\.me|telegram\.dog)/c/\1/(\d+)'
-    m3 = re.search(pattern3, text)
-    if m3:
-        return f"c/{m3.group(1)}", int(m3.group(2)), int(m3.group(3))
+    # Match public channel links e.g. https://t.me/channel_name/100
+    public_matches = re.findall(r'https?://(?:t\.me|telegram\.me|telegram\.dog)/([a-zA-Z0-9_]+)/(\d+)', text)
+    public_matches = [(chan, mid) for chan, mid in public_matches if chan.lower() != 'c']
 
-    pattern4 = r'https?://(?:t\.me|telegram\.me|telegram\.dog)/c/(\d+)/(\d+)-(\d+)'
-    m4 = re.search(pattern4, text)
-    if m4:
-        return f"c/{m4.group(1)}", int(m4.group(2)), int(m4.group(3))
+    if len(public_matches) >= 2:
+        chan1, id1 = public_matches[0]
+        chan2, id2 = public_matches[1]
+        if chan1.lower() == chan2.lower():
+            return chan1, int(id1), int(id2)
+    elif len(public_matches) == 1:
+        chan1, id1 = public_matches[0]
+        short_m = re.search(r'https?://(?:t\.me|telegram\.me|telegram\.dog)/' + re.escape(chan1) + r'/' + re.escape(id1) + r'(?:[^\d]*?)-[^\d]*?(\d+)', text)
+        if short_m:
+            return chan1, int(id1), int(short_m.group(1))
 
     return None
 
 def parse_genlink_bot_response(text, filter_name=None):
     """
-    Parses output returned by genlink bot.
+    Parses output returned by genlink bot for a single block.
     Extracts video quality (e.g. 480p, 720p, 1080p, 4k), episode number if present,
     and generated link (https://telegram.me/... or https://t.me/...).
     Returns dict or None.
@@ -156,14 +279,14 @@ def parse_genlink_bot_response(text, filter_name=None):
     if not text:
         return None
 
-    if filter_name and filter_name.strip().lower() not in text.lower():
+    if filter_name and filter_name.strip() != "." and filter_name.strip().lower() not in text.lower():
         return None
 
     # Extract link
-    link_match = re.search(r'https?://(?:telegram\.me|t\.me|telegram\.dog)/[^\s"]+', text)
+    link_match = re.search(r'https?://(?:telegram\.me|t\.me|telegram\.dog)/[^\s"<>]+', text)
     if not link_match:
         return None
-    link = link_match.group(0).strip('"\').,()')
+    link = link_match.group(0).strip('"\').,()<>')
 
     # Extract quality
     quality = "720P" # default quality if unspecified
@@ -181,21 +304,46 @@ def parse_genlink_bot_response(text, filter_name=None):
         if ep_str:
             episode = int(ep_str)
 
-    if filter_name and episode is None:
-        return None
-
     return {
         "link": link,
         "quality": quality,
         "episode": episode
     }
 
-async def process_range_link_task(bot_client, status_msg, aid, chat_slug, start_id, end_id, group_names, target_bot=None, target_box_idx=None, filter_name=None):
+def parse_all_genlink_blocks(text, filter_name=None):
+    """
+    Parses output returned by genlink / serielbatch bot, supporting bulk messages
+    that contain multiple generated link blocks.
+    Returns list of dicts: [{"link": ..., "quality": ..., "episode": ...}, ...]
+    """
+    if not text:
+        return []
+
+    # Split by block header pattern if multiple blocks exist in a single message
+    chunks = re.split(r'(?=(?:<b>)?First (?:Filename|Caption):)', text, flags=re.IGNORECASE)
+    results = []
+    for chunk in chunks:
+        if not chunk.strip():
+            continue
+        parsed = parse_genlink_bot_response(chunk, filter_name=filter_name)
+        if parsed:
+            results.append(parsed)
+
+    # Fallback if split didn't yield blocks but text contains a valid link
+    if not results:
+        parsed = parse_genlink_bot_response(text, filter_name=filter_name)
+        if parsed:
+            results.append(parsed)
+
+    return results
+
+async def process_range_link_task(bot_client, status_msg, aid, chat_slug, start_id, end_id, group_names, target_bot=None, target_box_idx=None, filter_name=None, mode="genlink"):
     """
     Background processing task for range link processing.
-    Sends /genlink https://t.me/<chat_slug>/<msg_id> for each message ID in range,
-    collects output link & quality, organizes by serial-numbered groups,
-    and updates database.
+    Supports two modes:
+    - mode="genlink": Sends /genlink https://t.me/<chat_slug>/<msg_id> sequentially for each message ID in range.
+    - mode="serial": Triggers /serielbatch in configured bot, responds to prompts for Range Link and Filter Name, and monitors output stream.
+    Collects output link & quality, organizes by serial-numbered groups, and updates database.
     """
     try:
         configured_bot = target_bot or (await db.get_configured_bot())
@@ -207,7 +355,7 @@ async def process_range_link_task(bot_client, status_msg, aid, chat_slug, start_
             return await status_msg.edit_text("❌ **Automation Aborted:** Pyrogram session string not set. Please set it using `/ss`.")
 
         await status_msg.edit_text(
-            f"🔄 **Starting Link Generation Process...**\n\n"
+            f"🔄 **Starting Link Generation Process ({mode.upper()})...**\n\n"
             f"🤖 **Bot:** `@{configured_bot}`\n"
             f"🔢 **IDs:** `{start_id}` to `{end_id}`\n\n"
             "Connecting user session client..."
@@ -223,62 +371,162 @@ async def process_range_link_task(bot_client, status_msg, aid, chat_slug, start_
 
         await user_client.start()
 
-        # Temporary storage for collected outputs
-        # List of collected parsed dicts in sequence
         collected_outputs = []
         failed_ids = []
-
         total_msgs = end_id - start_id + 1
 
-        for current_idx, msg_id in enumerate(range(start_id, end_id + 1), 1):
-            if current_idx % 5 == 0 or current_idx == total_msgs:
-                try:
-                    await status_msg.edit_text(
-                        f"⏳ **Processing Messages ({current_idx}/{total_msgs})...**\n\n"
-                        f"Current Message ID: `{msg_id}`\n"
-                        f"Collected: `{len(collected_outputs)}`"
-                    )
-                except Exception:
-                    pass
+        if mode == "serial":
+            # --- SERIAL BATCH FLOW ---
+            await status_msg.edit_text(
+                f"🔄 **Sending `/serielbatch` to @{configured_bot}...**"
+            )
 
-            target_link = f"https://t.me/{chat_slug}/{msg_id}"
-            cmd_text = f"/genlink {target_link}"
+            # Send /serielbatch
+            batch_cmd = await user_client.send_message(configured_bot, "/serielbatch")
 
-            try:
-                # Send command to configured bot
-                sent_req = await user_client.send_message(configured_bot, cmd_text)
-
-                # Wait for response from configured bot
-                bot_reply = None
-                for _ in range(15):
-                    await asyncio.sleep(1)
-                    async for history_msg in user_client.get_chat_history(configured_bot, limit=5):
-                        if history_msg.id > sent_req.id and not history_msg.outgoing:
-                            bot_reply = history_msg
-                            break
-                    if bot_reply:
+            # Wait for bot prompt: "📌 Send the Range Link:"
+            prompt_range_msg = None
+            for _ in range(15):
+                await asyncio.sleep(1)
+                async for history_msg in user_client.get_chat_history(configured_bot, limit=5):
+                    if history_msg.id > batch_cmd.id and not history_msg.outgoing:
+                        prompt_range_msg = history_msg
                         break
+                if prompt_range_msg:
+                    break
 
-                if bot_reply and (bot_reply.text or bot_reply.caption):
-                    reply_text = bot_reply.text or bot_reply.caption
-                    parsed = parse_genlink_bot_response(reply_text, filter_name=filter_name)
-                    if parsed:
-                        collected_outputs.append({
-                            "msg_id": msg_id,
-                            "link": parsed["link"],
-                            "quality": parsed["quality"],
-                            "episode": parsed["episode"]
-                        })
+            # Send Range Link
+            range_link_str = f"https://t.me/{chat_slug}/{start_id}-https://t.me/{chat_slug}/{end_id}"
+            await status_msg.edit_text(
+                f"📌 **Sending Range Link to @{configured_bot}...**\n`{range_link_str}`"
+            )
+            sent_range_msg = await user_client.send_message(configured_bot, range_link_str)
+
+            # Wait for bot prompt: "🔎 Send the Filter Name:"
+            prompt_filter_msg = None
+            for _ in range(15):
+                await asyncio.sleep(1)
+                async for history_msg in user_client.get_chat_history(configured_bot, limit=5):
+                    if history_msg.id > sent_range_msg.id and not history_msg.outgoing:
+                        prompt_filter_msg = history_msg
+                        break
+                if prompt_filter_msg:
+                    break
+
+            # Send Filter Name
+            filter_str = filter_name.strip() if (filter_name and filter_name.strip()) else "."
+            await status_msg.edit_text(
+                f"🔎 **Sending Filter Name to @{configured_bot}...**\n`{filter_str}`"
+            )
+            sent_filter_msg = await user_client.send_message(configured_bot, filter_str)
+
+            # Monitor incoming output stream from configured_bot
+            await status_msg.edit_text(
+                f"⏳ **Monitoring Output Stream from @{configured_bot}...**\n\n"
+                f"Filter: `{filter_str}`\n"
+                f"Collected: `0`"
+            )
+
+            last_msg_id = sent_filter_msg.id
+            processed_msg_ids = set()
+            start_time = asyncio.get_event_loop().time()
+            last_activity_time = start_time
+            is_completed = False
+
+            while True:
+                await asyncio.sleep(1)
+                now = asyncio.get_event_loop().time()
+                new_found = False
+
+                async for history_msg in user_client.get_chat_history(configured_bot, limit=20):
+                    if history_msg.id > last_msg_id and not history_msg.outgoing and history_msg.id not in processed_msg_ids:
+                        processed_msg_ids.add(history_msg.id)
+                        reply_text = history_msg.text or history_msg.caption or ""
+
+                        if "Serial Batch Link Generation Complete!" in reply_text:
+                            is_completed = True
+                            break
+
+                        parsed_items = parse_all_genlink_blocks(reply_text, filter_name=filter_name)
+                        if parsed_items:
+                            for p_item in parsed_items:
+                                collected_outputs.append({
+                                    "msg_id": len(collected_outputs) + start_id,
+                                    "link": p_item["link"],
+                                    "quality": p_item["quality"],
+                                    "episode": p_item["episode"]
+                                })
+                            new_found = True
+                            last_activity_time = now
+                            try:
+                                await status_msg.edit_text(
+                                    f"⏳ **Serial Batch Monitoring ({len(collected_outputs)} links collected)...**\n\n"
+                                    f"Latest: `{parsed_items[-1]['quality']}` - `{parsed_items[-1]['link']}`"
+                                )
+                            except Exception:
+                                pass
+
+                if is_completed:
+                    break
+
+                if new_found and len(collected_outputs) >= total_msgs:
+                    break
+
+                idle_time = now - last_activity_time
+                if collected_outputs and idle_time > 15:
+                    break
+                if not collected_outputs and idle_time > 30:
+                    break
+
+        else:
+            # --- GENLINK SEQUENTIAL FLOW ---
+            for current_idx, msg_id in enumerate(range(start_id, end_id + 1), 1):
+                if current_idx % 5 == 0 or current_idx == total_msgs:
+                    try:
+                        await status_msg.edit_text(
+                            f"⏳ **Processing Messages ({current_idx}/{total_msgs})...**\n\n"
+                            f"Current Message ID: `{msg_id}`\n"
+                            f"Collected: `{len(collected_outputs)}`"
+                        )
+                    except Exception:
+                        pass
+
+                target_link = f"https://t.me/{chat_slug}/{msg_id}"
+                cmd_text = f"/genlink {target_link}"
+
+                try:
+                    sent_req = await user_client.send_message(configured_bot, cmd_text)
+
+                    bot_reply = None
+                    for _ in range(15):
+                        await asyncio.sleep(1)
+                        async for history_msg in user_client.get_chat_history(configured_bot, limit=5):
+                            if history_msg.id > sent_req.id and not history_msg.outgoing:
+                                bot_reply = history_msg
+                                break
+                        if bot_reply:
+                            break
+
+                    if bot_reply and (bot_reply.text or bot_reply.caption):
+                        reply_text = bot_reply.text or bot_reply.caption
+                        parsed = parse_genlink_bot_response(reply_text, filter_name=filter_name)
+                        if parsed:
+                            collected_outputs.append({
+                                "msg_id": msg_id,
+                                "link": parsed["link"],
+                                "quality": parsed["quality"],
+                                "episode": parsed["episode"]
+                            })
+                        else:
+                            failed_ids.append(msg_id)
                     else:
                         failed_ids.append(msg_id)
-                else:
+
+                except Exception as msg_err:
+                    logger.error(f"Error processing message {msg_id}: {msg_err}")
                     failed_ids.append(msg_id)
 
-            except Exception as msg_err:
-                logger.error(f"Error processing message {msg_id}: {msg_err}")
-                failed_ids.append(msg_id)
-
-            await asyncio.sleep(1) # polite delay between requests
+                await asyncio.sleep(1)
 
         try:
             await user_client.stop()
@@ -403,6 +651,41 @@ async def process_range_link_task(bot_client, status_msg, aid, chat_slug, start_
     except Exception as err:
         logger.error(f"Range Link Task Error: {err}\n{traceback.format_exc()}")
         await status_msg.edit_text(f"❌ **Range Link Processing Error:** `{str(err)}`")
+
+LANGUAGE_MAPPINGS = {
+    "tel": "Telugu",
+    "tam": "Tamil",
+    "hin": "Hindi",
+    "eng": "English",
+    "jap": "Japanese",
+    "jpn": "Japanese",
+    "jp": "Japanese",
+    "kan": "Kannada",
+    "mal": "Malayalam",
+    "ben": "Bengali",
+    "mar": "Marathi",
+    "kor": "Korean",
+    "chi": "Chinese",
+    "zho": "Chinese"
+}
+
+def parse_language_input(text):
+    if not text:
+        return "Telugu • Tamil • Hindi • English • Japanese"
+
+    parts = [p.strip() for p in text.split(",") if p.strip()]
+    parsed_names = []
+    for p in parts:
+        low = p.lower()
+        if low in LANGUAGE_MAPPINGS:
+            parsed_names.append(LANGUAGE_MAPPINGS[low])
+        else:
+            parsed_names.append(p.title() if p.islower() else p)
+
+    if not parsed_names:
+        return "Telugu • Tamil • Hindi • English • Japanese"
+
+    return " • ".join(parsed_names)
 
 def parse_group_names_list(text):
     if not text or not text.strip():
@@ -552,6 +835,109 @@ def register_handlers(bot: Client):
         db_status = "Connected" if await db.ping() else "Disconnected"
         await message.reply(f"⚡ **System Status:** Operational\n🗄 **Database:** {db_status}\n🏓 **Latency Check:** Minimal/Responsive.")
 
+    @bot.on_message(filters.command(["post", "POST"]))
+    async def post_command_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Access Denied.** Unauthorized user.")
+
+        query = " ".join(message.command[1:]).strip()
+        if not query and message.reply_to_message:
+            query = (message.reply_to_message.text or message.reply_to_message.caption or "").strip()
+
+        if not query:
+            post_ch = await db.get_post_channel()
+            ch_status = f"`{post_ch}`" if post_ch else "*Not Configured*"
+            return await message.reply(
+                "📢 **Post Channel Management**\n\n"
+                f"Currently Configured Channel: {ch_status}\n\n"
+                "💡 **Usage:**\n"
+                "• `/post <CHANNEL_ID>` — Configure target channel (e.g. `/post -1001234567890` or `/post @mychannel`)\n"
+                "• `/post <PAGE_LINK>` — Prepare and publish post to channel\n"
+                "• `/post <PAGE_LINK> | <HEADING>` — Publish post instantly"
+            )
+
+        # Check if query is channel configuration e.g. -100... or @channel
+        if (query.startswith("-100") or query.startswith("@") or query.replace("-", "").isdigit()) and "http" not in query:
+            channel_id = query
+            try:
+                test_msg = await safe_send_channel_message(client, channel_id, "⚡ **AniZoneFlix Channel Verification Ping...**")
+                await client.delete_messages(channel_id, test_msg.id)
+                await db.set_post_channel(channel_id)
+                return await message.reply(f"✅ **Post Channel Successfully Configured:** `{channel_id}`")
+            except Exception as err:
+                return await message.reply(
+                    f"❌ **Failed to verify post channel `{channel_id}`:** {err}\n\n"
+                    "Please make sure the bot is an admin with posting permissions in the channel."
+                )
+
+        # Check for one-shot heading e.g. PAGE_LINK | HEADING or PAGE_LINK\nHEADING
+        one_shot_heading = None
+        if "|" in query:
+            parts = query.split("|", 1)
+            link_part = parts[0].strip()
+            one_shot_heading = parts[1].strip()
+        elif "\n" in query:
+            parts = query.split("\n", 1)
+            link_part = parts[0].strip()
+            one_shot_heading = parts[1].strip()
+        else:
+            link_part = query
+
+        post_channel = await db.get_post_channel()
+        if not post_channel:
+            return await message.reply(
+                "⚠️ **Post Channel Not Configured!**\n\n"
+                "Please configure the target channel first using:\n"
+                "`/post <CHANNEL_ID_OR_USERNAME>`\n\n"
+                "Example: `/post -1001234567890` or `/post @mychannel`"
+            )
+
+        slug = extract_slug(link_part)
+        anime = await db.get_anime(slug)
+        if not anime:
+            results = await db.search_anime_db(link_part)
+            if results:
+                anime = results[0]
+
+        if not anime:
+            return await message.reply(f"❌ **Page Not Found in Database:** `{slug}`")
+
+        # Automatically enrich missing metadata if needed
+        from api.anime_api import auto_fill_missing_metadata
+        anime = await auto_fill_missing_metadata(anime)
+
+        aid = str(anime["_id"])
+        full_page_link = link_part if link_part.startswith("http") else f"{Config.BASE_URL}/anime/{anime['slug']}"
+
+        if one_shot_heading:
+            # Publish immediately
+            try:
+                sent_msg = await publish_post_to_channel(client, post_channel, one_shot_heading, anime, full_page_link)
+                return await message.reply(
+                    f"🎉 **Post Successfully Published to Channel!**\n\n"
+                    f"📢 **Channel:** `{post_channel}`\n"
+                    f"💬 **Message ID:** `{sent_msg.id}`"
+                )
+            except Exception as post_err:
+                logger.error(f"Error publishing post to channel {post_channel}: {post_err}")
+                return await message.reply(f"❌ **Failed to publish post to channel `{post_channel}`:** `{str(post_err)}`")
+
+        # Otherwise prompt for heading
+        user_state[message.from_user.id] = {
+            "action": "ask_post_heading",
+            "aid": aid,
+            "slug": anime["slug"],
+            "page_link": full_page_link
+        }
+
+        await message.reply(
+            f"📌 **Send the Heading for this Post:**\n\n"
+            f"🎬 **Title:** `{anime['title']}`\n"
+            f"🔗 **Link:** `{full_page_link}`\n\n"
+            "Example:\n`🏁 Tokyo Ghoul:re(season - 3) — Added! 🎉`\n\n"
+            "Send /cancel to abort."
+        )
+
     @bot.on_message(filters.command("start"))
     async def start_handler(client, message):
         await message.reply_photo(
@@ -640,22 +1026,41 @@ def register_handlers(bot: Client):
             return await message.reply("🛰 **Intelligence Aggregator**\n\nPlease send the **Title** of the series:")
 
         msg = await message.reply("📡 **Scanning Intelligence Feeds...**")
+        results = []
         try:
-            results = await asyncio.wait_for(anime_api.search_all(query), timeout=5)
-            if not results:
-                user_state[message.from_user.id] = {"action": "ask_search_query"}
-                return await msg.edit("😔 **Search Exhausted.** No matches found. Try again:")
-
-            search_results[message.from_user.id] = results
-            text = "🎯 **Select Match from Feed:**\n\n"
-            for i, res in enumerate(results[:10], 1):
-                text += f"**{i}.** {res['title']} ({res['year']}) `[{res['source'].upper()}]`\n"
-
-            await msg.edit(text)
-            user_state[message.from_user.id] = {"action": "select_anime"}
+            results = await asyncio.wait_for(anime_api.search_all(query), timeout=15)
         except Exception as e:
-            logger.error(f"Search Error: {e}")
-            await msg.edit("❌ **Intelligence Feed Failure.** Try again.")
+            logger.error(f"External Search Error/Timeout: {e}")
+
+        # Fall back to database search if external search returned empty
+        if not results:
+            try:
+                db_matches = await db.search_anime_intelligent(query)
+                if db_matches:
+                    results = [
+                        {
+                            "source": "database",
+                            "id": str(m["_id"]),
+                            "title": m["title"],
+                            "image": m.get("image"),
+                            "year": m.get("year", "N/A")
+                        }
+                        for m in db_matches
+                    ]
+            except Exception as dbe:
+                logger.error(f"DB Fallback Search Error: {dbe}")
+
+        if not results:
+            user_state[message.from_user.id] = {"action": "ask_search_query"}
+            return await msg.edit("😔 **Search Exhausted.** No matches found. Try again:")
+
+        search_results[message.from_user.id] = results
+        text = "🎯 **Select Match from Feed:**\n\n"
+        for i, res in enumerate(results[:10], 1):
+            text += f"**{i}.** {res['title']} ({res.get('year') or 'N/A'}) `[{res['source'].upper()}]`\n"
+
+        await msg.edit(text)
+        user_state[message.from_user.id] = {"action": "select_anime"}
 
     @bot.on_message(filters.command("add_post"))
     async def auto_post_handler(client, message):
@@ -709,6 +1114,7 @@ def register_handlers(bot: Client):
 
             if message.command[0] == "edit_m":
                 buttons = [
+                    [InlineKeyboardButton("🔊 Languages", callback_data=f"manage_langs_{aid}")],
                     [InlineKeyboardButton("📦 Add Custom Group", callback_data=f"add_cgrp_start_{aid}")],
                     [InlineKeyboardButton("➕ Add Custom Button", callback_data=f"add_btn_start_{aid}")],
                     [InlineKeyboardButton("🗃 Add Custom Box", callback_data=f"add_box_start_{aid}")],
@@ -726,6 +1132,7 @@ def register_handlers(bot: Client):
             else:
                 buttons = [
                     [InlineKeyboardButton("👑 Admin Choice (Manage Content Groups)", callback_data=f"manage_groups_{aid}")],
+                    [InlineKeyboardButton("🔊 Languages", callback_data=f"manage_langs_{aid}")],
                     [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{aid}")],
                     [InlineKeyboardButton("🗃 Custom Boxes", callback_data=f"manage_boxes_{aid}")],
                     [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
@@ -1069,12 +1476,56 @@ def register_handlers(bot: Client):
         target_box_idx = None
         if data.startswith("main_"):
             aid = data.split("main_")[-1]
-            box_dest_str = "Main Section (Default)"
         else:
             parts = data.split("_")
             target_box_idx = int(parts[0])
             aid = parts[1]
 
+        user_state[uid]["target_box_idx"] = target_box_idx
+        user_state[uid]["action"] = "ask_range_mode"
+
+        anime_title = state.get("anime_title", aid)
+        box_suffix = f"main_{aid}" if target_box_idx is None else f"{target_box_idx}_{aid}"
+
+        buttons = [
+            [
+                InlineKeyboardButton("⚡ Genlink", callback_data=f"sel_range_mode_genlink_{box_suffix}"),
+                InlineKeyboardButton("📺 Serial", callback_data=f"sel_range_mode_serial_{box_suffix}")
+            ],
+            [InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]
+        ]
+
+        await callback_query.message.edit_text(
+            f"🎯 **Select Link Generation Mode:**\n\n"
+            f"🎬 **Target Page:** `{anime_title}`\n\n"
+            "• **Genlink**: Sends `/genlink <link>` sequentially for each message.\n"
+            "• **Serial**: Uses `/serielbatch` automation stream in configured bot.",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+        await callback_query.answer()
+
+    @bot.on_callback_query(filters.regex("^sel_range_mode_"))
+    async def sel_range_mode_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        uid = callback_query.from_user.id
+        state = user_state.get(uid)
+        if not state:
+            return await callback_query.answer("❌ Session Expired", show_alert=True)
+
+        # callback data format: sel_range_mode_<genlink|serial>_<main|box_idx>_<aid>
+        raw = callback_query.data.split("sel_range_mode_")[-1]
+        parts = raw.split("_")
+        mode = parts[0] # genlink or serial
+
+        target_box_idx = None
+        if parts[1] == "main":
+            aid = parts[2]
+            box_dest_str = "Main Section (Default)"
+        else:
+            target_box_idx = int(parts[1])
+            aid = parts[2]
             anime_doc = await db.get_anime(aid)
             boxes = anime_doc.get("custom_boxes", []) if anime_doc else []
             box_name = boxes[target_box_idx]["name"] if target_box_idx < len(boxes) else "Custom Box"
@@ -1091,7 +1542,7 @@ def register_handlers(bot: Client):
         user_state.pop(uid, None)
 
         status_msg = await callback_query.message.edit_text(
-            f"🚀 **Range Link Automation Initiated!**\n\n"
+            f"🚀 **Range Link Automation Initiated ({mode.upper()})!**\n\n"
             f"🎬 **Target Page:** `{anime_title}` (`{aid}`)\n"
             f"🤖 **Selected Bot:** `@{selected_bot}`\n"
             f"🔍 **Filter Name:** `{filter_name or 'N/A'}`\n"
@@ -1099,11 +1550,14 @@ def register_handlers(bot: Client):
             f"🔢 **Message Range:** `{start_id}` to `{end_id}` ({end_id - start_id + 1} messages)\n"
             f"👥 **Groups Configured:** {len(group_names)}\n"
             f"📂 **Destination:** {box_dest_str}\n\n"
-            "⏳ Processing sequentially..."
+            f"⏳ Mode: `{mode}`..."
         )
         await callback_query.answer()
 
-        asyncio.create_task(process_range_link_task(client, status_msg, aid, chat_slug, start_id, end_id, group_names, target_bot=selected_bot, target_box_idx=target_box_idx, filter_name=filter_name))
+        asyncio.create_task(process_range_link_task(
+            client, status_msg, aid, chat_slug, start_id, end_id, group_names,
+            target_bot=selected_bot, target_box_idx=target_box_idx, filter_name=filter_name, mode=mode
+        ))
 
     @bot.on_callback_query(filters.regex("^setbot_refresh$"))
     async def setbot_refresh_cb(client, callback_query):
@@ -1671,6 +2125,7 @@ def register_handlers(bot: Client):
             if not anime: return await callback_query.answer("❌ Not Found")
 
             buttons = [
+                [InlineKeyboardButton("🔊 Languages", callback_data=f"manage_langs_{aid}")],
                 [InlineKeyboardButton("📦 Add Custom Group", callback_data=f"add_cgrp_start_{aid}")],
                 [InlineKeyboardButton("➕ Add Custom Button", callback_data=f"add_btn_start_{aid}")],
                 [InlineKeyboardButton("🗃 Add Custom Box", callback_data=f"add_box_start_{aid}")],
@@ -1688,6 +2143,32 @@ def register_handlers(bot: Client):
         except Exception as e:
             logger.error(f"Edit M Back Error: {e}")
             await callback_query.answer("Sync Error")
+
+    @bot.on_callback_query(filters.regex("^manage_langs_"))
+    async def manage_langs_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        aid = callback_query.data.split("manage_langs_")[-1]
+        anime = await db.get_anime(aid)
+        if not anime:
+            return await callback_query.answer("❌ Anime Not Found", show_alert=True)
+
+        curr_langs = anime.get("languages", "Telugu • Tamil • Hindi • English • Japanese")
+        user_state[callback_query.from_user.id] = {
+            "action": "ask_anime_languages",
+            "slug": aid
+        }
+
+        await callback_query.message.edit_text(
+            f"🔊 **Audio Languages Management: {anime['title']}**\n\n"
+            f"Current Configured Languages:\n`{curr_langs}`\n\n"
+            "Please send the language names or codes separated by commas:\n\n"
+            "Example:\n`tel,tam,hin,eng` or `Telugu, Tamil, Hindi, English, Japanese`\n\n"
+            "Send /cancel to abort.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]])
+        )
+        await callback_query.answer()
 
     @bot.on_callback_query(filters.regex("^add_cgrp_start_"))
     async def add_cgrp_start_cb(client, callback_query):
@@ -2294,6 +2775,7 @@ def register_handlers(bot: Client):
             if not anime: return await callback_query.answer("❌ Not Found")
 
             buttons = [
+                [InlineKeyboardButton("🔊 Languages", callback_data=f"manage_langs_{aid}")],
                 [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{aid}")],
                 [InlineKeyboardButton("🗃 Custom Boxes", callback_data=f"manage_boxes_{aid}")],
                 [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
@@ -2700,62 +3182,63 @@ def register_handlers(bot: Client):
 
     # --- INTERACTION HANDLER (GROUP 1) ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page", "addbot", "songs", "SONGS", "uptime", "UPTIME", "setbot", "ss"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video) & ~filters.command(["start", "help", "search", "post", "POST", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page", "addbot", "songs", "SONGS", "uptime", "UPTIME", "setbot", "ss"]), group=1)
     async def interaction_handler(client, message):
         if not message.from_user: return
         uid = message.from_user.id
         if not await is_authorized(uid):
             return await message.reply("🚫 **Access Denied.** Unauthorized user.")
         state = user_state.get(uid)
+        msg_input = message.text or message.caption or ""
+        parsed_range = parse_range_link(msg_input)
+
+        if parsed_range and (not state or state.get("action") not in ["ask_range_groups", "ask_range_filter_name", "ask_range_page_link", "ask_range_box_selection", "ask_range_mode"]):
+            chat_slug, start_id, end_id = parsed_range
+            if start_id > end_id:
+                start_id, end_id = end_id, start_id
+
+            configured_bots = await db.get_configured_bots()
+            if not configured_bots:
+                return await message.reply("❌ **No Bots Configured!** Please configure at least one bot using `/setbot` first.")
+
+            if len(configured_bots) > 1:
+                # Multiple bots configured: Ask admin to choose bot
+                buttons = [
+                    [InlineKeyboardButton(f"🤖 @{b}", callback_data=f"sel_range_bot_{b}")] for b in configured_bots
+                ]
+                buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")])
+
+                user_state[uid] = {
+                    "chat_slug": chat_slug,
+                    "start_id": start_id,
+                    "end_id": end_id
+                }
+
+                return await message.reply(
+                    f"🔗 **Range Link Received:** `{chat_slug}` (Message IDs: `{start_id}` to `{end_id}`)\n\n"
+                    "Please select the **Bot** to use for generating links:",
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+            else:
+                selected_bot = configured_bots[0]
+                user_state[uid] = {
+                    "action": "ask_range_groups",
+                    "selected_bot": selected_bot,
+                    "chat_slug": chat_slug,
+                    "start_id": start_id,
+                    "end_id": end_id
+                }
+                return await message.reply(
+                    f"🔗 **Range Link Received:** `{chat_slug}` (Message IDs: `{start_id}` to `{end_id}`)\n"
+                    f"🤖 **Bot Selected:** `@{selected_bot}`\n\n"
+                    "Please send the **Group Names** in this format:\n\n"
+                    "1. Group name\n"
+                    "2. Group name\n"
+                    "3. Group name\n\n"
+                    "Send /cancel to abort."
+                )
+
         if not state:
-            # Check if admin sent a range link directly
-            if message.text:
-                parsed_range = parse_range_link(message.text)
-                if parsed_range:
-                    chat_slug, start_id, end_id = parsed_range
-                    if start_id > end_id:
-                        start_id, end_id = end_id, start_id
-
-                    configured_bots = await db.get_configured_bots()
-                    if not configured_bots:
-                        return await message.reply("❌ **No Bots Configured!** Please configure at least one bot using `/setbot` first.")
-
-                    if len(configured_bots) > 1:
-                        # Multiple bots configured: Ask admin to choose bot
-                        buttons = [
-                            [InlineKeyboardButton(f"🤖 @{b}", callback_data=f"sel_range_bot_{b}")] for b in configured_bots
-                        ]
-                        buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")])
-
-                        user_state[uid] = {
-                            "chat_slug": chat_slug,
-                            "start_id": start_id,
-                            "end_id": end_id
-                        }
-
-                        return await message.reply(
-                            f"🔗 **Range Link Received:** `{chat_slug}` (Message IDs: `{start_id}` to `{end_id}`)\n\n"
-                            "Please select the **Bot** to use for generating links:",
-                            reply_markup=InlineKeyboardMarkup(buttons)
-                        )
-                    else:
-                        selected_bot = configured_bots[0]
-                        user_state[uid] = {
-                            "action": "ask_range_groups",
-                            "selected_bot": selected_bot,
-                            "chat_slug": chat_slug,
-                            "start_id": start_id,
-                            "end_id": end_id
-                        }
-                        return await message.reply(
-                            f"🔗 **Range Link Received:** `{chat_slug}` (Message IDs: `{start_id}` to `{end_id}`)\n"
-                            f"🤖 **Bot Selected:** `@{selected_bot}`\n\n"
-                            "Please send the **Group Names** in this format:\n\n"
-                            "1. Group name\n"
-                            "2. Group name\n"
-                            "3. Group name\n\n"
-                            "Send /cancel to abort."
-                        )
             return
 
         action = state.get("action", "")
@@ -2836,29 +3319,77 @@ def register_handlers(bot: Client):
                     reply_markup=InlineKeyboardMarkup(buttons)
                 )
 
-            # No custom boxes available: Proceed directly in main section
-            selected_bot = state.get("selected_bot") or (await db.get_configured_bot())
-            chat_slug = state["chat_slug"]
-            start_id = state["start_id"]
-            end_id = state["end_id"]
-            group_names = state["group_names"]
-            filter_name = state.get("filter_name")
-
-            del user_state[uid]
-
-            status_msg = await message.reply(
-                f"🚀 **Range Link Automation Initiated!**\n\n"
-                f"🎬 **Target Page:** `{anime['title']}` (`{aid}`)\n"
-                f"🤖 **Selected Bot:** `@{selected_bot}`\n"
-                f"🔍 **Filter Name:** `{filter_name or 'N/A'}`\n"
-                f"💬 **Channel/Chat:** `{chat_slug}`\n"
-                f"🔢 **Message Range:** `{start_id}` to `{end_id}` ({end_id - start_id + 1} messages)\n"
-                f"👥 **Groups Configured:** {len(group_names)}\n"
-                f"📂 **Destination:** Main Section (Default)\n\n"
-                "⏳ Processing sequentially..."
+            # Ask mode selection (Genlink vs Serial)
+            buttons = [
+                [
+                    InlineKeyboardButton("⚡ Genlink", callback_data=f"sel_range_mode_genlink_main_{aid}"),
+                    InlineKeyboardButton("📺 Serial", callback_data=f"sel_range_mode_serial_main_{aid}")
+                ],
+                [InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]
+            ]
+            user_state[uid]["target_box_idx"] = None
+            user_state[uid]["action"] = "ask_range_mode"
+            return await message.reply(
+                f"🎯 **Select Link Generation Mode:**\n\n"
+                f"🎬 **Target Page:** `{anime['title']}`\n\n"
+                "• **Genlink**: Sends `/genlink <link>` sequentially for each message.\n"
+                "• **Serial**: Uses `/serielbatch` automation stream in configured bot.",
+                reply_markup=InlineKeyboardMarkup(buttons)
             )
 
-            asyncio.create_task(process_range_link_task(client, status_msg, aid, chat_slug, start_id, end_id, group_names, target_bot=selected_bot, target_box_idx=None, filter_name=filter_name))
+        if action == "ask_post_heading":
+            heading = message.text.strip()
+
+            # Handle cancellation
+            if heading.lower() in ["/cancel", "cancel"]:
+                del user_state[uid]
+                return await message.reply("✨ **Action Cancelled.** standby.")
+
+            # Validate that heading is not a command starting with /
+            if heading.startswith("/"):
+                return await message.reply("⚠️ **Heading cannot be a bot command.** Please send the text heading (or send /cancel to abort):")
+
+            aid = state["aid"]
+            anime = await db.get_anime(aid)
+            if not anime:
+                await message.reply("❌ **Error:** Anime page not found in database.")
+                del user_state[uid]
+                return
+
+            post_channel = await db.get_post_channel()
+            if not post_channel:
+                await message.reply("⚠️ **Post Channel Not Configured.** Please use `/post <CHANNEL_ID>` first.")
+                del user_state[uid]
+                return
+
+            page_link = state.get("page_link") or f"{Config.BASE_URL}/anime/{anime['slug']}"
+
+            try:
+                sent_msg = await publish_post_to_channel(client, post_channel, heading, anime, page_link)
+                await message.reply(
+                    f"🎉 **Post Successfully Published to Channel!**\n\n"
+                    f"📢 **Channel:** `{post_channel}`\n"
+                    f"💬 **Message ID:** `{sent_msg.id}`"
+                )
+            except Exception as post_err:
+                logger.error(f"Error publishing post to channel {post_channel}: {post_err}")
+                await message.reply(f"❌ **Failed to publish post to channel `{post_channel}`:** `{str(post_err)}`")
+
+            del user_state[uid]
+            return
+
+        if action == "ask_anime_languages":
+            aid = state["slug"]
+            formatted_langs = parse_language_input(message.text)
+            if await db.ping():
+                res = await db.anime.update_one(
+                    {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
+                    {"$set": {"languages": formatted_langs}, "$currentDate": {"updated_at": True}}
+                )
+                await message.reply(f"✅ **Audio Languages Updated!**\n\n🔊 **Languages:** `{formatted_langs}`")
+            else:
+                await message.reply("❌ Database Offline")
+            del user_state[uid]
             return
 
         if action == "ask_setbot_username":
