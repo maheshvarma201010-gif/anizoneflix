@@ -193,8 +193,10 @@ class AddedBotManager:
             cursor = db.added_bots.find()
             bots = await cursor.to_list(length=1000)
             for bot_doc in bots:
-                token = bot_doc["token"]
-                group_id = bot_doc["group_id"]
+                token = bot_doc.get("token")
+                if not token:
+                    continue
+                group_id = bot_doc.get("group_id")
                 bot_info = bot_doc.get("bot_info", {})
                 await self.start_bot(token, group_id, bot_info)
         except Exception as e:

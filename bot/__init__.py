@@ -124,25 +124,34 @@ def parse_range_link(text):
     if not text:
         return None
     text = text.strip()
-    pattern1 = r'https?://(?:t\.me|telegram\.me|telegram\.dog)/([a-zA-Z0-9_]+)/(\d+)-https?://(?:t\.me|telegram\.me|telegram\.dog)/\1/(\d+)'
-    m1 = re.search(pattern1, text)
-    if m1:
-        return m1.group(1), int(m1.group(2)), int(m1.group(3))
 
-    pattern2 = r'https?://(?:t\.me|telegram\.me|telegram\.dog)/([a-zA-Z0-9_]+)/(\d+)-(\d+)'
-    m2 = re.search(pattern2, text)
-    if m2:
-        return m2.group(1), int(m2.group(2)), int(m2.group(3))
+    # Match private channel links e.g. https://t.me/c/1234567890/100
+    private_matches = re.findall(r'https?://(?:t\.me|telegram\.me|telegram\.dog)/c/(\d+)/(\d+)', text)
+    if len(private_matches) >= 2:
+        c1, id1 = private_matches[0]
+        c2, id2 = private_matches[1]
+        if c1 == c2:
+            return f"c/{c1}", int(id1), int(id2)
+    elif len(private_matches) == 1:
+        c1, id1 = private_matches[0]
+        short_m = re.search(r'https?://(?:t\.me|telegram\.me|telegram\.dog)/c/' + re.escape(c1) + r'/' + re.escape(id1) + r'(?:[^\d]*?)-[^\d]*?(\d+)', text)
+        if short_m:
+            return f"c/{c1}", int(id1), int(short_m.group(1))
 
-    pattern3 = r'https?://(?:t\.me|telegram\.me|telegram\.dog)/c/(\d+)/(\d+)-https?://(?:t\.me|telegram\.me|telegram\.dog)/c/\1/(\d+)'
-    m3 = re.search(pattern3, text)
-    if m3:
-        return f"c/{m3.group(1)}", int(m3.group(2)), int(m3.group(3))
+    # Match public channel links e.g. https://t.me/channel_name/100
+    public_matches = re.findall(r'https?://(?:t\.me|telegram\.me|telegram\.dog)/([a-zA-Z0-9_]+)/(\d+)', text)
+    public_matches = [(chan, mid) for chan, mid in public_matches if chan.lower() != 'c']
 
-    pattern4 = r'https?://(?:t\.me|telegram\.me|telegram\.dog)/c/(\d+)/(\d+)-(\d+)'
-    m4 = re.search(pattern4, text)
-    if m4:
-        return f"c/{m4.group(1)}", int(m4.group(2)), int(m4.group(3))
+    if len(public_matches) >= 2:
+        chan1, id1 = public_matches[0]
+        chan2, id2 = public_matches[1]
+        if chan1.lower() == chan2.lower():
+            return chan1, int(id1), int(id2)
+    elif len(public_matches) == 1:
+        chan1, id1 = public_matches[0]
+        short_m = re.search(r'https?://(?:t\.me|telegram\.me|telegram\.dog)/' + re.escape(chan1) + r'/' + re.escape(id1) + r'(?:[^\d]*?)-[^\d]*?(\d+)', text)
+        if short_m:
+            return chan1, int(id1), int(short_m.group(1))
 
     return None
 
@@ -2879,55 +2888,56 @@ def register_handlers(bot: Client):
         if not await is_authorized(uid):
             return await message.reply("🚫 **Access Denied.** Unauthorized user.")
         state = user_state.get(uid)
+        msg_input = message.text or message.caption or ""
+        parsed_range = parse_range_link(msg_input)
+
+        if parsed_range and (not state or state.get("action") not in ["ask_range_groups", "ask_range_filter_name", "ask_range_page_link", "ask_range_box_selection", "ask_range_mode"]):
+            chat_slug, start_id, end_id = parsed_range
+            if start_id > end_id:
+                start_id, end_id = end_id, start_id
+
+            configured_bots = await db.get_configured_bots()
+            if not configured_bots:
+                return await message.reply("❌ **No Bots Configured!** Please configure at least one bot using `/setbot` first.")
+
+            if len(configured_bots) > 1:
+                # Multiple bots configured: Ask admin to choose bot
+                buttons = [
+                    [InlineKeyboardButton(f"🤖 @{b}", callback_data=f"sel_range_bot_{b}")] for b in configured_bots
+                ]
+                buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")])
+
+                user_state[uid] = {
+                    "chat_slug": chat_slug,
+                    "start_id": start_id,
+                    "end_id": end_id
+                }
+
+                return await message.reply(
+                    f"🔗 **Range Link Received:** `{chat_slug}` (Message IDs: `{start_id}` to `{end_id}`)\n\n"
+                    "Please select the **Bot** to use for generating links:",
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+            else:
+                selected_bot = configured_bots[0]
+                user_state[uid] = {
+                    "action": "ask_range_groups",
+                    "selected_bot": selected_bot,
+                    "chat_slug": chat_slug,
+                    "start_id": start_id,
+                    "end_id": end_id
+                }
+                return await message.reply(
+                    f"🔗 **Range Link Received:** `{chat_slug}` (Message IDs: `{start_id}` to `{end_id}`)\n"
+                    f"🤖 **Bot Selected:** `@{selected_bot}`\n\n"
+                    "Please send the **Group Names** in this format:\n\n"
+                    "1. Group name\n"
+                    "2. Group name\n"
+                    "3. Group name\n\n"
+                    "Send /cancel to abort."
+                )
+
         if not state:
-            # Check if admin sent a range link directly
-            if message.text:
-                parsed_range = parse_range_link(message.text)
-                if parsed_range:
-                    chat_slug, start_id, end_id = parsed_range
-                    if start_id > end_id:
-                        start_id, end_id = end_id, start_id
-
-                    configured_bots = await db.get_configured_bots()
-                    if not configured_bots:
-                        return await message.reply("❌ **No Bots Configured!** Please configure at least one bot using `/setbot` first.")
-
-                    if len(configured_bots) > 1:
-                        # Multiple bots configured: Ask admin to choose bot
-                        buttons = [
-                            [InlineKeyboardButton(f"🤖 @{b}", callback_data=f"sel_range_bot_{b}")] for b in configured_bots
-                        ]
-                        buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")])
-
-                        user_state[uid] = {
-                            "chat_slug": chat_slug,
-                            "start_id": start_id,
-                            "end_id": end_id
-                        }
-
-                        return await message.reply(
-                            f"🔗 **Range Link Received:** `{chat_slug}` (Message IDs: `{start_id}` to `{end_id}`)\n\n"
-                            "Please select the **Bot** to use for generating links:",
-                            reply_markup=InlineKeyboardMarkup(buttons)
-                        )
-                    else:
-                        selected_bot = configured_bots[0]
-                        user_state[uid] = {
-                            "action": "ask_range_groups",
-                            "selected_bot": selected_bot,
-                            "chat_slug": chat_slug,
-                            "start_id": start_id,
-                            "end_id": end_id
-                        }
-                        return await message.reply(
-                            f"🔗 **Range Link Received:** `{chat_slug}` (Message IDs: `{start_id}` to `{end_id}`)\n"
-                            f"🤖 **Bot Selected:** `@{selected_bot}`\n\n"
-                            "Please send the **Group Names** in this format:\n\n"
-                            "1. Group name\n"
-                            "2. Group name\n"
-                            "3. Group name\n\n"
-                            "Send /cancel to abort."
-                        )
             return
 
         action = state.get("action", "")
