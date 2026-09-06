@@ -148,7 +148,7 @@ def parse_range_link(text):
 
 def parse_genlink_bot_response(text, filter_name=None):
     """
-    Parses output returned by genlink bot.
+    Parses output returned by genlink bot for a single block.
     Extracts video quality (e.g. 480p, 720p, 1080p, 4k), episode number if present,
     and generated link (https://telegram.me/... or https://t.me/...).
     Returns dict or None.
@@ -160,10 +160,10 @@ def parse_genlink_bot_response(text, filter_name=None):
         return None
 
     # Extract link
-    link_match = re.search(r'https?://(?:telegram\.me|t\.me|telegram\.dog)/[^\s"]+', text)
+    link_match = re.search(r'https?://(?:telegram\.me|t\.me|telegram\.dog)/[^\s"<>]+', text)
     if not link_match:
         return None
-    link = link_match.group(0).strip('"\').,()')
+    link = link_match.group(0).strip('"\').,()<>')
 
     # Extract quality
     quality = "720P" # default quality if unspecified
@@ -186,6 +186,33 @@ def parse_genlink_bot_response(text, filter_name=None):
         "quality": quality,
         "episode": episode
     }
+
+def parse_all_genlink_blocks(text, filter_name=None):
+    """
+    Parses output returned by genlink / serielbatch bot, supporting bulk messages
+    that contain multiple generated link blocks.
+    Returns list of dicts: [{"link": ..., "quality": ..., "episode": ...}, ...]
+    """
+    if not text:
+        return []
+
+    # Split by block header pattern if multiple blocks exist in a single message
+    chunks = re.split(r'(?=(?:<b>)?First (?:Filename|Caption):)', text, flags=re.IGNORECASE)
+    results = []
+    for chunk in chunks:
+        if not chunk.strip():
+            continue
+        parsed = parse_genlink_bot_response(chunk, filter_name=filter_name)
+        if parsed:
+            results.append(parsed)
+
+    # Fallback if split didn't yield blocks but text contains a valid link
+    if not results:
+        parsed = parse_genlink_bot_response(text, filter_name=filter_name)
+        if parsed:
+            results.append(parsed)
+
+    return results
 
 async def process_range_link_task(bot_client, status_msg, aid, chat_slug, start_id, end_id, group_names, target_bot=None, target_box_idx=None, filter_name=None, mode="genlink"):
     """
@@ -281,6 +308,7 @@ async def process_range_link_task(bot_client, status_msg, aid, chat_slug, start_
             processed_msg_ids = set()
             start_time = asyncio.get_event_loop().time()
             last_activity_time = start_time
+            is_completed = False
 
             while True:
                 await asyncio.sleep(1)
@@ -291,23 +319,32 @@ async def process_range_link_task(bot_client, status_msg, aid, chat_slug, start_
                     if history_msg.id > last_msg_id and not history_msg.outgoing and history_msg.id not in processed_msg_ids:
                         processed_msg_ids.add(history_msg.id)
                         reply_text = history_msg.text or history_msg.caption or ""
-                        parsed = parse_genlink_bot_response(reply_text, filter_name=filter_name)
-                        if parsed:
-                            collected_outputs.append({
-                                "msg_id": len(collected_outputs) + start_id,
-                                "link": parsed["link"],
-                                "quality": parsed["quality"],
-                                "episode": parsed["episode"]
-                            })
+
+                        if "Serial Batch Link Generation Complete!" in reply_text:
+                            is_completed = True
+                            break
+
+                        parsed_items = parse_all_genlink_blocks(reply_text, filter_name=filter_name)
+                        if parsed_items:
+                            for p_item in parsed_items:
+                                collected_outputs.append({
+                                    "msg_id": len(collected_outputs) + start_id,
+                                    "link": p_item["link"],
+                                    "quality": p_item["quality"],
+                                    "episode": p_item["episode"]
+                                })
                             new_found = True
                             last_activity_time = now
                             try:
                                 await status_msg.edit_text(
                                     f"⏳ **Serial Batch Monitoring ({len(collected_outputs)} links collected)...**\n\n"
-                                    f"Latest: `{parsed['quality']}` - `{parsed['link']}`"
+                                    f"Latest: `{parsed_items[-1]['quality']}` - `{parsed_items[-1]['link']}`"
                                 )
                             except Exception:
                                 pass
+
+                if is_completed:
+                    break
 
                 if new_found and len(collected_outputs) >= total_msgs:
                     break
