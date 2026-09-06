@@ -46,6 +46,7 @@ async def is_authorized(user_id):
 async def set_commands(client):
     commands = [
         BotCommand("start", "Start the bot"),
+        BotCommand("post", "Publish Anime Post to Channel"),
         BotCommand("search", "Industrial-Grade Search"),
         BotCommand("add_post", "Rapid One-Shot Post"),
         BotCommand("add_page", "Manual Content Creation"),
@@ -67,6 +68,20 @@ async def set_commands(client):
     ]
     await client.set_bot_commands(commands)
     logger.info("Bot commands synchronized.")
+
+    # Startup verification of configured post channel
+    asyncio.create_task(verify_post_channel(client))
+
+async def verify_post_channel(client):
+    try:
+        channel_id = await db.get_post_channel()
+        if channel_id:
+            logger.info(f"Verifying post channel permissions for {channel_id}...")
+            test_msg = await client.send_message(channel_id, "⚡ **AniZoneFlix Channel Verification Ping...**")
+            await client.delete_messages(channel_id, test_msg.id)
+            logger.info(f"Post channel {channel_id} verified successfully.")
+    except Exception as e:
+        logger.warning(f"Post channel verification warning for {channel_id}: {e}")
 
 def extract_slug(text):
     """Bulletproof slug extraction from any URL or raw text"""
@@ -538,6 +553,41 @@ async def process_range_link_task(bot_client, status_msg, aid, chat_slug, start_
         logger.error(f"Range Link Task Error: {err}\n{traceback.format_exc()}")
         await status_msg.edit_text(f"❌ **Range Link Processing Error:** `{str(err)}`")
 
+LANGUAGE_MAPPINGS = {
+    "tel": "Telugu",
+    "tam": "Tamil",
+    "hin": "Hindi",
+    "eng": "English",
+    "jap": "Japanese",
+    "jpn": "Japanese",
+    "jp": "Japanese",
+    "kan": "Kannada",
+    "mal": "Malayalam",
+    "ben": "Bengali",
+    "mar": "Marathi",
+    "kor": "Korean",
+    "chi": "Chinese",
+    "zho": "Chinese"
+}
+
+def parse_language_input(text):
+    if not text:
+        return "Telugu • Tamil • Hindi • English • Japanese"
+
+    parts = [p.strip() for p in text.split(",") if p.strip()]
+    parsed_names = []
+    for p in parts:
+        low = p.lower()
+        if low in LANGUAGE_MAPPINGS:
+            parsed_names.append(LANGUAGE_MAPPINGS[low])
+        else:
+            parsed_names.append(p.title() if p.islower() else p)
+
+    if not parsed_names:
+        return "Telugu • Tamil • Hindi • English • Japanese"
+
+    return " • ".join(parsed_names)
+
 def parse_group_names_list(text):
     if not text or not text.strip():
         return None
@@ -685,6 +735,83 @@ def register_handlers(bot: Client):
     async def ping_handler(client, message):
         db_status = "Connected" if await db.ping() else "Disconnected"
         await message.reply(f"⚡ **System Status:** Operational\n🗄 **Database:** {db_status}\n🏓 **Latency Check:** Minimal/Responsive.")
+
+    @bot.on_message(filters.command(["post", "POST"]))
+    async def post_command_handler(client, message):
+        if not message.from_user or not await is_authorized(message.from_user.id):
+            return await message.reply("🚫 **Access Denied.** Unauthorized user.")
+
+        query = " ".join(message.command[1:]).strip()
+        if not query and message.reply_to_message:
+            query = (message.reply_to_message.text or message.reply_to_message.caption or "").strip()
+
+        if not query:
+            post_ch = await db.get_post_channel()
+            ch_status = f"`{post_ch}`" if post_ch else "*Not Configured*"
+            return await message.reply(
+                "📢 **Post Channel Management**\n\n"
+                f"Currently Configured Channel: {ch_status}\n\n"
+                "💡 **Usage:**\n"
+                "• `/post <CHANNEL_ID>` — Configure target channel (e.g. `/post -1001234567890` or `/post @mychannel`)\n"
+                "• `/post <PAGE_LINK>` — Prepare and publish post to channel"
+            )
+
+        # Check if query is channel configuration e.g. -100... or @channel
+        if query.startswith("-100") or query.startswith("@") or query.replace("-", "").isdigit():
+            # Configure post channel
+            channel_id = query
+            try:
+                test_msg = await client.send_message(channel_id, "⚡ **AniZoneFlix Channel Verification Ping...**")
+                await client.delete_messages(channel_id, test_msg.id)
+                await db.set_post_channel(channel_id)
+                return await message.reply(f"✅ **Post Channel Successfully Configured:** `{channel_id}`")
+            except Exception as err:
+                return await message.reply(
+                    f"❌ **Failed to verify post channel `{channel_id}`:** {err}\n\n"
+                    "Please make sure the bot is an admin with posting permissions in the channel."
+                )
+
+        # Otherwise query is page link / slug
+        post_channel = await db.get_post_channel()
+        if not post_channel:
+            return await message.reply(
+                "⚠️ **Post Channel Not Configured!**\n\n"
+                "Please configure the target channel first using:\n"
+                "`/post <CHANNEL_ID_OR_USERNAME>`\n\n"
+                "Example: `/post -1001234567890` or `/post @mychannel`"
+            )
+
+        slug = extract_slug(query)
+        anime = await db.get_anime(slug)
+        if not anime:
+            results = await db.search_anime_db(query)
+            if results:
+                anime = results[0]
+
+        if not anime:
+            return await message.reply(f"❌ **Page Not Found in Database:** `{slug}`")
+
+        # Automatically enrich missing metadata if needed
+        from api.anime_api import auto_fill_missing_metadata
+        anime = await auto_fill_missing_metadata(anime)
+
+        aid = str(anime["_id"])
+        full_page_link = query if query.startswith("http") else f"{Config.BASE_URL}/anime/{anime['slug']}"
+
+        user_state[message.from_user.id] = {
+            "action": "ask_post_heading",
+            "aid": aid,
+            "slug": anime["slug"],
+            "page_link": full_page_link
+        }
+
+        await message.reply(
+            f"📌 **Send the Heading for this Post:**\n\n"
+            f"🎬 **Title:** `{anime['title']}`\n"
+            f"🔗 **Link:** `{full_page_link}`\n\n"
+            "Example:\n`🏁 Tokyo Ghoul:re(season - 3) — Added! 🎉`\n\n"
+            "Send /cancel to abort."
+        )
 
     @bot.on_message(filters.command("start"))
     async def start_handler(client, message):
@@ -843,6 +970,7 @@ def register_handlers(bot: Client):
 
             if message.command[0] == "edit_m":
                 buttons = [
+                    [InlineKeyboardButton("🔊 Languages", callback_data=f"manage_langs_{aid}")],
                     [InlineKeyboardButton("📦 Add Custom Group", callback_data=f"add_cgrp_start_{aid}")],
                     [InlineKeyboardButton("➕ Add Custom Button", callback_data=f"add_btn_start_{aid}")],
                     [InlineKeyboardButton("🗃 Add Custom Box", callback_data=f"add_box_start_{aid}")],
@@ -860,6 +988,7 @@ def register_handlers(bot: Client):
             else:
                 buttons = [
                     [InlineKeyboardButton("👑 Admin Choice (Manage Content Groups)", callback_data=f"manage_groups_{aid}")],
+                    [InlineKeyboardButton("🔊 Languages", callback_data=f"manage_langs_{aid}")],
                     [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{aid}")],
                     [InlineKeyboardButton("🗃 Custom Boxes", callback_data=f"manage_boxes_{aid}")],
                     [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
@@ -1852,6 +1981,7 @@ def register_handlers(bot: Client):
             if not anime: return await callback_query.answer("❌ Not Found")
 
             buttons = [
+                [InlineKeyboardButton("🔊 Languages", callback_data=f"manage_langs_{aid}")],
                 [InlineKeyboardButton("📦 Add Custom Group", callback_data=f"add_cgrp_start_{aid}")],
                 [InlineKeyboardButton("➕ Add Custom Button", callback_data=f"add_btn_start_{aid}")],
                 [InlineKeyboardButton("🗃 Add Custom Box", callback_data=f"add_box_start_{aid}")],
@@ -1869,6 +1999,32 @@ def register_handlers(bot: Client):
         except Exception as e:
             logger.error(f"Edit M Back Error: {e}")
             await callback_query.answer("Sync Error")
+
+    @bot.on_callback_query(filters.regex("^manage_langs_"))
+    async def manage_langs_cb(client, callback_query):
+        if not await is_authorized(callback_query.from_user.id):
+            return await callback_query.answer("🚫 Unauthorized", show_alert=True)
+
+        aid = callback_query.data.split("manage_langs_")[-1]
+        anime = await db.get_anime(aid)
+        if not anime:
+            return await callback_query.answer("❌ Anime Not Found", show_alert=True)
+
+        curr_langs = anime.get("languages", "Telugu • Tamil • Hindi • English • Japanese")
+        user_state[callback_query.from_user.id] = {
+            "action": "ask_anime_languages",
+            "slug": aid
+        }
+
+        await callback_query.message.edit_text(
+            f"🔊 **Audio Languages Management: {anime['title']}**\n\n"
+            f"Current Configured Languages:\n`{curr_langs}`\n\n"
+            "Please send the language names or codes separated by commas:\n\n"
+            "Example:\n`tel,tam,hin,eng` or `Telugu, Tamil, Hindi, English, Japanese`\n\n"
+            "Send /cancel to abort.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")]])
+        )
+        await callback_query.answer()
 
     @bot.on_callback_query(filters.regex("^add_cgrp_start_"))
     async def add_cgrp_start_cb(client, callback_query):
@@ -2475,6 +2631,7 @@ def register_handlers(bot: Client):
             if not anime: return await callback_query.answer("❌ Not Found")
 
             buttons = [
+                [InlineKeyboardButton("🔊 Languages", callback_data=f"manage_langs_{aid}")],
                 [InlineKeyboardButton("📦 Content Groups (Seasons)", callback_data=f"manage_groups_{aid}")],
                 [InlineKeyboardButton("🗃 Custom Boxes", callback_data=f"manage_boxes_{aid}")],
                 [InlineKeyboardButton("🔗 External Redirects (Buttons)", callback_data=f"manage_btns_{aid}")],
@@ -3035,6 +3192,109 @@ def register_handlers(bot: Client):
                 "• **Serial**: Uses `/serielbatch` automation stream in configured bot.",
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
+
+        if action == "ask_post_heading":
+            heading = message.text.strip()
+            aid = state["aid"]
+            anime = await db.get_anime(aid)
+            if not anime:
+                await message.reply("❌ **Error:** Anime page not found in database.")
+                del user_state[uid]
+                return
+
+            post_channel = await db.get_post_channel()
+            if not post_channel:
+                await message.reply("⚠️ **Post Channel Not Configured.** Please use `/post <CHANNEL_ID>` first.")
+                del user_state[uid]
+                return
+
+            title = anime.get("title", "Untitled")
+
+            # Genres
+            genres_raw = anime.get("genres", [])
+            if isinstance(genres_raw, list):
+                genres_str = " • ".join(genres_raw) if genres_raw else "Anime"
+            else:
+                genres_str = str(genres_raw)
+
+            # Audio
+            audio_str = anime.get("languages") or "Telugu • Tamil • Hindi • English • Japanese"
+
+            # Quality
+            quality_labels = []
+            seen_q = set()
+
+            seasons_links = anime.get("seasons_links", {})
+            if isinstance(seasons_links, dict):
+                for gname, gdata in seasons_links.items():
+                    if isinstance(gdata, dict):
+                        for label in gdata.keys():
+                            lbl_clean = str(label).strip()
+                            if lbl_clean and lbl_clean.lower() not in seen_q:
+                                seen_q.add(lbl_clean.lower())
+                                quality_labels.append(lbl_clean)
+
+            custom_boxes = anime.get("custom_boxes", [])
+            if isinstance(custom_boxes, list):
+                for box in custom_boxes:
+                    groups = box.get("groups", {})
+                    if isinstance(groups, dict):
+                        for gname, gdata in groups.items():
+                            if isinstance(gdata, dict):
+                                for label in gdata.keys():
+                                    lbl_clean = str(label).strip()
+                                    if lbl_clean and lbl_clean.lower() not in seen_q:
+                                        seen_q.add(lbl_clean.lower())
+                                        quality_labels.append(lbl_clean)
+
+            if quality_labels:
+                quality_str = " | ".join(quality_labels)
+            else:
+                quality_str = "480p | 720p | 1080p"
+
+            page_link = state.get("page_link") or f"{Config.BASE_URL}/anime/{anime['slug']}"
+
+            post_text = (
+                f"{heading}\n\n"
+                f"🎬 Title: {title}\n"
+                f"🗣 Genres: {genres_str}\n"
+                f"🔊 Audio: {audio_str}\n"
+                f"📺 Quality: {quality_str}\n\n"
+                f"📥 Watch / Download:\n"
+                f"{page_link}"
+            )
+
+            try:
+                sent_msg = await client.send_message(
+                    chat_id=post_channel,
+                    text=post_text,
+                    disable_web_page_preview=False
+                )
+                await message.reply(
+                    f"🎉 **Post Successfully Published to Channel!**\n\n"
+                    f"📢 **Channel:** `{post_channel}`\n"
+                    f"💬 **Message ID:** `{sent_msg.id}`"
+                )
+            except Exception as post_err:
+                logger.error(f"Error publishing post to channel {post_channel}: {post_err}")
+                await message.reply(f"❌ **Failed to publish post to channel `{post_channel}`:** `{str(post_err)}`")
+
+            del user_state[uid]
+            return
+
+        if action == "ask_anime_languages":
+            aid = state["slug"]
+            formatted_langs = parse_language_input(message.text)
+            if await db.ping():
+                res = await db.anime.update_one(
+                    {"_id": ObjectId(aid)} if ObjectId.is_valid(aid) else {"slug": aid},
+                    {"$set": {"languages": formatted_langs}, "$currentDate": {"updated_at": True}}
+                )
+                await message.reply(f"✅ **Audio Languages Updated!**\n\n🔊 **Languages:** `{formatted_langs}`")
+            else:
+                await message.reply("❌ Database Offline")
+            del user_state[uid]
+            return
 
         if action == "ask_setbot_username":
             bot_username = message.text.strip().lstrip("@")

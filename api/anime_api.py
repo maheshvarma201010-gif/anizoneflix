@@ -118,15 +118,17 @@ class AnimeAPI:
         return flat[:15]
 
     async def get_details(self, source, id):
+        details = None
         if source == "jikan":
             data = await self._get(f"{self.apis['jikan']}/anime/{id}/full")
             if data and "data" in data:
                 x = data["data"]
-                return {
-                    "title": x["title"], "synopsis": x["synopsis"], "score": x["score"],
-                    "image": x["images"]["jpg"]["large_image_url"], "genres": [g["name"] for g in x["genres"]],
-                    "status": x["status"], "year": x["year"], "episodes": x["episodes"],
-                    "trailer": x["trailer"]["url"], "studios": [s["name"] for s in x["studios"]]
+                details = {
+                    "title": x.get("title"), "synopsis": x.get("synopsis"), "score": x.get("score", 0),
+                    "image": x.get("images", {}).get("jpg", {}).get("large_image_url"),
+                    "genres": [g["name"] for g in x.get("genres", [])],
+                    "status": x.get("status"), "year": x.get("year"), "episodes": x.get("episodes"),
+                    "trailer": x.get("trailer", {}).get("url"), "studios": [s["name"] for s in x.get("studios", [])]
                 }
         elif source == "anilist":
             query_gql = """
@@ -141,29 +143,152 @@ class AnimeAPI:
                 seasonYear
                 episodes
                 trailer { id site }
+                studios { nodes { name } }
               }
             }
             """
             session = await self.get_session()
             try:
-                async with session.post(self.apis["anilist"], json={'query': query_gql, 'variables': {'id': id}}) as resp:
+                async with session.post(self.apis["anilist"], json={'query': query_gql, 'variables': {'id': int(id)}}) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        x = data['data']['Media']
-                        return {
-                            "title": x["title"]["romaji"],
-                            "synopsis": x["description"],
-                            "score": x["averageScore"] / 10 if x["averageScore"] else 0,
-                            "image": x["coverImage"]["extraLarge"],
-                            "genres": x["genres"],
-                            "status": x["status"],
-                            "year": x["seasonYear"],
-                            "episodes": x["episodes"],
-                            "trailer": f"https://www.youtube.com/watch?v={x['trailer']['id']}" if x["trailer"] and x["trailer"]["site"] == "youtube" else None,
-                            "studios": []
-                        }
+                        x = data.get('data', {}).get('Media', {})
+                        if x:
+                            studios_list = [st["name"] for st in x.get("studios", {}).get("nodes", [])] if x.get("studios") else []
+                            details = {
+                                "title": x.get("title", {}).get("romaji") or x.get("title", {}).get("english"),
+                                "synopsis": x.get("description"),
+                                "score": round(x.get("averageScore", 0) / 10.0, 1) if x.get("averageScore") else 0,
+                                "image": x.get("coverImage", {}).get("extraLarge"),
+                                "genres": x.get("genres", []),
+                                "status": x.get("status"),
+                                "year": x.get("seasonYear"),
+                                "episodes": x.get("episodes"),
+                                "trailer": f"https://www.youtube.com/watch?v={x['trailer']['id']}" if x.get("trailer") and x["trailer"].get("site") == "youtube" else None,
+                                "studios": studios_list
+                            }
             except Exception as e:
                 logger.error(f"AniList Details Error: {e}")
-        return None
+        elif source == "kitsu":
+            data = await self._get(f"{self.apis['kitsu']}/anime/{id}")
+            if data and "data" in data:
+                attr = data["data"].get("attributes", {})
+                details = {
+                    "title": attr.get("canonicalTitle") or attr.get("titles", {}).get("en_jp"),
+                    "synopsis": attr.get("synopsis"),
+                    "score": round(float(attr.get("averageRating", 0)) / 10.0, 1) if attr.get("averageRating") else 0,
+                    "image": attr.get("posterImage", {}).get("large"),
+                    "genres": [],
+                    "status": attr.get("status"),
+                    "year": attr.get("startDate", "")[:4] if attr.get("startDate") else None,
+                    "episodes": attr.get("episodeCount"),
+                    "trailer": f"https://www.youtube.com/watch?v={attr['youtubeVideoId']}" if attr.get("youtubeVideoId") else None,
+                    "studios": []
+                }
+        elif source == "tmdb":
+            if self.tmdb_key:
+                data = await self._get(f"{self.apis['tmdb']}/tv/{id}", params={"api_key": self.tmdb_key})
+                if not data:
+                    data = await self._get(f"{self.apis['tmdb']}/movie/{id}", params={"api_key": self.tmdb_key})
+                if data:
+                    details = {
+                        "title": data.get("name") or data.get("title"),
+                        "synopsis": data.get("overview"),
+                        "score": round(data.get("vote_average", 0), 1),
+                        "image": f"https://image.tmdb.org/t/p/w500{data.get('poster_path')}" if data.get("poster_path") else None,
+                        "genres": [g["name"] for g in data.get("genres", [])],
+                        "status": data.get("status"),
+                        "year": (data.get("first_air_date") or data.get("release_date", ""))[:4] if (data.get("first_air_date") or data.get("release_date")) else None,
+                        "episodes": data.get("number_of_episodes"),
+                        "trailer": None,
+                        "studios": [c["name"] for c in data.get("production_companies", [])]
+                    }
+
+        if details:
+            # Auto-enrich missing fields if title is present
+            title = details.get("title")
+            if title:
+                details = await self.enrich_details(details, title=title)
+
+        return details
+
+    async def enrich_details(self, base_details, title):
+        """Automatically retries fetching from all sources to fill any missing metadata"""
+        if not base_details:
+            base_details = {}
+
+        # Search for alternative matches across APIs
+        candidates = await self.search_all(title)
+        for cand in candidates[:3]:
+            # Skip same source if base_details already came from it
+            cand_source = cand.get("source")
+            cand_id = cand.get("id")
+            if not cand_id:
+                continue
+
+            # Fetch secondary details
+            sec_details = None
+            if cand_source == "jikan":
+                data = await self._get(f"{self.apis['jikan']}/anime/{cand_id}/full")
+                if data and "data" in data:
+                    x = data["data"]
+                    sec_details = {
+                        "synopsis": x.get("synopsis"), "score": x.get("score", 0),
+                        "image": x.get("images", {}).get("jpg", {}).get("large_image_url"),
+                        "genres": [g["name"] for g in x.get("genres", [])],
+                        "year": x.get("year"), "trailer": x.get("trailer", {}).get("url"),
+                        "studios": [s["name"] for s in x.get("studios", [])]
+                    }
+            elif cand_source == "anilist":
+                query_gql = """
+                query ($id: Int) {
+                  Media (id: $id, type: ANIME) {
+                    description
+                    averageScore
+                    coverImage { extraLarge }
+                    genres
+                    seasonYear
+                    trailer { id site }
+                    studios { nodes { name } }
+                  }
+                }
+                """
+                session = await self.get_session()
+                try:
+                    async with session.post(self.apis["anilist"], json={'query': query_gql, 'variables': {'id': int(cand_id)}}) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            x = data.get('data', {}).get('Media', {})
+                            if x:
+                                sec_details = {
+                                    "synopsis": x.get("description"),
+                                    "score": round(x.get("averageScore", 0) / 10.0, 1) if x.get("averageScore") else 0,
+                                    "image": x.get("coverImage", {}).get("extraLarge"),
+                                    "genres": x.get("genres", []),
+                                    "year": x.get("seasonYear"),
+                                    "trailer": f"https://www.youtube.com/watch?v={x['trailer']['id']}" if x.get("trailer") and x["trailer"].get("site") == "youtube" else None,
+                                    "studios": [st["name"] for st in x.get("studios", {}).get("nodes", [])] if x.get("studios") else []
+                                }
+                except Exception:
+                    pass
+
+            if sec_details:
+                # Merge missing/empty fields
+                if (not base_details.get("synopsis") or base_details.get("synopsis") == "N/A") and sec_details.get("synopsis"):
+                    base_details["synopsis"] = sec_details["synopsis"]
+                if (not base_details.get("score") or base_details.get("score") == 0) and sec_details.get("score"):
+                    base_details["score"] = sec_details["score"]
+                if (not base_details.get("image") or "logo" in str(base_details.get("image")).lower()) and sec_details.get("image"):
+                    base_details["image"] = sec_details["image"]
+                if not base_details.get("genres") and sec_details.get("genres"):
+                    base_details["genres"] = sec_details["genres"]
+                if (not base_details.get("year") or base_details.get("year") == "N/A") and sec_details.get("year"):
+                    base_details["year"] = sec_details["year"]
+                if not base_details.get("trailer") and sec_details.get("trailer"):
+                    base_details["trailer"] = sec_details["trailer"]
+                if not base_details.get("studios") and sec_details.get("studios"):
+                    base_details["studios"] = sec_details["studios"]
+
+        return base_details
 
 anime_api = AnimeAPI()

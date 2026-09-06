@@ -614,6 +614,32 @@ class Database:
             logger.error(f"Read Error (get_song_channel): {e}")
             return None
 
+    # --- Post Channel Configuration ---
+
+    async def set_post_channel(self, channel_id):
+        try:
+            if self._settings is None: return None
+            clean_val = str(channel_id).strip()
+            return await self._settings.update_one(
+                {"key": "post_channel"},
+                {"$set": {"key": "post_channel", "value": clean_val}},
+                upsert=True
+            )
+        except Exception as e:
+            logger.error(f"Persistence Error (set_post_channel): {e}")
+            return None
+
+    async def get_post_channel(self):
+        try:
+            if self._settings is None: return None
+            doc = await self._settings.find_one({"key": "post_channel"})
+            if doc:
+                return doc.get("value")
+            return None
+        except Exception as e:
+            logger.error(f"Read Error (get_post_channel): {e}")
+            return None
+
     # --- Configured Bot & Session Settings ---
 
     async def add_configured_bot(self, username: str):

@@ -314,5 +314,23 @@ Episode 15 - The New Demon Lord
 
         asyncio.run(run_report_test())
 
+    def test_language_parsing_and_post_channel_db(self):
+        from bot import parse_language_input
+        from database.db import db
+        import asyncio
+
+        # Test language parsing
+        self.assertEqual(parse_language_input("tel,tam,hin,eng"), "Telugu • Tamil • Hindi • English")
+        self.assertEqual(parse_language_input("Telugu, Tamil, Japanese"), "Telugu • Tamil • Japanese")
+
+        # Test post channel settings
+        async def run_post_channel_test():
+            await db.set_post_channel("-1001234567890")
+            val = await db.get_post_channel()
+            if val:
+                self.assertEqual(val, "-1001234567890")
+
+        asyncio.run(run_post_channel_test())
+
 if __name__ == "__main__":
     unittest.main()
