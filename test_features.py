@@ -332,5 +332,21 @@ Episode 15 - The New Demon Lord
 
         asyncio.run(run_post_channel_test())
 
+    def test_auto_fill_missing_metadata(self):
+        from api.anime_api import auto_fill_missing_metadata
+        import asyncio
+
+        async def run_metadata_test():
+            doc = {
+                "title": "Naruto",
+                "synopsis": "N/A",
+                "score": 0
+            }
+            res = await auto_fill_missing_metadata(doc)
+            self.assertIsNotNone(res)
+            self.assertEqual(res["title"], "Naruto")
+
+        asyncio.run(run_metadata_test())
+
 if __name__ == "__main__":
     unittest.main()

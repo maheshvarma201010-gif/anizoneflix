@@ -291,4 +291,68 @@ class AnimeAPI:
 
         return base_details
 
+async def auto_fill_missing_metadata(anime_doc):
+    """
+    Checks an anime DB document for missing metadata.
+    If missing, automatically retries fetching from all sources and updates DB.
+    """
+    if not anime_doc or not isinstance(anime_doc, dict):
+        return anime_doc
+
+    title = anime_doc.get("title")
+    if not title:
+        return anime_doc
+
+    # Identify if metadata is incomplete
+    synopsis = anime_doc.get("synopsis")
+    score = anime_doc.get("score")
+    image = anime_doc.get("image")
+    genres = anime_doc.get("genres")
+    year = anime_doc.get("year")
+    trailer = anime_doc.get("trailer")
+    studios = anime_doc.get("studios")
+
+    needs_enrichment = (
+        not synopsis or synopsis == "N/A" or
+        not score or score == 0 or
+        not image or "logo" in str(image).lower() or
+        not genres or len(genres) == 0 or
+        not year or year == "N/A" or
+        not trailer or
+        not studios
+    )
+
+    if not needs_enrichment:
+        return anime_doc
+
+    logger.info(f"Auto-enriching missing metadata for '{title}'...")
+    try:
+        enriched = await anime_api.enrich_details(dict(anime_doc), title=title)
+
+        # Save updates back to database if enriched
+        update_fields = {}
+        for key in ["synopsis", "score", "image", "genres", "year", "trailer", "studios"]:
+            new_val = enriched.get(key)
+            old_val = anime_doc.get(key)
+            if new_val and (not old_val or old_val == "N/A" or old_val == 0 or old_val == []):
+                update_fields[key] = new_val
+
+        if update_fields:
+            from database.db import db
+            from bson import ObjectId
+            aid = anime_doc.get("_id")
+            slug = anime_doc.get("slug")
+            query = {"_id": ObjectId(aid)} if aid and ObjectId.is_valid(str(aid)) else {"slug": slug}
+            try:
+                if await db.ping():
+                    await db.anime.update_one(query, {"$set": update_fields, "$currentDate": {"updated_at": True}})
+                    anime_doc.update(update_fields)
+                    logger.info(f"Successfully auto-filled missing metadata for '{title}': {list(update_fields.keys())}")
+            except Exception as err:
+                logger.error(f"Failed to update auto-filled metadata for '{title}': {err}")
+    except Exception as e:
+        logger.error(f"Error in auto_fill_missing_metadata for '{title}': {e}")
+
+    return anime_doc
+
 anime_api = AnimeAPI()
