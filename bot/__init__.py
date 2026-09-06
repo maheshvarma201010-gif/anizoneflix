@@ -83,6 +83,68 @@ async def verify_post_channel(client):
     except Exception as e:
         logger.warning(f"Post channel verification warning for {channel_id}: {e}")
 
+async def publish_post_to_channel(client, post_channel, heading, anime, page_link):
+    title = anime.get("title", "Untitled")
+
+    # Genres
+    genres_raw = anime.get("genres", [])
+    if isinstance(genres_raw, list):
+        genres_str = " • ".join(genres_raw) if genres_raw else "Anime"
+    else:
+        genres_str = str(genres_raw)
+
+    # Audio
+    audio_str = anime.get("languages") or "Telugu • Tamil • Hindi • English • Japanese"
+
+    # Quality
+    quality_labels = []
+    seen_q = set()
+
+    seasons_links = anime.get("seasons_links", {})
+    if isinstance(seasons_links, dict):
+        for gname, gdata in seasons_links.items():
+            if isinstance(gdata, dict):
+                for label in gdata.keys():
+                    lbl_clean = str(label).strip()
+                    if lbl_clean and lbl_clean.lower() not in seen_q:
+                        seen_q.add(lbl_clean.lower())
+                        quality_labels.append(lbl_clean)
+
+    custom_boxes = anime.get("custom_boxes", [])
+    if isinstance(custom_boxes, list):
+        for box in custom_boxes:
+            groups = box.get("groups", {})
+            if isinstance(groups, dict):
+                for gname, gdata in groups.items():
+                    if isinstance(gdata, dict):
+                        for label in gdata.keys():
+                            lbl_clean = str(label).strip()
+                            if lbl_clean and lbl_clean.lower() not in seen_q:
+                                seen_q.add(lbl_clean.lower())
+                                quality_labels.append(lbl_clean)
+
+    if quality_labels:
+        quality_str = " | ".join(quality_labels)
+    else:
+        quality_str = "480p | 720p | 1080p"
+
+    post_text = (
+        f"{heading}\n\n"
+        f"🎬 Title: {title}\n"
+        f"🗣 Genres: {genres_str}\n"
+        f"🔊 Audio: {audio_str}\n"
+        f"📺 Quality: {quality_str}\n\n"
+        f"📥 Watch / Download:\n"
+        f"{page_link}"
+    )
+
+    sent_msg = await client.send_message(
+        chat_id=post_channel,
+        text=post_text,
+        disable_web_page_preview=False
+    )
+    return sent_msg
+
 def extract_slug(text):
     """Bulletproof slug extraction from any URL or raw text"""
     if not text: return None
@@ -753,12 +815,12 @@ def register_handlers(bot: Client):
                 f"Currently Configured Channel: {ch_status}\n\n"
                 "💡 **Usage:**\n"
                 "• `/post <CHANNEL_ID>` — Configure target channel (e.g. `/post -1001234567890` or `/post @mychannel`)\n"
-                "• `/post <PAGE_LINK>` — Prepare and publish post to channel"
+                "• `/post <PAGE_LINK>` — Prepare and publish post to channel\n"
+                "• `/post <PAGE_LINK> | <HEADING>` — Publish post instantly"
             )
 
         # Check if query is channel configuration e.g. -100... or @channel
-        if query.startswith("-100") or query.startswith("@") or query.replace("-", "").isdigit():
-            # Configure post channel
+        if (query.startswith("-100") or query.startswith("@") or query.replace("-", "").isdigit()) and "http" not in query:
             channel_id = query
             try:
                 test_msg = await client.send_message(channel_id, "⚡ **AniZoneFlix Channel Verification Ping...**")
@@ -771,7 +833,19 @@ def register_handlers(bot: Client):
                     "Please make sure the bot is an admin with posting permissions in the channel."
                 )
 
-        # Otherwise query is page link / slug
+        # Check for one-shot heading e.g. PAGE_LINK | HEADING or PAGE_LINK\nHEADING
+        one_shot_heading = None
+        if "|" in query:
+            parts = query.split("|", 1)
+            link_part = parts[0].strip()
+            one_shot_heading = parts[1].strip()
+        elif "\n" in query:
+            parts = query.split("\n", 1)
+            link_part = parts[0].strip()
+            one_shot_heading = parts[1].strip()
+        else:
+            link_part = query
+
         post_channel = await db.get_post_channel()
         if not post_channel:
             return await message.reply(
@@ -781,10 +855,10 @@ def register_handlers(bot: Client):
                 "Example: `/post -1001234567890` or `/post @mychannel`"
             )
 
-        slug = extract_slug(query)
+        slug = extract_slug(link_part)
         anime = await db.get_anime(slug)
         if not anime:
-            results = await db.search_anime_db(query)
+            results = await db.search_anime_db(link_part)
             if results:
                 anime = results[0]
 
@@ -796,8 +870,22 @@ def register_handlers(bot: Client):
         anime = await auto_fill_missing_metadata(anime)
 
         aid = str(anime["_id"])
-        full_page_link = query if query.startswith("http") else f"{Config.BASE_URL}/anime/{anime['slug']}"
+        full_page_link = link_part if link_part.startswith("http") else f"{Config.BASE_URL}/anime/{anime['slug']}"
 
+        if one_shot_heading:
+            # Publish immediately
+            try:
+                sent_msg = await publish_post_to_channel(client, post_channel, one_shot_heading, anime, full_page_link)
+                return await message.reply(
+                    f"🎉 **Post Successfully Published to Channel!**\n\n"
+                    f"📢 **Channel:** `{post_channel}`\n"
+                    f"💬 **Message ID:** `{sent_msg.id}`"
+                )
+            except Exception as post_err:
+                logger.error(f"Error publishing post to channel {post_channel}: {post_err}")
+                return await message.reply(f"❌ **Failed to publish post to channel `{post_channel}`:** `{str(post_err)}`")
+
+        # Otherwise prompt for heading
         user_state[message.from_user.id] = {
             "action": "ask_post_heading",
             "aid": aid,
@@ -3038,7 +3126,7 @@ def register_handlers(bot: Client):
 
     # --- INTERACTION HANDLER (GROUP 1) ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page", "addbot", "songs", "SONGS", "uptime", "UPTIME", "setbot", "ss"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video) & ~filters.command(["start", "help", "search", "post", "POST", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page", "addbot", "songs", "SONGS", "uptime", "UPTIME", "setbot", "ss"]), group=1)
     async def interaction_handler(client, message):
         if not message.from_user: return
         uid = message.from_user.id
@@ -3195,6 +3283,16 @@ def register_handlers(bot: Client):
 
         if action == "ask_post_heading":
             heading = message.text.strip()
+
+            # Handle cancellation
+            if heading.lower() in ["/cancel", "cancel"]:
+                del user_state[uid]
+                return await message.reply("✨ **Action Cancelled.** standby.")
+
+            # Validate that heading is not a command starting with /
+            if heading.startswith("/"):
+                return await message.reply("⚠️ **Heading cannot be a bot command.** Please send the text heading (or send /cancel to abort):")
+
             aid = state["aid"]
             anime = await db.get_anime(aid)
             if not anime:
@@ -3208,68 +3306,10 @@ def register_handlers(bot: Client):
                 del user_state[uid]
                 return
 
-            title = anime.get("title", "Untitled")
-
-            # Genres
-            genres_raw = anime.get("genres", [])
-            if isinstance(genres_raw, list):
-                genres_str = " • ".join(genres_raw) if genres_raw else "Anime"
-            else:
-                genres_str = str(genres_raw)
-
-            # Audio
-            audio_str = anime.get("languages") or "Telugu • Tamil • Hindi • English • Japanese"
-
-            # Quality
-            quality_labels = []
-            seen_q = set()
-
-            seasons_links = anime.get("seasons_links", {})
-            if isinstance(seasons_links, dict):
-                for gname, gdata in seasons_links.items():
-                    if isinstance(gdata, dict):
-                        for label in gdata.keys():
-                            lbl_clean = str(label).strip()
-                            if lbl_clean and lbl_clean.lower() not in seen_q:
-                                seen_q.add(lbl_clean.lower())
-                                quality_labels.append(lbl_clean)
-
-            custom_boxes = anime.get("custom_boxes", [])
-            if isinstance(custom_boxes, list):
-                for box in custom_boxes:
-                    groups = box.get("groups", {})
-                    if isinstance(groups, dict):
-                        for gname, gdata in groups.items():
-                            if isinstance(gdata, dict):
-                                for label in gdata.keys():
-                                    lbl_clean = str(label).strip()
-                                    if lbl_clean and lbl_clean.lower() not in seen_q:
-                                        seen_q.add(lbl_clean.lower())
-                                        quality_labels.append(lbl_clean)
-
-            if quality_labels:
-                quality_str = " | ".join(quality_labels)
-            else:
-                quality_str = "480p | 720p | 1080p"
-
             page_link = state.get("page_link") or f"{Config.BASE_URL}/anime/{anime['slug']}"
 
-            post_text = (
-                f"{heading}\n\n"
-                f"🎬 Title: {title}\n"
-                f"🗣 Genres: {genres_str}\n"
-                f"🔊 Audio: {audio_str}\n"
-                f"📺 Quality: {quality_str}\n\n"
-                f"📥 Watch / Download:\n"
-                f"{page_link}"
-            )
-
             try:
-                sent_msg = await client.send_message(
-                    chat_id=post_channel,
-                    text=post_text,
-                    disable_web_page_preview=False
-                )
+                sent_msg = await publish_post_to_channel(client, post_channel, heading, anime, page_link)
                 await message.reply(
                     f"🎉 **Post Successfully Published to Channel!**\n\n"
                     f"📢 **Channel:** `{post_channel}`\n"
