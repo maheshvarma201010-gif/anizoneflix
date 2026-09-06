@@ -34,6 +34,11 @@
                     {% endfor %}
                 </div>
 
+                <div class="flex flex-wrap justify-center lg:justify-start items-center gap-2 mb-6 text-xs font-bold text-[var(--text-dim)]">
+                    <span class="text-[var(--primary)] font-black uppercase text-[10px] tracking-wider"><i class="fa-solid fa-volume-high mr-1"></i> Audio Languages:</span>
+                    <span class="text-[var(--text-main)] text-[11px] font-semibold">{{ anime.languages or "Telugu • Tamil • Hindi • English • Japanese" }}</span>
+                </div>
+
                 <h1 class="text-4xl md:text-6xl font-black mb-6 leading-tight tracking-tighter uppercase text-[var(--text-main)]">{{ anime.title }}</h1>
 
                 <div class="flex flex-wrap justify-center lg:justify-start items-center gap-6 text-[10px] font-bold uppercase tracking-widest text-[var(--text-dim)] mb-8">

@@ -348,5 +348,90 @@ Episode 15 - The New Demon Lord
 
         asyncio.run(run_metadata_test())
 
+    def test_details_page_languages_rendering(self):
+        from jinja2 import Environment, FileSystemLoader
+        from utils.utils import slugify
+        env = Environment(loader=FileSystemLoader("templates"))
+        env.filters["slugify"] = slugify
+        env.filters["button_link_rewrite"] = lambda x: x
+        template = env.get_template("details.html")
+
+        anime_doc = {
+            "title": "Naruto",
+            "synopsis": "A ninja anime",
+            "score": 8.5,
+            "image": "https://example.com/poster.jpg",
+            "genres": ["Action", "Adventure"],
+            "category": "Anime",
+            "languages": "Telugu • Tamil • Hindi • English",
+            "seasons_links": {},
+            "custom_boxes": []
+        }
+
+        rendered = template.render(anime=anime_doc, site_name="ANIZONEFLIX", logo_url="logo.png", episodes=[])
+        self.assertIn("Audio Languages:", rendered)
+        self.assertIn("Telugu • Tamil • Hindi • English", rendered)
+
+        # Check that genre line comes before audio languages line, and audio languages line comes before h1 title
+        genre_pos = rendered.find("Action")
+        lang_pos = rendered.find("Audio Languages:")
+        title_pos = rendered.find("<h1")
+
+        self.assertNotEqual(genre_pos, -1)
+        self.assertNotEqual(lang_pos, -1)
+        self.assertNotEqual(title_pos, -1)
+        self.assertTrue(genre_pos < lang_pos < title_pos)
+
+    def test_post_flow_interaction_handler_ignores_commands(self):
+        from bot import user_state, register_handlers
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        # Collect handlers from register_handlers
+        mock_bot = MagicMock()
+        registered_handlers = []
+        def mock_on_message(filters=None, group=0):
+            def decorator(func):
+                registered_handlers.append((group, func))
+                return func
+            return decorator
+        mock_bot.on_message = mock_on_message
+
+        register_handlers(mock_bot)
+
+        interaction_handler = None
+        for group, func in registered_handlers:
+            if group == 1:
+                interaction_handler = func
+                break
+
+        self.assertIsNotNone(interaction_handler)
+
+        async def run_post_interaction_test():
+            uid = 999888
+            user_state[uid] = {
+                "action": "ask_post_heading",
+                "aid": "123",
+                "slug": "naruto",
+                "page_link": "https://example.com/anime/naruto"
+            }
+
+            client = MagicMock()
+
+            # Message starting with command /post ...
+            msg_cmd = AsyncMock()
+            msg_cmd.from_user.id = uid
+            msg_cmd.text = "/post https://example.com/anime/naruto"
+
+            with patch("bot.is_authorized", AsyncMock(return_value=True)):
+                await interaction_handler(client, msg_cmd)
+
+            # State should REMAIN ask_post_heading because command message /post was ignored by interaction_handler
+            self.assertEqual(user_state.get(uid, {}).get("action"), "ask_post_heading")
+
+            user_state.pop(uid, None)
+
+        asyncio.run(run_post_interaction_test())
+
 if __name__ == "__main__":
     unittest.main()

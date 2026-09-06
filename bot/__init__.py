@@ -3038,12 +3038,17 @@ def register_handlers(bot: Client):
 
     # --- INTERACTION HANDLER (GROUP 1) ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page", "addbot", "songs", "SONGS", "uptime", "UPTIME", "setbot", "ss"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video) & ~filters.command(["start", "help", "search", "add_post", "add_page", "edit", "categories", "del", "cancel", "CANCEL", "post", "POST", "change_poster", "ping", "schedule", "manual", "edit_m", "save", "category_page", "addbot", "songs", "SONGS", "uptime", "UPTIME", "setbot", "ss"]), group=1)
     async def interaction_handler(client, message):
         if not message.from_user: return
         uid = message.from_user.id
         if not await is_authorized(uid):
             return await message.reply("🚫 **Access Denied.** Unauthorized user.")
+
+        # Ignore command messages (starting with /) in interaction handler unless it's /skip
+        if message.text and message.text.startswith("/") and message.text.strip() != "/skip":
+            return
+
         state = user_state.get(uid)
         msg_input = message.text or message.caption or ""
         parsed_range = parse_range_link(msg_input)
