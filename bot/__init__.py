@@ -73,7 +73,7 @@ async def set_commands(client):
     # Startup verification of configured post channel
     asyncio.create_task(verify_post_channel(client))
 
-async def safe_send_channel_message(client, channel_id, text, disable_web_page_preview=False):
+async def safe_send_channel_message(client, channel_id, text, disable_web_page_preview=False, reply_markup=None):
     target_chat = channel_id
     if isinstance(channel_id, str):
         channel_id_clean = channel_id.strip()
@@ -95,7 +95,8 @@ async def safe_send_channel_message(client, channel_id, text, disable_web_page_p
         return await client.send_message(
             chat_id=target_chat,
             text=text,
-            disable_web_page_preview=disable_web_page_preview
+            disable_web_page_preview=disable_web_page_preview,
+            reply_markup=reply_markup
         )
     except Exception as err:
         if isinstance(target_chat, int):
@@ -103,7 +104,8 @@ async def safe_send_channel_message(client, channel_id, text, disable_web_page_p
                 return await client.send_message(
                     chat_id=str(target_chat),
                     text=text,
-                    disable_web_page_preview=disable_web_page_preview
+                    disable_web_page_preview=disable_web_page_preview,
+                    reply_markup=reply_markup
                 )
             except Exception:
                 pass
@@ -175,11 +177,16 @@ async def publish_post_to_channel(client, post_channel, heading, anime, page_lin
         f"{page_link}"
     )
 
+    post_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"📥 {title}", url=page_link, style=ButtonStyle.PRIMARY)]
+    ])
+
     sent_msg = await safe_send_channel_message(
         client,
         post_channel,
         post_text,
-        disable_web_page_preview=False
+        disable_web_page_preview=False,
+        reply_markup=post_keyboard
     )
     return sent_msg
 
