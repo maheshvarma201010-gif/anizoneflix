@@ -3,6 +3,7 @@ import logging
 import re
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from pyrogram.enums import ButtonStyle
 from database.db import db
 from config.config import Config
 
@@ -123,7 +124,7 @@ class MultiBotManager:
                         sent_msg = await c.send_message(
                             chat_id=message.chat.id,
                             text=f"🎬 **{match['title']}**\n\n🔗 **Link:** {link}",
-                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬇️ Download Now", url=link)]]),
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬇️ Download Now", url=link, style=ButtonStyle.SUCCESS)]]),
                             reply_to_message_id=message.id
                         )
                         # Auto delete reply after 10 seconds
@@ -134,7 +135,7 @@ class MultiBotManager:
                         buttons = []
                         for m in matches[:8]:
                             # Callback data uses dynamic bot identifier prefix
-                            buttons.append([InlineKeyboardButton(f"🎬 {m['title']} ({m.get('year', 'N/A')})", callback_data=f"dbot_{m['slug']}")])
+                            buttons.append([InlineKeyboardButton(f"🎬 {m['title']} ({m.get('year', 'N/A')})", callback_data=f"dbot_{m['slug']}", style=ButtonStyle.PRIMARY)])
 
                         sent_msg = await c.send_message(
                             chat_id=message.chat.id,
@@ -158,7 +159,7 @@ class MultiBotManager:
                         # Edit message directly without sending a new one
                         await cb.message.edit_text(
                             text=f"🎬 **{match['title']}**\n\n🔗 **Link:** {link}",
-                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬇️ Download Now", url=link)]])
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬇️ Download Now", url=link, style=ButtonStyle.SUCCESS)]])
                         )
                         # Auto delete edited message after 10 seconds
                         asyncio.create_task(auto_delete_message(cb.message, 10))
