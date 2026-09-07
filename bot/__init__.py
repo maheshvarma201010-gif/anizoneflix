@@ -800,6 +800,195 @@ def parse_advanced_group_message(text):
 
     return groups, None
 
+ADMIN_GUIDE_PAGES = [
+    (
+        "👑 **ANIZONEFLIX ULTRA: Executive Admin Guide (A to Z)**\n\n"
+        "Welcome to the comprehensive, step-by-step master guide for AniZoneFlix Ultra Administration.\n\n"
+        "**📚 Guide Navigation Index:**\n"
+        "• Page 1: Overview & Core Features\n"
+        "• Page 2: `/search` & `/add_post` (Intelligence Feeds & Rapid Publication)\n"
+        "• Page 3: `/post` (Channel Publication & Channel Configuration)\n"
+        "• Page 4: `/add_page` & `/manual` (Manual Page Creation)\n"
+        "• Page 5: `/edit` & `/edit_m` (Content Groups, Custom Boxes & Buttons)\n"
+        "• Page 6: `/change_poster` & `/categories` (Artwork & Category Management)\n"
+        "• Page 7: `/schedule` (Airing Schedule Management)\n"
+        "• Page 8: `/songs` (Background Music & Web Audio)\n"
+        "• Page 9: `/uptime` (24/7 Bot Uptime Monitor)\n"
+        "• Page 10: `/setbot` & `/ss` (Genlink Bot & Session String Configuration)\n"
+        "• Page 11: **Range Links (Genlink & Serial Automation)**\n"
+        "• Page 12: `/save` & `/category_page` (Backup/Restore & Page Migration)\n"
+        "• Page 13: `/del`, `/ping`, `/cancel` & Process Security\n\n"
+        "💡 *Use the navigation buttons below to flip through pages.*"
+    ),
+    (
+        "📖 **Page 1: Overview & Core Architecture**\n\n"
+        "AniZoneFlix is an industrial-grade anime portal and automated management suite.\n\n"
+        "**🌟 Key Capabilities:**\n"
+        "• **Multi-API Aggregation:** Fetches metadata from Jikan (MAL), AniList, Kitsu, TMDB, Shikimori & Simkl.\n"
+        "• **Color-Coded Interactive UI:** Native Pyrogram/Kurigram `ButtonStyle` inline buttons (`PRIMARY` / BLUE, `SUCCESS` / GREEN, `DANGER` / RED).\n"
+        "• **Batch Link Automation:** Process message range links via Genlink and Serial batch modes.\n"
+        "• **24/7 Uptime Monitoring:** Continuous 1-second ping monitoring for external bots/services.\n"
+        "• **Web Audio Engine:** Embedded Web Audio API background music player with 300% gain.\n"
+        "• **Backup & Restore System:** Instant ZIP export and restoration for zero-data-loss security."
+    ),
+    (
+        "📖 **Page 2: `/search` & `/add_post` Commands**\n\n"
+        "**🔍 Command: `/search <anime_title>`**\n"
+        "• Scans external intelligence feeds across all providers simultaneously.\n"
+        "• Returns top matching titles as interactive buttons.\n"
+        "• Selecting a title launches step-by-step page wizard (Title, Synopsis, Score, Artwork, Seasons).\n\n"
+        "**⚡ Command: `/add_post <anime_title>`**\n"
+        "• One-shot rapid deployment tool.\n"
+        "• Automatically selects the top match, auto-enriches missing metadata, and prompts for target category.\n"
+        "• Instantly publishes the page to the web portal in seconds."
+    ),
+    (
+        "📖 **Page 3: `/post` Command (Channel Posting)**\n\n"
+        "**📢 Command: `/post`**\n"
+        "Publishes formatted anime announcements directly to your Telegram channel with attached styled page link buttons.\n\n"
+        "**💡 Usage Syntax:**\n"
+        "• `/post <CHANNEL_ID>` — Configure target channel (e.g. `/post -1001234567890` or `/post @mychannel`)\n"
+        "• `/post <PAGE_LINK>` — Interactive prompt asking for custom post heading\n"
+        "• `/post <PAGE_LINK> | <HEADING>` — One-shot instant publication to channel\n\n"
+        "**✨ Attached Inline Button:**\n"
+        "Channel posts automatically attach a styled inline button (`📥 <Anime Title>`) linking directly to the web portal page."
+    ),
+    (
+        "📖 **Page 4: `/add_page` & `/manual` Commands**\n\n"
+        "**📝 Command: `/add_page`**\n"
+        "• Manual page wizard for adding custom anime entries.\n"
+        "• Prompts for title, synopsis, rating, poster URL, and custom group links.\n\n"
+        "**🛠 Command: `/manual`**\n"
+        "• Advanced step-by-step manual creator.\n"
+        "• Allows specifying custom title, synopsis, genre, direct poster asset URL, rating, button counts, and custom button links."
+    ),
+    (
+        "📖 **Page 5: `/edit` & `/edit_m` Commands**\n\n"
+        "**🏛 Command: `/edit <url/slug>`**\n"
+        "The Executive Suite for managing existing pages:\n"
+        "• **Content Groups (Seasons):** Add, rename, reorder, or delete season links (480p, 720p, 1080p).\n"
+        "• **Custom Boxes:** Create and manage custom box containers.\n"
+        "• **External Redirects:** Add external buttons.\n"
+        "• **Advanced & Ultra Advanced Group:** Import structured text blocks.\n"
+        "• **Change Category, Title, Poster or Purge Archive.**\n\n"
+        "**🖇 Command: `/edit_m <url/slug>`**\n"
+        "Dedicated Custom Button Management suite for top-level external links, custom boxes, and audio language settings."
+    ),
+    (
+        "📖 **Page 6: `/change_poster` & `/categories` Commands**\n\n"
+        "**🖼 Command: `/change_poster <url/slug>`**\n"
+        "• Swaps the poster image/artwork for any series page instantly.\n"
+        "• Accepts direct HTTP/HTTPS image URLs.\n\n"
+        "**📂 Command: `/categories`**\n"
+        "• Category and Genre Management Console.\n"
+        "• View all existing categories, add new categories, or delete unused categories.\n"
+        "• All changes synchronize live with website filter badges."
+    ),
+    (
+        "📖 **Page 7: `/schedule` Command**\n\n"
+        "**📅 Command: `/schedule`**\n"
+        "Airing Schedule Management Console:\n"
+        "• View and update daily airing anime schedules (Monday through Sunday).\n"
+        "• **Usage:** `/schedule {TIME} {NAME} {OPTIONAL_IMAGE_URL}`\n"
+        "• Day selection buttons let you assign entries to specific days.\n"
+        "• Supports manual override text input."
+    ),
+    (
+        "📖 **Page 8: `/songs` Command (Web Audio Engine)**\n\n"
+        "**🎵 Command: `/songs`**\n"
+        "Background Music Playlist Console:\n"
+        "• Upload MP3, M4A, WAV, or MP4 files to serve as background music on the website.\n"
+        "• Configure dedicated Song Channel for Telegram storage.\n"
+        "• Replace or delete existing tracks.\n"
+        "• The website renders tracks using Web Audio API with +300% gain booster."
+    ),
+    (
+        "📖 **Page 9: `/uptime` Command (24/7 Monitor)**\n\n"
+        "**⚡ Command: `/uptime`**\n"
+        "Continuous 24/7 Uptime Monitoring Suite:\n"
+        "• Monitor external bots, web services, or Render/Koyeb deployments.\n"
+        "• Background monitor pings target HTTP/HTTPS URLs every 1 second.\n"
+        "• Displays live HTTP status code, latency in milliseconds, and online/offline indicators."
+    ),
+    (
+        "📖 **Page 10: `/setbot` & `/ss` Commands**\n\n"
+        "**🤖 Command: `/setbot`**\n"
+        "• Configures target link generator bot usernames used for range link batching.\n"
+        "• Supports managing multiple configured bots.\n\n"
+        "**🔑 Command: `/ss`**\n"
+        "• Configures the Pyrogram User Session String.\n"
+        "• Required for automated range link generation and `/serielbatch` monitoring."
+    ),
+    (
+        "📖 **Page 11: Range Links (Genlink & Serial Automation)**\n\n"
+        "**🔗 Feature: Message Range Link Automation**\n"
+        "Send any Telegram message range link (e.g. `https://t.me/c/1234567890/100-200` or `https://t.me/mychan/10-50`):\n\n"
+        "**Processing Flow:**\n"
+        "1. Select Bot (if multiple bots configured via `/setbot`).\n"
+        "2. Send group names list (e.g. `1. Season 1`, `2. Season 2`).\n"
+        "3. Send filter name (or `.` for all).\n"
+        "4. Send target anime page link/slug.\n"
+        "5. Select destination box (or Main Section).\n"
+        "6. Select Mode:\n"
+        "   • **Genlink**: Sequential `/genlink` requests per message.\n"
+        "   • **Serial**: Automated `/serielbatch` stream execution and bulk block parsing."
+    ),
+    (
+        "📖 **Page 12: `/save` & `/category_page` Commands**\n\n"
+        "**💾 Command: `/save`**\n"
+        "Database Backup & Restore System:\n"
+        "• **📥 BACKUP:** Generates and sends a complete `backup.zip` file containing JSON exports of all MongoDB collections.\n"
+        "• **📤 RESTORE:** Upload a `backup.zip` file to restore and overwrite database records safely.\n\n"
+        "**📂 Command: `/category_page <url/slug>`**\n"
+        "Migrates an existing anime page from its current category to any destination category with one click."
+    ),
+    (
+        "📖 **Page 13: `/del`, `/ping`, `/cancel` & Process Security**\n\n"
+        "**🗑 Command: `/del <url/slug>`**\n"
+        "Permanently erases an anime entry and its associated content from the MongoDB database.\n\n"
+        "**🏓 Command: `/ping`**\n"
+        "Checks bot latency and database connection status.\n\n"
+        "**✨ Command: `/cancel`**\n"
+        "Aborts any active interaction process, input state, or wizard flow."
+    )
+]
+
+async def send_admin_guide_page(client, message_or_cb, page_idx=0, user_id=0):
+    if not await is_authorized(user_id):
+        if isinstance(message_or_cb, CallbackQuery):
+            return await message_or_cb.answer("🚫 Access Denied. Authorized admins only.", show_alert=True)
+        else:
+            return await message_or_cb.reply("🚫 **Access Denied.** Authorized admins only.")
+
+    total_pages = len(ADMIN_GUIDE_PAGES)
+    page_idx = max(0, min(page_idx, total_pages - 1))
+    text = ADMIN_GUIDE_PAGES[page_idx]
+
+    nav_buttons = []
+    if page_idx > 0:
+        nav_buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"guide_nav_{page_idx-1}", style=ButtonStyle.PRIMARY))
+
+    nav_buttons.append(InlineKeyboardButton(f"📖 Page {page_idx+1}/{total_pages}", callback_data="guide_noop", style=ButtonStyle.PRIMARY))
+
+    if page_idx < total_pages - 1:
+        nav_buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"guide_nav_{page_idx+1}", style=ButtonStyle.PRIMARY))
+
+    buttons = [
+        nav_buttons,
+        [InlineKeyboardButton("❌ Close", callback_data="cancel_op", style=ButtonStyle.DANGER)]
+    ]
+
+    markup = InlineKeyboardMarkup(buttons)
+
+    if isinstance(message_or_cb, CallbackQuery):
+        try:
+            await message_or_cb.message.edit_text(text, reply_markup=markup)
+            await message_or_cb.answer()
+        except MessageNotModified:
+            await message_or_cb.answer()
+    else:
+        await message_or_cb.reply(text, reply_markup=markup)
+
 def register_handlers(bot: Client):
     logger.info("Initializing Hardened Intelligence Suite Handlers...")
 
@@ -968,31 +1157,8 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("help"))
     async def help_handler(client, message):
-        if not message.from_user: return
-        if not await is_authorized(message.from_user.id):
-            return await message.reply("🚫 **Access Denied.** This zone is for authorized administrators only.")
-
-        text = (
-            "👑 **ANIZONEFLIX ULTRA: Executive Suite**\n\n"
-            "**🛠 CORE COMMANDS**\n"
-            "• `/search <name>`: Interactive multi-API setup.\n"
-            "• `/add_post <name>`: One-shot instant publication.\n"
-            "• `/add_page <name>`: Manual entry creation.\n"
-            "• `/edit <url>`: Manage Content Groups.\n"
-            "• `/change_poster <url>`: Swap artwork.\n\n"
-            "**⚙️ MANAGEMENT**\n"
-            "• `/categories`: Manage genres & tags.\n"
-            "• `/schedule`: Manage Airing Schedules.\n"
-            "• `/songs`: Manage Background Songs.\n"
-            "• `/del <url/slug>`: Permanent archive removal.\n"
-            "• `/cancel`: Abort active processes.\n\n"
-            "**💎 PREMIUM FEATURES**\n"
-            "✅ Multi-API Aggregator\n"
-            "✅ Custom Group Labels\n"
-            "✅ High-Speed ZIP Download\n"
-            "✅ Glassmorphism Web Interface"
-        )
-        await message.reply_text(text)
+        uid = message.from_user.id if message.from_user else 0
+        await send_admin_guide_page(client, message, page_idx=0, user_id=uid)
 
     @bot.on_message(filters.command("add_page"))
     async def add_page_handler(client, message):
@@ -1908,7 +2074,20 @@ def register_handlers(bot: Client):
 
     @bot.on_callback_query(filters.regex("^help_guide$"))
     async def help_cb(client, callback_query):
-        await help_handler(client, callback_query.message)
+        uid = callback_query.from_user.id if callback_query.from_user else 0
+        await send_admin_guide_page(client, callback_query, page_idx=0, user_id=uid)
+
+    @bot.on_callback_query(filters.regex("^guide_nav_"))
+    async def guide_nav_cb(client, callback_query):
+        uid = callback_query.from_user.id if callback_query.from_user else 0
+        try:
+            page_idx = int(callback_query.data.split("guide_nav_")[-1])
+        except Exception:
+            page_idx = 0
+        await send_admin_guide_page(client, callback_query, page_idx=page_idx, user_id=uid)
+
+    @bot.on_callback_query(filters.regex("^guide_noop$"))
+    async def guide_noop_cb(client, callback_query):
         await callback_query.answer()
 
     @bot.on_callback_query(filters.regex("^categories_refresh$"))
