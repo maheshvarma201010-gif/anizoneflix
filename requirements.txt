@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-pyrogram
+kurigram
 tgcrypto
 motor
 dnspython

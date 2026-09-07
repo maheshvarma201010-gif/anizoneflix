@@ -3,6 +3,7 @@ import logging
 import re
 import uuid
 from pyrogram import Client, filters
+from pyrogram.enums import ButtonStyle
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from config.config import Config
 from database.db import db
@@ -149,7 +150,7 @@ async def send_search_results_page(client: Client, message, session_id: str, pag
         # Compact callback data: s:user_id:hex_id (guaranteed under 64 bytes)
         aid = str(anime["_id"])
         callback_data = f"s:{user_id}:{aid}"
-        button = InlineKeyboardButton(anime["title"][:25], callback_data=callback_data)
+        button = InlineKeyboardButton(anime["title"][:25], callback_data=callback_data, style=ButtonStyle.PRIMARY)
         row.append(button)
         if len(row) == 2:
             buttons.append(row)
@@ -160,9 +161,9 @@ async def send_search_results_page(client: Client, message, session_id: str, pag
     # Navigation buttons
     nav_row = []
     if page > 0:
-        nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"nav:{user_id}:{page-1}:{session_id}"))
+        nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"nav:{user_id}:{page-1}:{session_id}", style=ButtonStyle.PRIMARY))
     if end_idx < len(results):
-        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"nav:{user_id}:{page+1}:{session_id}"))
+        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"nav:{user_id}:{page+1}:{session_id}", style=ButtonStyle.PRIMARY))
 
     if nav_row:
         buttons.append(nav_row)
