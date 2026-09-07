@@ -10,6 +10,7 @@ from urllib.parse import urljoin
 from io import BytesIO
 from pyrogram import Client, filters, enums, ContinuePropagation
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand, CallbackQuery
+from pyrogram.enums import ButtonStyle
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from config.config import Config
 from api.media_api import media_api
@@ -55,14 +56,14 @@ def build_search_page(cache_id, results, page=1, items_per_page=6):
         elif res["source"] == "OMDb":
             cb_data = f"add_omdb_{res['type']}_{res['id']}"
 
-        buttons.append([InlineKeyboardButton(f"Import {i}. {title_disp} ({res['source']})", callback_data=cb_data)])
+        buttons.append([InlineKeyboardButton(f"Import {i}. {title_disp} ({res['source']})", callback_data=cb_data, style=ButtonStyle.PRIMARY)])
 
     nav_row = []
     if page > 1:
-        nav_row.append(InlineKeyboardButton("◀️ Previous", callback_data=f"srchp_{cache_id}_{page - 1}"))
-    nav_row.append(InlineKeyboardButton(f"📄 {page}/{total_pages}", callback_data="noop"))
+        nav_row.append(InlineKeyboardButton("◀️ Previous", callback_data=f"srchp_{cache_id}_{page - 1}", style=ButtonStyle.PRIMARY))
+    nav_row.append(InlineKeyboardButton(f"📄 {page}/{total_pages}", callback_data="noop", style=ButtonStyle.PRIMARY))
     if page < total_pages:
-        nav_row.append(InlineKeyboardButton("Next ▶️", callback_data=f"srchp_{cache_id}_{page + 1}"))
+        nav_row.append(InlineKeyboardButton("Next ▶️", callback_data=f"srchp_{cache_id}_{page + 1}", style=ButtonStyle.PRIMARY))
 
     if nav_row:
         buttons.append(nav_row)
@@ -246,20 +247,20 @@ def register_handlers(bot: Client):
         media = await db.get_media_by_slug(slug)
         if not media: return await message.reply("❌ Not found.")
         buttons = [
-            [InlineKeyboardButton("🖼 Poster", callback_data=f"et_poster_{slug}"),
-             InlineKeyboardButton("🏷 Title", callback_data=f"et_title_{slug}")],
-            [InlineKeyboardButton("📅 Year", callback_data=f"et_year_{slug}"),
-             InlineKeyboardButton("📂 Genres", callback_data=f"et_genres_{slug}")],
-            [InlineKeyboardButton("🎬 Director", callback_data=f"et_director_{slug}"),
-             InlineKeyboardButton("🎭 Cast", callback_data=f"et_cast_{slug}")],
-            [InlineKeyboardButton("⭐ Score", callback_data=f"et_score_{slug}"),
-             InlineKeyboardButton("⏱ Runtime", callback_data=f"et_runtime_{slug}")],
-            [InlineKeyboardButton("📺 Trailer", callback_data=f"et_trailer_{slug}"),
-             InlineKeyboardButton("📊 Status", callback_data=f"et_status_{slug}")],
-            [InlineKeyboardButton("📝 Synopsis", callback_data=f"et_syno_{slug}"),
-             InlineKeyboardButton("🎥 Type", callback_data=f"et_type_{slug}")],
-            [InlineKeyboardButton("📂 Change Category", callback_data=f"et_movecat_{slug}")],
-            [InlineKeyboardButton("🗑 DELETE MEDIA", callback_data=f"confirm_del_{slug}")]
+            [InlineKeyboardButton("🖼 Poster", callback_data=f"et_poster_{slug}", style=ButtonStyle.PRIMARY),
+             InlineKeyboardButton("🏷 Title", callback_data=f"et_title_{slug}", style=ButtonStyle.PRIMARY)],
+            [InlineKeyboardButton("📅 Year", callback_data=f"et_year_{slug}", style=ButtonStyle.PRIMARY),
+             InlineKeyboardButton("📂 Genres", callback_data=f"et_genres_{slug}", style=ButtonStyle.PRIMARY)],
+            [InlineKeyboardButton("🎬 Director", callback_data=f"et_director_{slug}", style=ButtonStyle.PRIMARY),
+             InlineKeyboardButton("🎭 Cast", callback_data=f"et_cast_{slug}", style=ButtonStyle.PRIMARY)],
+            [InlineKeyboardButton("⭐ Score", callback_data=f"et_score_{slug}", style=ButtonStyle.PRIMARY),
+             InlineKeyboardButton("⏱ Runtime", callback_data=f"et_runtime_{slug}", style=ButtonStyle.PRIMARY)],
+            [InlineKeyboardButton("📺 Trailer", callback_data=f"et_trailer_{slug}", style=ButtonStyle.PRIMARY),
+             InlineKeyboardButton("📊 Status", callback_data=f"et_status_{slug}", style=ButtonStyle.PRIMARY)],
+            [InlineKeyboardButton("📝 Synopsis", callback_data=f"et_syno_{slug}", style=ButtonStyle.PRIMARY),
+             InlineKeyboardButton("🎥 Type", callback_data=f"et_type_{slug}", style=ButtonStyle.PRIMARY)],
+            [InlineKeyboardButton("📂 Change Category", callback_data=f"et_movecat_{slug}", style=ButtonStyle.PRIMARY)],
+            [InlineKeyboardButton("🗑 DELETE MEDIA", callback_data=f"confirm_del_{slug}", style=ButtonStyle.DANGER)]
         ]
         await message.reply_text(f"🛠 **Editing:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -274,15 +275,15 @@ def register_handlers(bot: Client):
         media = await db.get_media_by_slug(slug)
         if not media: return await message.reply("❌ Not found.")
         buttons = [
-            [InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}")],
-            [InlineKeyboardButton("📂 Change Category", callback_data=f"et_movecat_{slug}")]
+            [InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}", style=ButtonStyle.SUCCESS)],
+            [InlineKeyboardButton("📂 Change Category", callback_data=f"et_movecat_{slug}", style=ButtonStyle.PRIMARY)]
         ]
         links = media.get("seasons_links", {})
         if isinstance(links, dict):
             for gname in links.keys():
                 buttons.append([
-                    InlineKeyboardButton(f"⚙️ {gname}", callback_data=f"m_mgrg_{slug}_{gname}"),
-                    InlineKeyboardButton("🗑", callback_data=f"m_delg_{slug}_{gname}")
+                    InlineKeyboardButton(f"⚙️ {gname}", callback_data=f"m_mgrg_{slug}_{gname}", style=ButtonStyle.PRIMARY),
+                    InlineKeyboardButton("🗑", callback_data=f"m_delg_{slug}_{gname}", style=ButtonStyle.DANGER)
                 ])
         await message.reply_text(f"🔗 **Servers:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -296,15 +297,15 @@ def register_handlers(bot: Client):
         if not slug: return await message.reply("💡 **Usage:** `/del <url/slug>` or reply to a link/slug.")
         media = await db.get_media_by_slug(slug)
         if not media: return await message.reply("❌ Not found.")
-        buttons = [[InlineKeyboardButton("🔥 PURGE IT", callback_data=f"execute_del_{slug}"), InlineKeyboardButton("🛡 ABORT", callback_data="cancel_op")]]
+        buttons = [[InlineKeyboardButton("🔥 PURGE IT", callback_data=f"execute_del_{slug}", style=ButtonStyle.DANGER), InlineKeyboardButton("🛡 ABORT", callback_data="cancel_op", style=ButtonStyle.PRIMARY)]]
         await message.reply(f"⚠️ **Confirm Delete:** `{media['title']}`?", reply_markup=InlineKeyboardMarkup(buttons))
 
     @bot.on_message(filters.command("save") & filters.private)
     async def save_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
         buttons = [
-            [InlineKeyboardButton("📥 BACKUP DATABASE", callback_data="db_backup"),
-             InlineKeyboardButton("📤 RESTORE BACKUP", callback_data="db_restore")]
+            [InlineKeyboardButton("📥 BACKUP DATABASE", callback_data="db_backup", style=ButtonStyle.PRIMARY),
+             InlineKeyboardButton("📤 RESTORE BACKUP", callback_data="db_restore", style=ButtonStyle.PRIMARY)]
         ]
         await message.reply_text("💾 **MoviesZoneFlix Backup & Migration Center**\n\nSecurely archive your media database or upload an existing ZIP archive to restore.", reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -428,7 +429,7 @@ def register_handlers(bot: Client):
             )
 
             reply_markup = InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"⬇️ Download {title} On MoviesZoneFlix", url=link)]
+                [InlineKeyboardButton(f"⬇️ Download {title} On MoviesZoneFlix", url=link, style=ButtonStyle.SUCCESS)]
             ])
 
             try:
@@ -477,9 +478,9 @@ def register_handlers(bot: Client):
                 text += f"{status_emoji} **{i}.** `{b.get('name', 'Bot')}`\n🌐 {b['url']}\n⚡ Status: `{b.get('status', 'checking').upper()}` • Latency: `{b.get('latency', 0)}ms`\n\n"
 
         buttons = [
-            [InlineKeyboardButton("➕ Add Bot / Server URL", callback_data="upt_add")],
-            [InlineKeyboardButton("📋 Manage / Replace / Delete", callback_data="upt_list_1"),
-             InlineKeyboardButton("🔄 Refresh Status", callback_data="upt_refresh")]
+            [InlineKeyboardButton("➕ Add Bot / Server URL", callback_data="upt_add", style=ButtonStyle.SUCCESS)],
+            [InlineKeyboardButton("📋 Manage / Replace / Delete", callback_data="upt_list_1", style=ButtonStyle.PRIMARY),
+             InlineKeyboardButton("🔄 Refresh Status", callback_data="upt_refresh", style=ButtonStyle.PRIMARY)]
         ]
         await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), disable_web_page_preview=True)
 
@@ -499,9 +500,9 @@ def register_handlers(bot: Client):
         )
 
         buttons = [
-            [InlineKeyboardButton("➕ Add New Song", callback_data="song_add"),
-             InlineKeyboardButton("📋 Manage/Delete Songs", callback_data="song_list_1")],
-            [InlineKeyboardButton("📢 Configure Storage Channel", callback_data="song_set_channel")]
+            [InlineKeyboardButton("➕ Add New Song", callback_data="song_add", style=ButtonStyle.SUCCESS),
+             InlineKeyboardButton("📋 Manage/Delete Songs", callback_data="song_list_1", style=ButtonStyle.PRIMARY)],
+            [InlineKeyboardButton("📢 Configure Storage Channel", callback_data="song_set_channel", style=ButtonStyle.PRIMARY)]
         ]
         await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -710,13 +711,13 @@ def register_handlers(bot: Client):
             buttons = []
             row = []
             for c in cats:
-                row.append(InlineKeyboardButton(f"📁 {c['name']}", callback_data=f"setcat_{slug}_{c['name']}"))
+                row.append(InlineKeyboardButton(f"📁 {c['name']}", callback_data=f"setcat_{slug}_{c['name']}", style=ButtonStyle.PRIMARY))
                 if len(row) == 2:
                     buttons.append(row)
                     row = []
             if row:
                 buttons.append(row)
-            buttons.append([InlineKeyboardButton("⬅️ Back", callback_data=f"et_main_{slug}")])
+            buttons.append([InlineKeyboardButton("⬅️ Back", callback_data=f"et_main_{slug}", style=ButtonStyle.PRIMARY)])
             await cb.message.edit_text(
                 f"📂 **Select Category for:** `{media['title']}`\n\n*Current Genres:* `{', '.join(media.get('genres', []))}`",
                 reply_markup=InlineKeyboardMarkup(buttons)
@@ -730,27 +731,27 @@ def register_handlers(bot: Client):
             await cb.answer(f"✅ Category changed to {cat_name}!", show_alert=True)
             media = await db.get_media_by_slug(slug)
             buttons = [
-                [InlineKeyboardButton("🖼 Poster", callback_data=f"et_poster_{slug}"),
-                 InlineKeyboardButton("🏷 Title", callback_data=f"et_title_{slug}")],
-                [InlineKeyboardButton("📅 Year", callback_data=f"et_year_{slug}"),
-                 InlineKeyboardButton("📂 Genres", callback_data=f"et_genres_{slug}")],
-                [InlineKeyboardButton("🎬 Director", callback_data=f"et_director_{slug}"),
-                 InlineKeyboardButton("🎭 Cast", callback_data=f"et_cast_{slug}")],
-                [InlineKeyboardButton("⭐ Score", callback_data=f"et_score_{slug}"),
-                 InlineKeyboardButton("⏱ Runtime", callback_data=f"et_runtime_{slug}")],
-                [InlineKeyboardButton("📺 Trailer", callback_data=f"et_trailer_{slug}"),
-                 InlineKeyboardButton("📊 Status", callback_data=f"et_status_{slug}")],
-                [InlineKeyboardButton("📝 Synopsis", callback_data=f"et_syno_{slug}"),
-                 InlineKeyboardButton("🎥 Type", callback_data=f"et_type_{slug}")],
-                [InlineKeyboardButton("📂 Change Category", callback_data=f"et_movecat_{slug}")],
-                [InlineKeyboardButton("🗑 DELETE MEDIA", callback_data=f"confirm_del_{slug}")]
+                [InlineKeyboardButton("🖼 Poster", callback_data=f"et_poster_{slug}", style=ButtonStyle.PRIMARY),
+                 InlineKeyboardButton("🏷 Title", callback_data=f"et_title_{slug}", style=ButtonStyle.PRIMARY)],
+                [InlineKeyboardButton("📅 Year", callback_data=f"et_year_{slug}", style=ButtonStyle.PRIMARY),
+                 InlineKeyboardButton("📂 Genres", callback_data=f"et_genres_{slug}", style=ButtonStyle.PRIMARY)],
+                [InlineKeyboardButton("🎬 Director", callback_data=f"et_director_{slug}", style=ButtonStyle.PRIMARY),
+                 InlineKeyboardButton("🎭 Cast", callback_data=f"et_cast_{slug}", style=ButtonStyle.PRIMARY)],
+                [InlineKeyboardButton("⭐ Score", callback_data=f"et_score_{slug}", style=ButtonStyle.PRIMARY),
+                 InlineKeyboardButton("⏱ Runtime", callback_data=f"et_runtime_{slug}", style=ButtonStyle.PRIMARY)],
+                [InlineKeyboardButton("📺 Trailer", callback_data=f"et_trailer_{slug}", style=ButtonStyle.PRIMARY),
+                 InlineKeyboardButton("📊 Status", callback_data=f"et_status_{slug}", style=ButtonStyle.PRIMARY)],
+                [InlineKeyboardButton("📝 Synopsis", callback_data=f"et_syno_{slug}", style=ButtonStyle.PRIMARY),
+                 InlineKeyboardButton("🎥 Type", callback_data=f"et_type_{slug}", style=ButtonStyle.PRIMARY)],
+                [InlineKeyboardButton("📂 Change Category", callback_data=f"et_movecat_{slug}", style=ButtonStyle.PRIMARY)],
+                [InlineKeyboardButton("🗑 DELETE MEDIA", callback_data=f"confirm_del_{slug}", style=ButtonStyle.DANGER)]
             ]
             await cb.message.edit_text(f"🛠 **Editing:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
 
         elif data.startswith("et_"):
             parts = data.split("_", 2)
             cmd, slug = parts[1], parts[2]
-            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data=f"et_main_{slug}")]]
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data=f"et_main_{slug}", style=ButtonStyle.PRIMARY)]]
             if cmd == "poster":
                 user_state[uid] = {"action": "ask_poster", "slug": slug}
                 await cb.message.edit_text("🖼 Send **New Poster URL**:", reply_markup=InlineKeyboardMarkup(back_btn))
@@ -791,27 +792,27 @@ def register_handlers(bot: Client):
                 user_state.pop(uid, None)
                 media = await db.get_media_by_slug(slug)
                 buttons = [
-                    [InlineKeyboardButton("🖼 Poster", callback_data=f"et_poster_{slug}"),
-                     InlineKeyboardButton("🏷 Title", callback_data=f"et_title_{slug}")],
-                    [InlineKeyboardButton("📅 Year", callback_data=f"et_year_{slug}"),
-                     InlineKeyboardButton("📂 Genres", callback_data=f"et_genres_{slug}")],
-                    [InlineKeyboardButton("🎬 Director", callback_data=f"et_director_{slug}"),
-                     InlineKeyboardButton("🎭 Cast", callback_data=f"et_cast_{slug}")],
-                    [InlineKeyboardButton("⭐ Score", callback_data=f"et_score_{slug}"),
-                     InlineKeyboardButton("⏱ Runtime", callback_data=f"et_runtime_{slug}")],
-                    [InlineKeyboardButton("📺 Trailer", callback_data=f"et_trailer_{slug}"),
-                     InlineKeyboardButton("📊 Status", callback_data=f"et_status_{slug}")],
-                    [InlineKeyboardButton("📝 Synopsis", callback_data=f"et_syno_{slug}"),
-                     InlineKeyboardButton("🎥 Type", callback_data=f"et_type_{slug}")],
-                    [InlineKeyboardButton("📂 Change Category", callback_data=f"et_movecat_{slug}")],
-                    [InlineKeyboardButton("🗑 DELETE MEDIA", callback_data=f"confirm_del_{slug}")]
+                    [InlineKeyboardButton("🖼 Poster", callback_data=f"et_poster_{slug}", style=ButtonStyle.PRIMARY),
+                     InlineKeyboardButton("🏷 Title", callback_data=f"et_title_{slug}", style=ButtonStyle.PRIMARY)],
+                    [InlineKeyboardButton("📅 Year", callback_data=f"et_year_{slug}", style=ButtonStyle.PRIMARY),
+                     InlineKeyboardButton("📂 Genres", callback_data=f"et_genres_{slug}", style=ButtonStyle.PRIMARY)],
+                    [InlineKeyboardButton("🎬 Director", callback_data=f"et_director_{slug}", style=ButtonStyle.PRIMARY),
+                     InlineKeyboardButton("🎭 Cast", callback_data=f"et_cast_{slug}", style=ButtonStyle.PRIMARY)],
+                    [InlineKeyboardButton("⭐ Score", callback_data=f"et_score_{slug}", style=ButtonStyle.PRIMARY),
+                     InlineKeyboardButton("⏱ Runtime", callback_data=f"et_runtime_{slug}", style=ButtonStyle.PRIMARY)],
+                    [InlineKeyboardButton("📺 Trailer", callback_data=f"et_trailer_{slug}", style=ButtonStyle.PRIMARY),
+                     InlineKeyboardButton("📊 Status", callback_data=f"et_status_{slug}", style=ButtonStyle.PRIMARY)],
+                    [InlineKeyboardButton("📝 Synopsis", callback_data=f"et_syno_{slug}", style=ButtonStyle.PRIMARY),
+                     InlineKeyboardButton("🎥 Type", callback_data=f"et_type_{slug}", style=ButtonStyle.PRIMARY)],
+                    [InlineKeyboardButton("📂 Change Category", callback_data=f"et_movecat_{slug}", style=ButtonStyle.PRIMARY)],
+                    [InlineKeyboardButton("🗑 DELETE MEDIA", callback_data=f"confirm_del_{slug}", style=ButtonStyle.DANGER)]
                 ]
                 await cb.message.edit_text(f"🛠 **Editing:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
 
         elif data.startswith("m_addg_"):
             slug = data.replace("m_addg_", "")
             user_state[uid] = {"action": "ask_groups_bulk", "slug": slug}
-            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data=f"m_back_{slug}")]]
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data=f"m_back_{slug}", style=ButtonStyle.PRIMARY)]]
 
             prompt_text = (
                 "Please send one or more groups with buttons in a single message in the following format:\n\n"
@@ -837,9 +838,9 @@ def register_handlers(bot: Client):
             parts = data.split("_")
             slug, gname = parts[2], "_".join(parts[3:])
             buttons = [
-                [InlineKeyboardButton("🏷 Rename Group", callback_data=f"m_reng_{slug}_{gname}")],
-                [InlineKeyboardButton("➕ Add/Update Links", callback_data=f"m_addl_{slug}_{gname}")],
-                [InlineKeyboardButton("⬅️ Back", callback_data=f"m_back_{slug}")]
+                [InlineKeyboardButton("🏷 Rename Group", callback_data=f"m_reng_{slug}_{gname}", style=ButtonStyle.PRIMARY)],
+                [InlineKeyboardButton("➕ Add/Update Links", callback_data=f"m_addl_{slug}_{gname}", style=ButtonStyle.SUCCESS)],
+                [InlineKeyboardButton("⬅️ Back", callback_data=f"m_back_{slug}", style=ButtonStyle.PRIMARY)]
             ]
             await cb.message.edit_text(f"⚙️ **Managing Group:** `{gname}`", reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -847,14 +848,14 @@ def register_handlers(bot: Client):
             parts = data.split("_")
             slug, gname = parts[2], "_".join(parts[3:])
             user_state[uid] = {"action": "ask_regname", "slug": slug, "old_gname": gname}
-            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data=f"m_mgrg_{slug}_{gname}")]]
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data=f"m_mgrg_{slug}_{gname}", style=ButtonStyle.PRIMARY)]]
             await cb.message.edit_text(f"📝 Send **New Name** for group `{gname}`:", reply_markup=InlineKeyboardMarkup(back_btn))
 
         elif data.startswith("m_addl_"):
             parts = data.split("_")
             slug, gname = parts[2], "_".join(parts[3:])
             user_state[uid] = {"action": "ask_btn_count", "slug": slug, "gname": gname}
-            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data=f"m_mgrg_{slug}_{gname}")]]
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data=f"m_mgrg_{slug}_{gname}", style=ButtonStyle.PRIMARY)]]
             await cb.message.edit_text(f"🔢 How many buttons in group `{gname}`?", reply_markup=InlineKeyboardMarkup(back_btn))
 
         elif data.startswith("m_delg_"):
@@ -867,23 +868,23 @@ def register_handlers(bot: Client):
                 await db.media.update_one({"slug": slug}, {"$set": {"seasons_links": links}})
                 await cb.answer(f"🗑 Group {gname} deleted.")
                 # Refresh UI
-                buttons = [[InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}")]]
+                buttons = [[InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}", style=ButtonStyle.SUCCESS)]]
                 for gn in links.keys():
                     buttons.append([
-                        InlineKeyboardButton(f"⚙️ {gn}", callback_data=f"m_mgrg_{slug}_{gn}"),
-                        InlineKeyboardButton("🗑", callback_data=f"m_delg_{slug}_{gn}")
+                        InlineKeyboardButton(f"⚙️ {gn}", callback_data=f"m_mgrg_{slug}_{gn}", style=ButtonStyle.PRIMARY),
+                        InlineKeyboardButton("🗑", callback_data=f"m_delg_{slug}_{gn}", style=ButtonStyle.DANGER)
                     ])
                 await cb.message.edit_text(f"🔗 **Servers:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
 
         elif data.startswith("m_back_"):
             slug = data.replace("m_back_", "")
             media = await db.get_media_by_slug(slug)
-            buttons = [[InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}")]]
+            buttons = [[InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}", style=ButtonStyle.SUCCESS)]]
             links = media.get("seasons_links", {})
             for gn in links.keys():
                 buttons.append([
-                    InlineKeyboardButton(f"⚙️ {gn}", callback_data=f"m_mgrg_{slug}_{gn}"),
-                    InlineKeyboardButton("🗑", callback_data=f"m_delg_{slug}_{gn}")
+                    InlineKeyboardButton(f"⚙️ {gn}", callback_data=f"m_mgrg_{slug}_{gn}", style=ButtonStyle.PRIMARY),
+                    InlineKeyboardButton("🗑", callback_data=f"m_delg_{slug}_{gn}", style=ButtonStyle.DANGER)
                 ])
             await cb.message.edit_text(f"🔗 **Servers:** `{media['title']}`", reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -915,11 +916,11 @@ def register_handlers(bot: Client):
             user_state.pop(uid, None)
 
             # Show success and go back to server manager
-            buttons = [[InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}")]]
+            buttons = [[InlineKeyboardButton("➕ Add New Group", callback_data=f"m_addg_{slug}", style=ButtonStyle.SUCCESS)]]
             for gn in links.keys():
                 buttons.append([
-                    InlineKeyboardButton(f"⚙️ {gn}", callback_data=f"m_mgrg_{slug}_{gn}"),
-                    InlineKeyboardButton("🗑", callback_data=f"m_delg_{slug}_{gn}")
+                    InlineKeyboardButton(f"⚙️ {gn}", callback_data=f"m_mgrg_{slug}_{gn}", style=ButtonStyle.PRIMARY),
+                    InlineKeyboardButton("🗑", callback_data=f"m_delg_{slug}_{gn}", style=ButtonStyle.DANGER)
                 ])
             await cb.message.edit_text(
                 f"✅ **Bulk Groups Saved Successfully!**\n\nMedia: `{media['title']}`\n\nManage servers:",
@@ -941,7 +942,7 @@ def register_handlers(bot: Client):
 
         elif data == "song_add":
             user_state[uid] = {"action": "ask_song_file"}
-            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="song_main")]]
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="song_main", style=ButtonStyle.PRIMARY)]]
             await cb.message.edit_text(
                 "🎵 **Add New Background Song**\n\n"
                 "✍️ Please send or forward an **audio file, MP3, document, or video** containing the song:",
@@ -952,8 +953,8 @@ def register_handlers(bot: Client):
             page = int(data.split("_")[2])
             songs = await db.get_all_songs()
             if not songs:
-                buttons = [[InlineKeyboardButton("➕ Add New Song", callback_data="song_add"),
-                            InlineKeyboardButton("⬅️ Back", callback_data="song_main")]]
+                buttons = [[InlineKeyboardButton("➕ Add New Song", callback_data="song_add", style=ButtonStyle.SUCCESS),
+                            InlineKeyboardButton("⬅️ Back", callback_data="song_main", style=ButtonStyle.PRIMARY)]]
                 return await cb.message.edit_text("📂 **No background songs available.**", reply_markup=InlineKeyboardMarkup(buttons))
 
             per_page = 5
@@ -969,17 +970,17 @@ def register_handlers(bot: Client):
             for s in items:
                 text += f"🎵 **{s.get('title', 'Song')}** (`{s['id']}`)\n"
                 buttons.append([
-                    InlineKeyboardButton(f"🔄 Replace {s.get('title', '')[:15]}", callback_data=f"song_repl_{s['id']}"),
-                    InlineKeyboardButton("🗑 Delete", callback_data=f"song_del_{s['id']}")
+                    InlineKeyboardButton(f"🔄 Replace {s.get('title', '')[:15]}", callback_data=f"song_repl_{s['id']}", style=ButtonStyle.PRIMARY),
+                    InlineKeyboardButton("🗑 Delete", callback_data=f"song_del_{s['id']}", style=ButtonStyle.DANGER)
                 ])
 
             nav_row = []
-            if page > 1: nav_row.append(InlineKeyboardButton("◀️ Prev", callback_data=f"song_list_{page - 1}"))
-            nav_row.append(InlineKeyboardButton(f"📄 {page}/{total_pages}", callback_data="noop"))
-            if page < total_pages: nav_row.append(InlineKeyboardButton("Next ▶️", callback_data=f"song_list_{page + 1}"))
+            if page > 1: nav_row.append(InlineKeyboardButton("◀️ Prev", callback_data=f"song_list_{page - 1}", style=ButtonStyle.PRIMARY))
+            nav_row.append(InlineKeyboardButton(f"📄 {page}/{total_pages}", callback_data="noop", style=ButtonStyle.PRIMARY))
+            if page < total_pages: nav_row.append(InlineKeyboardButton("Next ▶️", callback_data=f"song_list_{page + 1}", style=ButtonStyle.PRIMARY))
 
             if nav_row: buttons.append(nav_row)
-            buttons.append([InlineKeyboardButton("⬅️ Main Menu", callback_data="song_main")])
+            buttons.append([InlineKeyboardButton("⬅️ Main Menu", callback_data="song_main", style=ButtonStyle.PRIMARY)])
 
             await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -996,8 +997,8 @@ def register_handlers(bot: Client):
             # Reload list
             songs = await db.get_all_songs()
             if not songs:
-                buttons = [[InlineKeyboardButton("➕ Add New Song", callback_data="song_add"),
-                            InlineKeyboardButton("⬅️ Back", callback_data="song_main")]]
+                buttons = [[InlineKeyboardButton("➕ Add New Song", callback_data="song_add", style=ButtonStyle.SUCCESS),
+                            InlineKeyboardButton("⬅️ Back", callback_data="song_main", style=ButtonStyle.PRIMARY)]]
                 return await cb.message.edit_text("📂 **No background songs available.**", reply_markup=InlineKeyboardMarkup(buttons))
             # Refresh list page 1
             cb.data = "song_list_1"
@@ -1006,7 +1007,7 @@ def register_handlers(bot: Client):
         elif data.startswith("song_repl_"):
             song_id = data.replace("song_repl_", "")
             user_state[uid] = {"action": "ask_replace_song_file", "replace_id": song_id}
-            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="song_list_1")]]
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="song_list_1", style=ButtonStyle.PRIMARY)]]
             await cb.message.edit_text(
                 f"🔄 **Replace Song (`{song_id}`)**\n\n"
                 "✍️ Please send or forward the new **audio file, MP3, document, or video** to replace this song:",
@@ -1015,7 +1016,7 @@ def register_handlers(bot: Client):
 
         elif data == "song_set_channel":
             user_state[uid] = {"action": "ask_song_channel"}
-            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="song_main")]]
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="song_main", style=ButtonStyle.PRIMARY)]]
             await cb.message.edit_text(
                 "📢 **Configure Song Storage Channel**\n\n"
                 "✍️ Please send the **Channel ID** (e.g. `-1001234567890`) where songs will be stored & backed up:",
@@ -1024,7 +1025,7 @@ def register_handlers(bot: Client):
 
         elif data == "upt_add":
             user_state[uid] = {"action": "ask_upt_url"}
-            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="upt_main")]]
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="upt_main", style=ButtonStyle.PRIMARY)]]
             await cb.message.edit_text(
                 "➕ **Add Bot / Server URL for 24/7 Uptime Monitoring**\n\n"
                 "✍️ Please send the **URL** (e.g. `https://my-telegram-bot.onrender.com/ping` or `https://mybot.com`):",
@@ -1035,8 +1036,8 @@ def register_handlers(bot: Client):
             page = int(data.split("_")[2])
             bots = await db.get_all_uptime_bots()
             if not bots:
-                buttons = [[InlineKeyboardButton("➕ Add Bot", callback_data="upt_add"),
-                            InlineKeyboardButton("⬅️ Back", callback_data="upt_main")]]
+                buttons = [[InlineKeyboardButton("➕ Add Bot", callback_data="upt_add", style=ButtonStyle.SUCCESS),
+                            InlineKeyboardButton("⬅️ Back", callback_data="upt_main", style=ButtonStyle.PRIMARY)]]
                 return await cb.message.edit_text("📂 **No monitored bots/servers available.**", reply_markup=InlineKeyboardMarkup(buttons))
 
             per_page = 5
@@ -1053,17 +1054,17 @@ def register_handlers(bot: Client):
                 status_emoji = "🟢" if b.get("status") == "online" else "🔴"
                 text += f"{status_emoji} **{b.get('name', 'Bot')}** (`{b['id']}`)\n🌐 {b['url']}\n\n"
                 buttons.append([
-                    InlineKeyboardButton(f"🔄 Replace {b.get('name', '')[:12]}", callback_data=f"upt_repl_{b['id']}"),
-                    InlineKeyboardButton("🗑 Delete", callback_data=f"upt_del_{b['id']}")
+                    InlineKeyboardButton(f"🔄 Replace {b.get('name', '')[:12]}", callback_data=f"upt_repl_{b['id']}", style=ButtonStyle.PRIMARY),
+                    InlineKeyboardButton("🗑 Delete", callback_data=f"upt_del_{b['id']}", style=ButtonStyle.DANGER)
                 ])
 
             nav_row = []
-            if page > 1: nav_row.append(InlineKeyboardButton("◀️ Prev", callback_data=f"upt_list_{page - 1}"))
-            nav_row.append(InlineKeyboardButton(f"📄 {page}/{total_pages}", callback_data="noop"))
-            if page < total_pages: nav_row.append(InlineKeyboardButton("Next ▶️", callback_data=f"upt_list_{page + 1}"))
+            if page > 1: nav_row.append(InlineKeyboardButton("◀️ Prev", callback_data=f"upt_list_{page - 1}", style=ButtonStyle.PRIMARY))
+            nav_row.append(InlineKeyboardButton(f"📄 {page}/{total_pages}", callback_data="noop", style=ButtonStyle.PRIMARY))
+            if page < total_pages: nav_row.append(InlineKeyboardButton("Next ▶️", callback_data=f"upt_list_{page + 1}", style=ButtonStyle.PRIMARY))
 
             if nav_row: buttons.append(nav_row)
-            buttons.append([InlineKeyboardButton("⬅️ Main Menu", callback_data="upt_main")])
+            buttons.append([InlineKeyboardButton("⬅️ Main Menu", callback_data="upt_main", style=ButtonStyle.PRIMARY)])
 
             await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons), disable_web_page_preview=True)
 
@@ -1073,8 +1074,8 @@ def register_handlers(bot: Client):
             await cb.answer("🗑 Bot URL deleted from 24/7 monitor!", show_alert=True)
             bots = await db.get_all_uptime_bots()
             if not bots:
-                buttons = [[InlineKeyboardButton("➕ Add Bot", callback_data="upt_add"),
-                            InlineKeyboardButton("⬅️ Back", callback_data="upt_main")]]
+                buttons = [[InlineKeyboardButton("➕ Add Bot", callback_data="upt_add", style=ButtonStyle.SUCCESS),
+                            InlineKeyboardButton("⬅️ Back", callback_data="upt_main", style=ButtonStyle.PRIMARY)]]
                 return await cb.message.edit_text("📂 **No monitored bots/servers available.**", reply_markup=InlineKeyboardMarkup(buttons))
             cb.data = "upt_list_1"
             await bot_callbacks(client, cb)
@@ -1082,7 +1083,7 @@ def register_handlers(bot: Client):
         elif data.startswith("upt_repl_"):
             bot_id = data.replace("upt_repl_", "")
             user_state[uid] = {"action": "ask_replace_upt_url", "replace_id": bot_id}
-            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="upt_list_1")]]
+            back_btn = [[InlineKeyboardButton("⬅️ Back", callback_data="upt_list_1", style=ButtonStyle.PRIMARY)]]
             await cb.message.edit_text(
                 f"🔄 **Replace Bot URL (`{bot_id}`)**\n\n"
                 "✍️ Please send the new **URL** to replace this bot target:",
@@ -1109,9 +1110,9 @@ def register_handlers(bot: Client):
                     text += f"{status_emoji} **{i}.** `{b.get('name', 'Bot')}`\n🌐 {b['url']}\n⚡ Status: `{b.get('status', 'checking').upper()}` • Latency: `{b.get('latency', 0)}ms`\n\n"
 
             buttons = [
-                [InlineKeyboardButton("➕ Add Bot / Server URL", callback_data="upt_add")],
-                [InlineKeyboardButton("📋 Manage / Replace / Delete", callback_data="upt_list_1"),
-                 InlineKeyboardButton("🔄 Refresh Status", callback_data="upt_refresh")]
+                [InlineKeyboardButton("➕ Add Bot / Server URL", callback_data="upt_add", style=ButtonStyle.SUCCESS)],
+                [InlineKeyboardButton("📋 Manage / Replace / Delete", callback_data="upt_list_1", style=ButtonStyle.PRIMARY),
+                 InlineKeyboardButton("🔄 Refresh Status", callback_data="upt_refresh", style=ButtonStyle.PRIMARY)]
             ]
             await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons), disable_web_page_preview=True)
 
@@ -1130,9 +1131,9 @@ def register_handlers(bot: Client):
             )
 
             buttons = [
-                [InlineKeyboardButton("➕ Add New Song", callback_data="song_add"),
-                 InlineKeyboardButton("📋 Manage/Delete Songs", callback_data="song_list_1")],
-                [InlineKeyboardButton("📢 Configure Storage Channel", callback_data="song_set_channel")]
+                [InlineKeyboardButton("➕ Add New Song", callback_data="song_add", style=ButtonStyle.SUCCESS),
+                 InlineKeyboardButton("📋 Manage/Delete Songs", callback_data="song_list_1", style=ButtonStyle.PRIMARY)],
+                [InlineKeyboardButton("📢 Configure Storage Channel", callback_data="song_set_channel", style=ButtonStyle.PRIMARY)]
             ]
             await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -1281,8 +1282,8 @@ def register_handlers(bot: Client):
 
             inline_buttons = [
                 [
-                    InlineKeyboardButton("✅ Confirm & Save", callback_data=f"save_bulk_{slug}"),
-                    InlineKeyboardButton("❌ Cancel", callback_data="cancel_op")
+                    InlineKeyboardButton("✅ Confirm & Save", callback_data=f"save_bulk_{slug}", style=ButtonStyle.SUCCESS),
+                    InlineKeyboardButton("❌ Cancel", callback_data="cancel_op", style=ButtonStyle.DANGER)
                 ]
             ]
             await message.reply(preview_text, reply_markup=InlineKeyboardMarkup(inline_buttons))
