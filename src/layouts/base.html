@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ site_name }}{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    <link rel="manifest" href="/static/manifest.json">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/styles/theme.css">
+    <style>
+        :root {
+            --accent: #ff0000;
+            --gold: #ffb400;
+            --bg-body: #050505;
+            --bg-card: #0c0c0c;
+            --glass: rgba(15, 15, 15, 0.8);
+        }
+        body {
+            background-color: var(--bg-body);
+            color: #FFFFFF;
+            font-family: 'Inter', sans-serif;
+            scroll-behavior: smooth;
+        }
+        .swiper-pagination-bullet { background: #fff; }
+        .swiper-pagination-bullet-active { background: var(--accent); }
+        .glass-nav { background: var(--glass); backdrop-filter: blur(10px); }
+        .skeleton { background: linear-gradient(90deg, #121212 25%, #1a1a1a 50%, #121212 75%); background-size: 200% 100%; animation: loading 1.5s infinite; }
+        @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body class="selection:bg-red-600/40">
+    <nav class="glass-nav sticky top-0 z-50 px-4 md:px-8 py-3 border-b border-white/10">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <a href="/" class="flex items-center space-x-2">
+                <span class="text-2xl font-black tracking-tighter text-red-600">MOVIE</span>
+                <span class="text-2xl font-black tracking-tighter">OTT</span>
+            </a>
+
+            <div class="hidden md:flex items-center space-x-8 text-sm font-semibold uppercase tracking-wider">
+                <a href="/" class="hover:text-red-500 transition">Home</a>
+                <a href="/movies" class="hover:text-red-500 transition">Movies</a>
+                <a href="/series" class="hover:text-red-500 transition">Series</a>
+                <a href="/categories" class="hover:text-red-500 transition">Categories</a>
+                <a href="/search" class="text-lg"><i class="fa-solid fa-search"></i></a>
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <a href="/admin/login" class="hidden md:block text-xs text-gray-500 hover:text-white transition">ADMIN</a>
+                <button class="md:hidden text-2xl" onclick="toggleMenu()">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div id="mobile-menu" class="hidden fixed inset-0 z-50 bg-black/95 p-8 flex flex-col space-y-6 text-2xl font-bold">
+        <div class="flex justify-end"><button onclick="toggleMenu()"><i class="fa-solid fa-times"></i></button></div>
+        <a href="/" onclick="toggleMenu()">Home</a>
+        <a href="/movies" onclick="toggleMenu()">Movies</a>
+        <a href="/series" onclick="toggleMenu()">Series</a>
+        <a href="/categories" onclick="toggleMenu()">Categories</a>
+        <a href="/search" onclick="toggleMenu()">Search</a>
+    </div>
+
+    <main class="min-h-screen">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="bg-[#080808] border-t border-white/5 py-12 px-6 mt-20">
+        <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-10">
+            <div class="col-span-1 md:col-span-2">
+                <h2 class="text-2xl font-black mb-4"><span class="text-red-600">MOVIE</span>OTT</h2>
+                <p class="text-gray-500 text-sm max-w-sm">The ultimate destination for Movies, Web Series, and TV Shows. Experience cinematic quality streaming anytime, anywhere.</p>
+            </div>
+            <div>
+                <h3 class="font-bold mb-4 uppercase text-xs tracking-widest text-gray-400">Navigation</h3>
+                <ul class="text-gray-500 text-sm space-y-2">
+                    <li><a href="/" class="hover:text-red-500">Home</a></li>
+                    <li><a href="/search?type=movie" class="hover:text-red-500">Movies</a></li>
+                    <li><a href="/search?type=tv" class="hover:text-red-500">Web Series</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-bold mb-4 uppercase text-xs tracking-widest text-gray-400">Legal</h3>
+                <ul class="text-gray-500 text-sm space-y-2">
+                    <li><a href="#" class="hover:text-red-500">DMCA</a></li>
+                    <li><a href="#" class="hover:text-red-500">Privacy Policy</a></li>
+                    <li><a href="#" class="hover:text-red-500">Terms of Use</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="max-w-7xl mx-auto pt-8 mt-8 border-t border-white/5 text-center text-gray-600 text-xs">
+            &copy; 2025 {{ site_name }}. All rights reserved.
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script type="module">
+        import { cacheService } from '/src/services/cache.js';
+        import { useContinueWatching } from '/src/hooks/useContinueWatching.js';
+        import { useFavorites } from '/src/hooks/useFavorites.js';
+        window.cacheService = cacheService;
+        window.useContinueWatching = useContinueWatching;
+        window.useFavorites = useFavorites;
+        window.CONFIG = {
+            tmdb_key: "{{ tmdb_key }}",
+            omdb_key: "{{ omdb_key }}"
+        };
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js');
+            });
+        }
+        function toggleMenu() {
+            const menu = document.getElementById('mobile-menu');
+            menu.classList.toggle('hidden');
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

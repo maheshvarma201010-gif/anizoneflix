@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="relative min-h-screen">
+    <!-- Hero Backdrop -->
+    <div class="fixed inset-0 z-0 h-[60vh]">
+        <div class="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent z-10"></div>
+        <img src="{{ media.backdrop or media.image }}" class="w-full h-full object-cover opacity-50" alt="">
+    </div>
+
+    <div class="relative z-10 pt-32 px-6 md:px-20 max-w-7xl mx-auto fade-in">
+        <div class="flex flex-col md:flex-row gap-10">
+            <!-- Poster -->
+            <div class="w-full md:w-80 flex-shrink-0">
+                <div class="aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl border border-white/10 group">
+                    <img src="{{ media.image }}" class="w-full h-full object-cover group-hover:scale-110 transition duration-1000" alt="{{ media.title }}">
+                </div>
+            </div>
+
+            <!-- Info -->
+            <div class="flex-grow space-y-6">
+                <div class="flex items-center space-x-3 text-xs font-black uppercase tracking-widest text-red-600">
+                    <span>{{ media.year }}</span>
+                    <span>•</span>
+                    <span>{{ media.runtime or 'N/A' }}</span>
+                    <span>•</span>
+                    <span class="bg-zinc-800 px-2 py-1 rounded text-white">{{ media.type|upper }}</span>
+                </div>
+
+                <h1 class="text-5xl md:text-8xl font-black tracking-tighter uppercase leading-[0.8]">{{ media.title }}</h1>
+
+                <div class="flex items-center space-x-6">
+                    <div class="flex items-center">
+                        <i class="fa-solid fa-star text-amber-400 mr-2"></i>
+                        <span class="text-xl font-bold">{{ media.score or media.rating }}</span>
+                        <span class="text-gray-500 text-sm ml-1">/ 10</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        {% for genre in media.genres %}
+                        <span class="text-[10px] font-black px-3 py-1 bg-white/5 border border-white/10 rounded-full uppercase tracking-widest">{{ genre }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <p class="text-gray-300 text-lg leading-relaxed font-medium max-w-3xl">
+                    {{ media.synopsis or media.overview }}
+                </p>
+
+                <div class="flex flex-wrap gap-4 pt-4">
+                    <button onclick="playMedia()" class="bg-red-600 hover:bg-red-700 text-white px-10 py-4 rounded-xl font-black flex items-center transition shadow-2xl hover:scale-105 active:scale-95">
+                        <i class="fa-solid fa-play mr-3"></i> WATCH NOW
+                    </button>
+                    {% if media.trailer %}
+                    <a href="{{ media.trailer }}" target="_blank" class="bg-white/10 hover:bg-white/20 text-white px-10 py-4 rounded-xl font-black flex items-center backdrop-blur-xl transition border border-white/10">
+                        <i class="fa-solid fa-video mr-3"></i> TRAILER
+                    </a>
+                    {% endif %}
+                    <button id="favorite-btn" onclick="toggleFavorite()" class="w-14 h-14 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition border border-white/10">
+                        <i class="fa-regular fa-heart text-xl" id="heart-icon"></i>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-8 pt-10 border-t border-white/5">
+                    <div>
+                        <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Director</p>
+                        <p class="font-bold">{{ media.director or 'N/A' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Status</p>
+                        <p class="font-bold text-green-500">{{ media.status or 'Available' }}</p>
+                    </div>
+                    <div class="col-span-2">
+                        <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Cast</p>
+                        <p class="font-bold text-sm text-gray-300">{{ media.cast|join(', ') if media.cast else 'N/A' }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Episodes / Files Section -->
+        <div class="mt-24 space-y-10 pb-20">
+            <h2 class="text-3xl font-black uppercase tracking-tighter">Download <span class="text-red-600">Servers</span></h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {% if media.seasons_links %}
+                    {% for sname, sdata in media.seasons_links.items() %}
+                    <div class="bg-zinc-900/40 border border-white/5 p-6 rounded-2xl backdrop-blur-md hover:bg-zinc-900/60 transition group">
+                        <h3 class="text-xl font-black mb-4 flex items-center">
+                            <span class="w-1.5 h-5 bg-red-600 mr-3 rounded-full transition-all group-hover:h-8"></span> {{ sname }}
+                        </h3>
+                        <div class="space-y-3">
+                            {% for label, link in sdata.items() %}
+                                {% if link %}
+                                <a href="/dl?url={{ link }}" onclick="saveProgress()" class="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl transition group/item">
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center mr-3 group-hover/item:bg-red-600 transition">
+                                            <i class="fa-solid fa-download text-xs"></i>
+                                        </div>
+                                        <span class="font-bold text-sm">{{ label }}</span>
+                                    </div>
+                                    <i class="fa-solid fa-chevron-right text-[10px] text-gray-500"></i>
+                                </a>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="col-span-full py-12 text-center bg-white/5 rounded-2xl border border-dashed border-white/10">
+                        <p class="text-gray-500 font-bold italic">No servers currently available for this title.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const mediaItem = {
+        id: "{{ media.id }}",
+        title: "{{ media.title }}",
+        slug: "{{ media.slug }}",
+        image: "{{ media.image }}"
+    };
+
+    function updateFavoriteUI() {
+        const icon = document.getElementById('heart-icon');
+        const isFav = window.useFavorites.isFavorite(mediaItem.id);
+        if (isFav) {
+            icon.classList.remove('fa-regular');
+            icon.classList.add('fa-solid', 'text-red-600');
+        } else {
+            icon.classList.remove('fa-solid', 'text-red-600');
+            icon.classList.add('fa-regular');
+        }
+    }
+
+    function toggleFavorite() {
+        window.useFavorites.toggle(mediaItem);
+        updateFavoriteUI();
+    }
+
+    function playMedia() {
+        // Record as continue watching when watch is clicked
+        window.useContinueWatching.add({...mediaItem, progress: 10});
+        window.location.href = '#servers'; // Scroll to servers or open player
+    }
+
+    function saveProgress() {
+        window.useContinueWatching.add({...mediaItem, progress: 50});
+    }
+
+    document.addEventListener('DOMContentLoaded', updateFavoriteUI);
+</script>
+{% endblock %}

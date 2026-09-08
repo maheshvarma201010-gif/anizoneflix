@@ -10,10 +10,10 @@ class Config:
 
     # Database Configuration
     MONGO_URI = os.getenv("MONGO_URI", "")
-    DB_NAME = os.getenv("DB_NAME", "anizoneflix")
+    DB_NAME = os.getenv("DB_NAME", "movieott")
 
     # Core Identity
-    BASE_URL = os.getenv("BASE_URL", "https://anizoneflix-04c0.onrender.com")
+    BASE_URL = os.getenv("BASE_URL", "https://movieott.onrender.com")
     PORT = int(os.getenv("PORT", 10000))
     LOGO_URL = os.getenv("LOGO_URL", "https://telegra.ph/file/0c1737e466395b3531b78.jpg")
 
@@ -22,6 +22,7 @@ class Config:
     ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "admin-api-key")
     ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x]
     TMDB_API_KEY = os.getenv("TMDB_API_KEY", "")
+    OMDB_API_KEY = os.getenv("OMDB_API_KEY", "")
     SIMKL_ID = os.getenv("SIMKL_ID", "")
 
     DEBUG = os.getenv("DEBUG", "False").lower() == "true"

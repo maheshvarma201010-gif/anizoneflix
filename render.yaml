@@ -1,21 +1,11 @@
 services:
   - type: web
-    name: anizoneflix
+    name: movieott
     env: python
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     envVars:
-      - key: API_ID
-        sync: false
-      - key: API_HASH
-        sync: false
-      - key: BOT_TOKEN
-        sync: false
-      - key: MONGO_URI
-        sync: false
-      - key: ADMIN_IDS
-        sync: false
-      - key: LOGO_URL
-        sync: false
+      - key: PORT
+        value: 10000
       - key: BASE_URL
-        value: https://anizoneflix.onrender.com
+        value: https://movieott.onrender.com
