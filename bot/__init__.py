@@ -1578,7 +1578,9 @@ def register_handlers(bot: Client):
 
         elif action == "ask_setlgroup_cmds":
             raw_cmds = message.text.strip()
-            cmds = [c.strip() for c in re.split(r"[\s,]+", raw_cmds) if c.strip()]
+            cmds = [c.strip() for c in re.split(r"[\s,]+", raw_cmds) if c.strip() and c.strip().startswith("/")]
+            if not cmds:
+                return await message.reply("❌ **Invalid Commands Input!** Please send valid command prefixes starting with `/` (e.g. `/l /l2 /l3`).")
             target = state.get("target")
             lgroup_data = {
                 "target": target,
