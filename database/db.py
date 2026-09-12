@@ -594,6 +594,23 @@ class Database:
             logger.error(f"Read Error (get_song_channel): {e}")
             return None
 
+    async def get_setting(self, key):
+        try:
+            if self._settings is None: return None
+            doc = await self._settings.find_one({"key": key})
+            return doc.get("value") if doc else None
+        except Exception as e:
+            logger.error(f"Read Error (get_setting {key}): {e}")
+            return None
+
+    async def set_setting(self, key, value):
+        try:
+            if self._settings is None: return None
+            return await self._settings.update_one({"key": key}, {"$set": {"key": key, "value": value}}, upsert=True)
+        except Exception as e:
+            logger.error(f"Persistence Error (set_setting {key}): {e}")
+            return None
+
     async def import_data(self, data):
         try:
             if self._db is None: return False
