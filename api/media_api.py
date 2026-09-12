@@ -92,7 +92,8 @@ class MediaAPI:
 
     async def get_omdb_metadata(self, title, year=None, imdb_id=None):
         """Fetch extensive meta rating/cast from OMDb"""
-        if not self.omdb_key: return None
+        if not self.omdb_key or self.omdb_key.strip() in ["", "YOUR_OMDB_KEY"]:
+            return None
         params = {"apikey": self.omdb_key, "plot": "full"}
         if imdb_id:
             params["i"] = imdb_id
