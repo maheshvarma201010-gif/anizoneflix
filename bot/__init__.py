@@ -582,12 +582,25 @@ def register_handlers(bot: Client):
     @bot.on_message(filters.command("setlgroup", ["/", "$"]) & filters.private)
     async def setlgroup_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
-        val = " ".join(message.command[1:]).strip()
+        user_state.pop(message.from_user.id, None)
+        args = message.command[1:]
+        val = " ".join(args).strip()
         if not val and message.reply_to_message:
             val = message.reply_to_message.text or message.reply_to_message.caption or str(message.reply_to_message.chat.id)
+
         if val:
-            user_state[message.from_user.id] = {"action": "ask_setlgroup_cmds", "target": val}
-            return await message.reply(f"🎯 Target set to `{val}`.\n\nNow send the commands to use (e.g. `/l, /l2, /l3` or `/l /l2 /l3`):")
+            # Check if user provided target AND commands in single line e.g. /SETLGROUP <target> /l /l2 /l3
+            parts = val.split()
+            if len(parts) > 1 and any(p.startswith("/") for p in parts[1:]):
+                target = parts[0]
+                cmds = [p.strip() for p in parts[1:] if p.strip()]
+                data = {"target": target, "commands": cmds}
+                await db.set_setting("setlgroup", data)
+                return await message.reply(f"✅ **LGroup Configured & Saved!**\n\n🎯 Target: `{target}`\n⚡ Commands: `{', '.join(cmds)}`")
+            else:
+                user_state[message.from_user.id] = {"action": "ask_setlgroup_cmds", "target": val}
+                return await message.reply(f"🎯 Target set to `{val}`.\n\nNow send the commands to use (e.g. `/l, /l2, /l3` or `/l /l2 /l3`):")
+
         user_state[message.from_user.id] = {"action": "ask_setlgroup_target"}
         await message.reply("📢 Please send the **Username, ID, Invite Link**, or reply to a message for LGroup:")
 
@@ -1238,7 +1251,7 @@ def register_handlers(bot: Client):
 
     # --- Interaction Handler ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video | filters.voice) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video | filters.voice) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel", "setgroup", "setbot", "setmoviebot", "setlink", "setlgroup", "ss", "task"]), group=1)
     async def interaction_msg(client, message):
         state = user_state.get(message.from_user.id)
         if not state: return

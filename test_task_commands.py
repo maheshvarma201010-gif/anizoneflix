@@ -12,11 +12,20 @@ async def test_db_settings():
     val = await db.get_setting("setgroup")
     assert val == "-100123456789"
 
-    lgroup_data = {"target": "@my_lgroup", "commands": ["/l", "/l2", "/l3"]}
+    lgroup_data = {"target": "https://t.me/+mzurSj8qgMA5ODk0", "commands": ["/l", "/l2", "/l3"]}
     await db.set_setting("setlgroup", lgroup_data)
     val2 = await db.get_setting("setlgroup")
     assert val2 == lgroup_data
     assert val2["commands"] == ["/l", "/l2", "/l3"]
+
+
+def test_single_line_setlgroup_parsing():
+    raw_input = "https://t.me/+mzurSj8qgMA5ODk0 /l /l2 /l3"
+    parts = raw_input.split()
+    target = parts[0]
+    cmds = [p.strip() for p in parts[1:] if p.strip()]
+    assert target == "https://t.me/+mzurSj8qgMA5ODk0"
+    assert cmds == ["/l", "/l2", "/l3"]
 
 
 def test_parse_file_options_mb_only_and_max_size():
