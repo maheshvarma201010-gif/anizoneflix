@@ -516,6 +516,101 @@ def register_handlers(bot: Client):
             "✍️ **Step 1:** Please send the **Bot Token**:"
         )
 
+    @bot.on_message(filters.command("setgroup", ["/", "$"]) & filters.private)
+    async def setgroup_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        val = " ".join(message.command[1:]).strip()
+        if not val and message.reply_to_message:
+            val = message.reply_to_message.text or message.reply_to_message.caption or str(message.reply_to_message.chat.id)
+        if val:
+            await db.set_setting("setgroup", val)
+            return await message.reply(f"✅ **Group Configured & Saved:** `{val}`")
+        user_state[message.from_user.id] = {"action": "ask_setgroup"}
+        await message.reply("👥 Please send the **Group ID, Group Link, or Invite Link**:")
+
+    @bot.on_message(filters.command("setbot", ["/", "$"]) & filters.private)
+    async def setbot_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        val = " ".join(message.command[1:]).strip()
+        if not val and message.reply_to_message:
+            if message.reply_to_message.from_user and message.reply_to_message.from_user.username:
+                val = f"@{message.reply_to_message.from_user.username}"
+            elif message.reply_to_message.from_user:
+                val = str(message.reply_to_message.from_user.id)
+            else:
+                val = message.reply_to_message.text or message.reply_to_message.caption or ""
+        if val:
+            await db.set_setting("setbot", val)
+            return await message.reply(f"✅ **Bot Configured & Saved:** `{val}`")
+        user_state[message.from_user.id] = {"action": "ask_setbot"}
+        await message.reply("🤖 Please send the **Bot Username or Bot ID** (or reply to a message):")
+
+    @bot.on_message(filters.command("setmoviebot", ["/", "$"]) & filters.private)
+    async def setmoviebot_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        val = " ".join(message.command[1:]).strip()
+        if not val and message.reply_to_message:
+            if message.reply_to_message.from_user and message.reply_to_message.from_user.username:
+                val = f"@{message.reply_to_message.from_user.username}"
+            elif message.reply_to_message.from_user:
+                val = str(message.reply_to_message.from_user.id)
+            else:
+                val = message.reply_to_message.text or message.reply_to_message.caption or ""
+        if val:
+            await db.set_setting("setmoviebot", val)
+            return await message.reply(f"✅ **Movie Bot Configured & Saved:** `{val}`")
+        user_state[message.from_user.id] = {"action": "ask_setmoviebot"}
+        await message.reply("🎬 Please send the **Movie Bot Username or Bot ID** (or reply to a message):")
+
+    @bot.on_message(filters.command("setlink", ["/", "$"]) & filters.private)
+    async def setlink_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        val = " ".join(message.command[1:]).strip()
+        if not val and message.reply_to_message:
+            if message.reply_to_message.from_user and message.reply_to_message.from_user.username:
+                val = f"@{message.reply_to_message.from_user.username}"
+            elif message.reply_to_message.from_user:
+                val = str(message.reply_to_message.from_user.id)
+            else:
+                val = message.reply_to_message.text or message.reply_to_message.caption or ""
+        if val:
+            await db.set_setting("setlink", val)
+            return await message.reply(f"✅ **Link Bot Configured & Saved:** `{val}`")
+        user_state[message.from_user.id] = {"action": "ask_setlink"}
+        await message.reply("🔗 Please send the **Bot Username or Bot ID**:")
+
+    @bot.on_message(filters.command("setlgroup", ["/", "$"]) & filters.private)
+    async def setlgroup_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        val = " ".join(message.command[1:]).strip()
+        if not val and message.reply_to_message:
+            val = message.reply_to_message.text or message.reply_to_message.caption or str(message.reply_to_message.chat.id)
+        if val:
+            user_state[message.from_user.id] = {"action": "ask_setlgroup_cmds", "target": val}
+            return await message.reply(f"🎯 Target set to `{val}`.\n\nNow send the commands to use (e.g. `/l, /l2, /l3` or `/l /l2 /l3`):")
+        user_state[message.from_user.id] = {"action": "ask_setlgroup_target"}
+        await message.reply("📢 Please send the **Username, ID, Invite Link**, or reply to a message for LGroup:")
+
+    @bot.on_message(filters.command("ss", ["/", "$"]) & filters.private)
+    async def ss_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        val = " ".join(message.command[1:]).strip()
+        if val:
+            await db.set_setting("ss", val)
+            return await message.reply("✅ **Session String Configured & Saved!**")
+        user_state[message.from_user.id] = {"action": "ask_ss"}
+        await message.reply("🔑 Please send the **Session String**:")
+
+    @bot.on_message(filters.command("task", ["/", "$"]) & filters.private)
+    async def task_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        name = " ".join(message.command[1:]).strip()
+        if name:
+            user_state[message.from_user.id] = {"action": "ask_task_pagelink", "task_name": name}
+            return await message.reply(f"📝 Task Name set to: `{name}`\n\n🔗 Please send the **Page Link**:")
+        user_state[message.from_user.id] = {"action": "ask_task_name"}
+        await message.reply("📝 Please send the **Task Name**:")
+
     @bot.on_message(filters.command("cancel") & filters.private)
     async def cancel_cmd(client, message):
         user_state.pop(message.from_user.id, None)
@@ -1449,6 +1544,76 @@ def register_handlers(bot: Client):
             await db.set_song_channel(cid)
             await message.reply(f"🚀 **Song Storage Channel Configured:** `{cid}`")
             user_state.pop(uid, None)
+
+        elif action == "ask_setgroup":
+            val = message.text.strip()
+            await db.set_setting("setgroup", val)
+            await message.reply(f"✅ **Group Configured & Saved:** `{val}`")
+            user_state.pop(uid, None)
+
+        elif action == "ask_setbot":
+            val = message.text.strip()
+            await db.set_setting("setbot", val)
+            await message.reply(f"✅ **Bot Configured & Saved:** `{val}`")
+            user_state.pop(uid, None)
+
+        elif action == "ask_setmoviebot":
+            val = message.text.strip()
+            await db.set_setting("setmoviebot", val)
+            await message.reply(f"✅ **Movie Bot Configured & Saved:** `{val}`")
+            user_state.pop(uid, None)
+
+        elif action == "ask_setlink":
+            val = message.text.strip()
+            await db.set_setting("setlink", val)
+            await message.reply(f"✅ **Link Bot Configured & Saved:** `{val}`")
+            user_state.pop(uid, None)
+
+        elif action == "ask_setlgroup_target":
+            val = message.text.strip()
+            user_state[uid] = {"action": "ask_setlgroup_cmds", "target": val}
+            await message.reply(f"🎯 Target set to `{val}`.\n\nNow send the commands to use (e.g. `/l, /l2, /l3` or `/l /l2 /l3`):")
+
+        elif action == "ask_setlgroup_cmds":
+            raw = message.text.strip()
+            target = state.get("target")
+            cmds = [c.strip() for c in re.split(r"[,\s]+", raw) if c.strip()]
+            data = {"target": target, "commands": cmds}
+            await db.set_setting("setlgroup", data)
+            await message.reply(f"✅ **LGroup Configured & Saved!**\n\n🎯 Target: `{target}`\n⚡ Commands: `{', '.join(cmds)}`")
+            user_state.pop(uid, None)
+
+        elif action == "ask_ss":
+            val = message.text.strip()
+            await db.set_setting("ss", val)
+            await message.reply("✅ **Session String Configured & Saved!**")
+            user_state.pop(uid, None)
+
+        elif action == "ask_task_name":
+            name = message.text.strip()
+            user_state[uid] = {"action": "ask_task_pagelink", "task_name": name}
+            await message.reply(f"📝 Task Name set to: `{name}`\n\n🔗 Please send the **Page Link**:")
+
+        elif action == "ask_task_pagelink":
+            plink = message.text.strip()
+            user_state[uid].update({"action": "ask_task_groupname", "page_link": plink})
+            await message.reply("👥 Please send the **Group Name**:")
+
+        elif action == "ask_task_groupname":
+            gname = message.text.strip()
+            tname = state.get("task_name")
+            plink = state.get("page_link")
+            user_state.pop(uid, None)
+
+            from bot.task_manager import task_manager
+            task_info = await task_manager.add_task(tname, plink, gname)
+            await message.reply(
+                f"🚀 **Task Enqueued Successfully!**\n\n"
+                f"📝 **Task Name:** `{tname}`\n"
+                f"🔗 **Page Link:** `{plink}`\n"
+                f"👥 **Group Name:** `{gname}`\n"
+                f"📊 **Queue Status:** Position #{task_info['position']}"
+            )
 
 async def set_commands(client: Client):
     try:
