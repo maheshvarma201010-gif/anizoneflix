@@ -1231,7 +1231,7 @@ def register_handlers(bot: Client):
 
     # --- Interaction Handler ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video | filters.voice) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video | filters.voice) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel", "setgroup", "setbot", "setmoviebot", "setlink", "ss", "setlgroup", "task", "task_name"]), group=1)
     async def interaction_msg(client, message):
         state = user_state.get(message.from_user.id)
         if not state: return
@@ -1578,9 +1578,24 @@ def register_handlers(bot: Client):
 
         elif action == "ask_setlgroup_cmds":
             raw_cmds = message.text.strip()
-            cmds = [c.strip() for c in re.split(r"[\s,]+", raw_cmds) if c.strip() and c.strip().startswith("/")]
+            bot_admin_cmds = {
+                "/setgroup", "/setbot", "/setlgroup", "/setmoviebot", "/setlink",
+                "/ss", "/task", "/task_name", "/start", "/help", "/cancel",
+                "/ping", "/search", "/edit", "/edit_m", "/del", "/save",
+                "/categories", "/add_movie", "/add_series", "/posttochannel",
+                "/uptime", "/songs", "/addbot"
+            }
+            parsed_cmds = [c.strip() for c in re.split(r"[\s,]+", raw_cmds) if c.strip() and c.strip().startswith("/")]
+            cmds = [c for c in parsed_cmds if c.lower() not in bot_admin_cmds]
+
             if not cmds:
-                return await message.reply("❌ **Invalid Commands Input!** Please send valid command prefixes starting with `/` (e.g. `/l /l2 /l3`).")
+                return await message.reply(
+                    "❌ **Invalid Commands Input!**\n\n"
+                    "Bot setup commands (like `/setlgroup`) are not allowed as task prefixes.\n"
+                    "Please send valid task command prefixes starting with `/` (e.g., `/l /l2 /l3 /l4 /l5`).\n\n"
+                    "✍️ Please send the correct commands below:"
+                )
+
             target = state.get("target")
             lgroup_data = {
                 "target": target,
