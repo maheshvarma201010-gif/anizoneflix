@@ -519,6 +519,7 @@ def register_handlers(bot: Client):
     @bot.on_message(filters.command("setgroup", ["/", "$"]) & filters.private)
     async def setgroup_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
+        user_state.pop(message.from_user.id, None)
         val = " ".join(message.command[1:]).strip()
         if not val and message.reply_to_message:
             val = message.reply_to_message.text or message.reply_to_message.caption or str(message.reply_to_message.chat.id)
@@ -531,6 +532,7 @@ def register_handlers(bot: Client):
     @bot.on_message(filters.command("setbot", ["/", "$"]) & filters.private)
     async def setbot_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
+        user_state.pop(message.from_user.id, None)
         val = " ".join(message.command[1:]).strip()
         if not val and message.reply_to_message:
             if message.reply_to_message.from_user and message.reply_to_message.from_user.username:
@@ -548,6 +550,7 @@ def register_handlers(bot: Client):
     @bot.on_message(filters.command("setmoviebot", ["/", "$"]) & filters.private)
     async def setmoviebot_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
+        user_state.pop(message.from_user.id, None)
         val = " ".join(message.command[1:]).strip()
         if not val and message.reply_to_message:
             if message.reply_to_message.from_user and message.reply_to_message.from_user.username:
@@ -565,6 +568,7 @@ def register_handlers(bot: Client):
     @bot.on_message(filters.command("setlink", ["/", "$"]) & filters.private)
     async def setlink_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
+        user_state.pop(message.from_user.id, None)
         val = " ".join(message.command[1:]).strip()
         if not val and message.reply_to_message:
             if message.reply_to_message.from_user and message.reply_to_message.from_user.username:
@@ -607,6 +611,7 @@ def register_handlers(bot: Client):
     @bot.on_message(filters.command("ss", ["/", "$"]) & filters.private)
     async def ss_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
+        user_state.pop(message.from_user.id, None)
         val = " ".join(message.command[1:]).strip()
         if val:
             await db.set_setting("ss", val)
@@ -617,6 +622,7 @@ def register_handlers(bot: Client):
     @bot.on_message(filters.command("task", ["/", "$"]) & filters.private)
     async def task_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
+        user_state.pop(message.from_user.id, None)
         name = " ".join(message.command[1:]).strip()
         if name:
             user_state[message.from_user.id] = {"action": "ask_task_pagelink", "task_name": name}
@@ -1255,6 +1261,10 @@ def register_handlers(bot: Client):
     async def interaction_msg(client, message):
         state = user_state.get(message.from_user.id)
         if not state: return
+        action = state.get("action")
+        # Allow command inputs if expecting setlgroup commands, otherwise ignore standard registered commands starting with /
+        if message.text and message.text.strip().startswith("/") and action != "ask_setlgroup_cmds":
+            return
         uid = message.from_user.id
         action = state["action"]
         slug = state.get("slug")

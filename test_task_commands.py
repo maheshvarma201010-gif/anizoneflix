@@ -28,6 +28,8 @@ def test_single_line_setlgroup_parsing():
     assert cmds == ["/l", "/l2", "/l3"]
 
 
+from bot.task_manager import select_best_file_for_quality
+
 def test_parse_file_options_mb_only_and_max_size():
     sample_text = """
 🏷 ᴛɪᴛʟᴇ : Vishwanath and Sons
@@ -48,19 +50,16 @@ Your Requested Files Are Here
     """
 
     results = parse_file_options(sample_text)
-    # GB files must be ignored
-    assert len(results) == 3
-    for r in results:
-        assert r["unit"] == "MB"
+    assert len(results) == 7
 
-    # The files parsed should be 733.18 MB, 438.56 MB, 302.98 MB
-    sizes = [r["size_mb"] for r in results]
-    assert sizes == [733.18, 438.56, 302.98]
+    mb_files = [r for r in results if r["unit"] == "MB"]
+    assert len(mb_files) == 3
 
-    # Pick the largest MB file size
-    largest = max(results, key=lambda f: f["size_mb"])
-    assert largest["index"] == 5
-    assert largest["size_mb"] == 733.18
+    # For 480P quality, select_best_file_for_quality forces MB only
+    best_480p = select_best_file_for_quality(results, "480P")
+    assert best_480p is not None
+    assert best_480p["index"] == 5
+    assert best_480p["size_mb"] == 733.18
 
 
 def test_extract_download_link():
