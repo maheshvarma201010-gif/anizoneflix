@@ -1,4 +1,22 @@
 import re
+import unicodedata
+
+def normalize_font_text(text: str) -> str:
+    """
+    Normalizes text containing fancy mathematical / stylized fonts and small caps
+    into standard ASCII uppercase text.
+    """
+    if not text:
+        return ""
+    # Normalize NFKD (converts mathematical fancy characters e.g. 𝟺𝟾𝟶 to 480)
+    norm = unicodedata.normalize('NFKD', text)
+    # Map Latin small caps and stylized Unicode chars to standard ASCII
+    small_caps = {
+        'ᴀ': 'A', 'ʙ': 'B', 'ᴄ': 'C', 'ᴅ': 'D', 'ᴇ': 'E', 'ꜰ': 'F', 'ɢ': 'G', 'ʜ': 'H', 'ɪ': 'I',
+        'ᴊ': 'J', 'ᴋ': 'K', 'ʟ': 'L', 'ᴍ': 'M', 'ɴ': 'N', 'ᴏ': 'O', 'ᴘ': 'P', 'ǫ': 'Q', 'ʀ': 'R',
+        's': 'S', 'ꜱ': 'S', 'ᴛ': 'T', 'ᴜ': 'U', 'ᴠ': 'V', 'ᴡ': 'W', 'x': 'X', 'ʏ': 'Y', 'ᴢ': 'Z'
+    }
+    return "".join(small_caps.get(c, c) for c in norm)
 
 def parse_file_entries(text, entities=None):
     """
@@ -62,8 +80,9 @@ def filter_highest_mb_file(entries, quality=None):
         return None
 
     if quality:
-        qual_pattern = re.compile(rf"\b{re.escape(quality)}\b", re.IGNORECASE)
-        qual_matches = [e for e in mb_entries if qual_pattern.search(e["name"])]
+        norm_qual = normalize_font_text(quality).upper()
+        qual_pattern = re.compile(rf"\b{re.escape(norm_qual)}\b", re.IGNORECASE)
+        qual_matches = [e for e in mb_entries if qual_pattern.search(normalize_font_text(e["name"]))]
         if qual_matches:
             mb_entries = qual_matches
 
@@ -101,4 +120,5 @@ def format_lgroup_command(prefix, download_link, task_name, quality):
     /l https://download.link -e -n Admin Provided Name 480P.mkv
     """
     clean_prefix = prefix.strip()
-    return f"{clean_prefix} {download_link} -e -n {task_name} {quality}.mkv"
+    norm_qual = normalize_font_text(quality).upper()
+    return f"{clean_prefix} {download_link} -e -n {task_name} {norm_qual}.mkv"

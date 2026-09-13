@@ -70,8 +70,35 @@ def test_command_formatting():
     assert formatted_l2 == "/l2 https://download.link/file456 -e -n Vishwanath and Sons 1080P.mkv"
     print("Command formatting test passed successfully!")
 
+def test_font_normalization():
+    print("--- Test 4: Font Normalization ---")
+    from utils.task_helpers import normalize_font_text
+    styled = "𝟺𝟾𝟶ᴘ 720ᴘ 1080ᴘ"
+    norm = normalize_font_text(styled)
+    assert norm == "480P 720P 1080P", f"Expected '480P 720P 1080P', got '{norm}'"
+    print("Font normalization test passed successfully!")
+
+async def test_task_cancellation_flow():
+    print("--- Test 5: Task Queue Manager Cancellation ---")
+    from utils.task_runner import TaskQueueManager
+    tqm = TaskQueueManager()
+
+    t1_id = await tqm.add_task({"name": "Movie Task 1"})
+    t2_id = await tqm.add_task({"name": "Movie Task 2"})
+
+    all_tasks = tqm.get_all_tasks()
+    assert len(all_tasks) == 2, f"Expected 2 tasks, got {len(all_tasks)}"
+
+    cancelled = tqm.cancel_task(t1_id)
+    assert cancelled is True, "Expected t1_id cancellation to succeed"
+
+    remaining = tqm.get_all_tasks()
+    assert len(remaining) == 1, f"Expected 1 task remaining, got {len(remaining)}"
+    assert remaining[0]["id"] == t2_id, "Expected remaining task to be t2_id"
+    print("Task Queue Manager cancellation test passed successfully!")
+
 async def test_task_queueing():
-    print("--- Test 4: Task Queue Manager ---")
+    print("--- Test 6: Task Queue Manager ---")
     from utils.task_runner import TaskQueueManager
     tqm = TaskQueueManager()
 
