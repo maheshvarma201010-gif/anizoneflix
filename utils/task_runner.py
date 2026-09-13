@@ -287,15 +287,20 @@ async def execute_task_flow(user_client, task_name, page_link, group_name, prefi
         sent_msg = await user_client.send_message(target_group, task_name)
         await asyncio.sleep(2)
 
-        # Step 2: Monitor target_group for result message matching title (up to 30 seconds)
+        # Step 2: Monitor target_group for result message where 🏷 ᴛɪᴛʟᴇ matches task_name (up to 30 seconds)
         response_msg = None
+        norm_name = normalize_font_text(task_name).strip().lower()
+
         for _ in range(15):
             async for reply in user_client.get_chat_history(target_group, limit=10):
                 txt = (reply.text or reply.caption or "")
                 norm_txt = normalize_font_text(txt).lower()
-                norm_name = normalize_font_text(task_name).lower()
 
-                if reply.reply_to_message_id == sent_msg.id or norm_name in norm_txt or "requested files" in norm_txt or "ᴛɪᴛʟᴇ" in txt:
+                # Check if message contains 🏷 ᴛɪᴛʟᴇ header matching task_name or requested files format
+                if ("title" in norm_txt or "ᴛɪᴛʟᴇ" in txt) and norm_name in norm_txt:
+                    response_msg = reply
+                    break
+                elif reply.reply_to_message_id == sent_msg.id:
                     response_msg = reply
                     break
             if response_msg:
@@ -306,7 +311,7 @@ async def execute_task_flow(user_client, task_name, page_link, group_name, prefi
             logger.warning(f"No result message received in group for task '{task_name}'")
             return
 
-        # Step 3: Click inline button in second row if available (e.g., category or file list button)
+        # Step 3: Click 1st button in 2nd row (index i=1, j=0)
         if response_msg.reply_markup and response_msg.reply_markup.inline_keyboard:
             keyboard = response_msg.reply_markup.inline_keyboard
             if len(keyboard) >= 2 and len(keyboard[1]) >= 1:
@@ -315,34 +320,45 @@ async def execute_task_flow(user_client, task_name, page_link, group_name, prefi
                     await asyncio.sleep(2.5)
                     response_msg = await user_client.get_messages(target_group, response_msg.id)
                 except Exception as ce:
-                    logger.warning(f"Click on row 2 button failed: {ce}")
+                    logger.warning(f"Click on row 2 button 1 failed: {ce}")
 
-        # Step 4: Detect quality selection buttons (e.g., "1080P", "720P", "480P")
-        quality_buttons = []
+        # Step 4: Wait for quality-selection buttons to appear and click 1080P (2nd row, 2nd button: i=1, j=1)
+        target_qual_button = None
+        target_r_idx, target_c_idx = None, None
+
         if response_msg.reply_markup and response_msg.reply_markup.inline_keyboard:
-            for row_idx, row in enumerate(response_msg.reply_markup.inline_keyboard):
-                for col_idx, btn in enumerate(row):
+            keyboard = response_msg.reply_markup.inline_keyboard
+
+            # Look for 1080P button directly or fallback to 2nd row 2nd button (i=1, j=1)
+            for r_idx, row in enumerate(keyboard):
+                for c_idx, btn in enumerate(row):
                     raw_txt = btn.text or ""
                     norm_txt = normalize_font_text(raw_txt).upper()
-                    if any(q in norm_txt for q in ["1080P", "720P", "480P", "360P", "1440P", "2160P", "4K"]):
-                        quality_buttons.append((row_idx, col_idx, btn, norm_txt, raw_txt))
+                    if "1080P" in norm_txt:
+                        target_qual_button = btn
+                        target_r_idx, target_c_idx = r_idx, c_idx
+                        break
+                if target_qual_button:
+                    break
 
-        if not quality_buttons:
-            qualities_to_process = [("1080P", "1080P", None, None, None)]
-        else:
-            qualities_to_process = [(norm, norm, raw, r_idx, c_idx) for r_idx, c_idx, btn, norm, raw in quality_buttons]
+            # Fallback to 2nd row, 2nd button (i=1, j=1) if exact text match not found
+            if not target_qual_button and len(keyboard) >= 2 and len(keyboard[1]) >= 2:
+                target_qual_button = keyboard[1][1]
+                target_r_idx, target_c_idx = 1, 1
 
-        for qual_norm, qual_display, raw_btn_text, r_idx, c_idx in qualities_to_process:
-            # Click quality button (preferring 1080P if available or row 2 col 2)
-            if response_msg.reply_markup and response_msg.reply_markup.inline_keyboard and raw_btn_text:
-                try:
-                    if r_idx is not None and c_idx is not None:
-                        await response_msg.click(i=r_idx, j=c_idx)
-                    else:
-                        await response_msg.click(raw_btn_text)
-                    await asyncio.sleep(3)
-                except Exception as ce:
-                    logger.warning(f"Could not click quality button by text '{raw_btn_text}': {ce}")
+        if target_qual_button:
+            try:
+                if target_r_idx is not None and target_c_idx is not None:
+                    await response_msg.click(i=target_r_idx, j=target_c_idx)
+                else:
+                    await response_msg.click(target_qual_button.text)
+                await asyncio.sleep(3)
+            except Exception as ce:
+                logger.warning(f"Click on 1080P quality button failed: {ce}")
+
+        qualities_to_process = [("1080P", "1080P")]
+
+        for qual_norm, qual_display in qualities_to_process:
 
             # Re-fetch response message after clicking quality
             response_msg = await user_client.get_messages(target_group, response_msg.id)
