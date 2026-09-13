@@ -48,6 +48,13 @@ async def lifespan(app: FastAPI):
         # Start 24/7 Uptime Monitor service
         from utils.uptime import run_uptime_monitor_loop
         asyncio.create_task(run_uptime_monitor_loop(db))
+
+        # Start Userbot and recover active tasks
+        from utils.task_runner import task_runner
+        asyncio.create_task(task_runner.get_userbot())
+        active_tasks = await db.get_active_tasks()
+        for t in active_tasks:
+            asyncio.create_task(task_runner.run_task(t["task_id"]))
     except Exception as e:
         logger.critical(f"STARTUP FAILURE: {e}")
         logger.error(traceback.format_exc())
@@ -57,6 +64,8 @@ async def lifespan(app: FastAPI):
     # SHUTDOWN
     logger.info("Production Engine shutting down...")
     try:
+        from utils.task_runner import task_runner
+        await task_runner.stop_userbot()
         from bot.bot_manager import multibot_manager
         await multibot_manager.stop_all()
         if bot.is_connected:
