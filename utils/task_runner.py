@@ -327,12 +327,12 @@ async def execute_task_flow(user_client, task_name, page_link, group_name, prefi
         for qual in qualities_sequence:
             logger.info(f"Processing quality '{qual}' for task '{task_name}'")
 
-            # Step 2: Monitor /setmoviebot for incoming file
+            # Step 2: Monitor /setmoviebot for incoming file (strictly document, video, or audio; excluding photo, sticker, animation)
             incoming_file_msg = None
             if moviebot:
                 for _ in range(15):
                     async for m in user_client.get_chat_history(moviebot, limit=5):
-                        if (m.media or m.document or m.video or m.audio) and m.id not in seen_moviebot_msg_ids:
+                        if (m.document or m.video or m.audio) and not (m.photo or m.sticker or m.animation) and m.id not in seen_moviebot_msg_ids:
                             incoming_file_msg = m
                             seen_moviebot_msg_ids.add(m.id)
                             break
@@ -390,7 +390,7 @@ async def execute_task_flow(user_client, task_name, page_link, group_name, prefi
                 for bot_target in active_monitor_targets:
                     try:
                         async for m in user_client.get_chat_history(bot_target, limit=10):
-                            if (m.media or m.document or m.video or m.audio) and m.id not in seen_monitorbot_msg_ids:
+                            if (m.document or m.video or m.audio) and not (m.photo or m.sticker or m.animation) and m.id not in seen_monitorbot_msg_ids:
                                 fname = getattr(m.document or m.video or m.audio, "file_name", "") or ""
                                 cap = m.caption or m.text or ""
                                 if is_matching_file(fname, cap, task_name, qual):
