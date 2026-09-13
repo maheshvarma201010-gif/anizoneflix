@@ -9,7 +9,9 @@ from utils.task_helpers import (
     filter_highest_mb_file,
     extract_download_link,
     format_lgroup_command,
-    normalize_font_text
+    normalize_font_text,
+    parse_setbot_links,
+    is_matching_file
 )
 
 logger = logging.getLogger("MZ_TASK_RUNNER")
@@ -192,15 +194,19 @@ class TaskQueueManager:
             target_group = await db.get_setting("setgroup")
             moviebot = await db.get_setting("setmoviebot")
             linkbot = await db.get_setting("setlink")
+            setbot = await db.get_setting("setbot")
+            monitorbots = await db.get_setting("monitorbots") or []
             lgroup_setting = await db.get_setting("setlgroup")
 
             lgroup_target = None
             if isinstance(lgroup_setting, dict):
                 lgroup_target = lgroup_setting.get("target")
+            elif isinstance(lgroup_setting, str):
+                lgroup_target = lgroup_setting
 
             user_client = await self.get_user_client()
 
-            await execute_task_flow(
+            quality_links = await execute_task_flow(
                 user_client=user_client,
                 task_name=task_name,
                 page_link=page_link,
@@ -209,10 +215,13 @@ class TaskQueueManager:
                 target_group=target_group,
                 moviebot=moviebot,
                 linkbot=linkbot,
-                lgroup_target=lgroup_target
+                lgroup_target=lgroup_target,
+                setbot=setbot,
+                monitorbots=monitorbots
             )
             if task_id in self.tasks and self.tasks[task_id]["status"] == "running":
                 self.tasks[task_id]["status"] = "completed"
+                self.tasks[task_id]["quality_links"] = quality_links
         except asyncio.CancelledError:
             logger.info(f"Task '{task_name}' ({task_id}) was cancelled mid-execution.")
             if task_id in self.tasks:
@@ -277,148 +286,173 @@ async def scan_all_pages_and_get_entries(user_client, chat_id, message_id):
 
     return all_entries
 
-async def execute_task_flow(user_client, task_name, page_link, group_name, prefix, target_group, moviebot, linkbot, lgroup_target):
+async def execute_task_flow(user_client, task_name, page_link, group_name, prefix, target_group, moviebot, linkbot, lgroup_target, setbot=None, monitorbots=None):
+    """
+    Complete task execution flow:
+    1. Userbot sends task_name to /setgroup target.
+    2. Processes 3 incoming files from /setmoviebot in quality order (480p, 720p, 1080p).
+    3. For each incoming file:
+       a. Userbot receives incoming file from /setmoviebot.
+       b. Userbot forwards file to /setlink bot.
+       c. Extract download link from /setlink response.
+       d. Send format: '{prefix} {download_link} -e -n {task_name} {quality}.mkv' to /setlgroup.
+       e. Monitor all /monitorbots for file where filename or caption matches '{task_name} {quality}.mkv'.
+       f. Userbot forwards matching file to /setbot.
+       g. Receive generated link from /setbot reply and assign to quality button (480p, 720p, 1080p).
+    """
+    quality_results = {
+        "480p": None,
+        "720p": None,
+        "1080p": None
+    }
+
     if not user_client or not target_group:
         logger.info(f"Simulated flow completed for task '{task_name}' with prefix '{prefix}'")
-        return
+        return quality_results
 
     try:
-        # Step 1: Send exact task_name to target_group
+        # Step 1: Send exact task_name to target_group (/setgroup)
         sent_msg = await user_client.send_message(target_group, task_name)
         await asyncio.sleep(2)
 
-        # Step 2: Monitor target_group for result message where 🏷 ᴛɪᴛʟᴇ matches task_name (up to 30 seconds)
-        response_msg = None
-        norm_name = normalize_font_text(task_name).strip().lower()
+        qualities_sequence = ["480p", "720p", "1080p"]
+        seen_moviebot_msg_ids = set()
+        seen_monitorbot_msg_ids = set()
 
-        for _ in range(15):
-            async for reply in user_client.get_chat_history(target_group, limit=10):
-                txt = (reply.text or reply.caption or "")
-                norm_txt = normalize_font_text(txt).lower()
+        if isinstance(monitorbots, str):
+            monitorbots = [b.strip() for b in re.split(r"[\s,]+", monitorbots) if b.strip()]
+        elif not isinstance(monitorbots, list):
+            monitorbots = []
 
-                # Check if message contains 🏷 ᴛɪᴛʟᴇ header matching task_name or requested files format
-                if ("title" in norm_txt or "ᴛɪᴛʟᴇ" in txt) and norm_name in norm_txt:
-                    response_msg = reply
-                    break
-                elif reply.reply_to_message_id == sent_msg.id:
-                    response_msg = reply
-                    break
-            if response_msg:
-                break
-            await asyncio.sleep(2)
+        for qual in qualities_sequence:
+            logger.info(f"Processing quality '{qual}' for task '{task_name}'")
 
-        if not response_msg:
-            logger.warning(f"No result message received in group for task '{task_name}'")
-            return
-
-        # Step 3: Click 1st button in 2nd row (index i=1, j=0)
-        if response_msg.reply_markup and response_msg.reply_markup.inline_keyboard:
-            keyboard = response_msg.reply_markup.inline_keyboard
-            if len(keyboard) >= 2 and len(keyboard[1]) >= 1:
-                try:
-                    await response_msg.click(i=1, j=0)
-                    await asyncio.sleep(2.5)
-                    response_msg = await user_client.get_messages(target_group, response_msg.id)
-                except Exception as ce:
-                    logger.warning(f"Click on row 2 button 1 failed: {ce}")
-
-        # Step 4: Wait for quality-selection buttons to appear and click 1080P (2nd row, 2nd button: i=1, j=1)
-        target_qual_button = None
-        target_r_idx, target_c_idx = None, None
-
-        if response_msg.reply_markup and response_msg.reply_markup.inline_keyboard:
-            keyboard = response_msg.reply_markup.inline_keyboard
-
-            # Look for 1080P button directly or fallback to 2nd row 2nd button (i=1, j=1)
-            for r_idx, row in enumerate(keyboard):
-                for c_idx, btn in enumerate(row):
-                    raw_txt = btn.text or ""
-                    norm_txt = normalize_font_text(raw_txt).upper()
-                    if "1080P" in norm_txt:
-                        target_qual_button = btn
-                        target_r_idx, target_c_idx = r_idx, c_idx
-                        break
-                if target_qual_button:
-                    break
-
-            # Fallback to 2nd row, 2nd button (i=1, j=1) if exact text match not found
-            if not target_qual_button and len(keyboard) >= 2 and len(keyboard[1]) >= 2:
-                target_qual_button = keyboard[1][1]
-                target_r_idx, target_c_idx = 1, 1
-
-        if target_qual_button:
-            try:
-                if target_r_idx is not None and target_c_idx is not None:
-                    await response_msg.click(i=target_r_idx, j=target_c_idx)
-                else:
-                    await response_msg.click(target_qual_button.text)
-                await asyncio.sleep(3)
-            except Exception as ce:
-                logger.warning(f"Click on 1080P quality button failed: {ce}")
-
-        qualities_to_process = [("1080P", "1080P")]
-
-        for qual_norm, qual_display in qualities_to_process:
-
-            # Re-fetch response message after clicking quality
-            response_msg = await user_client.get_messages(target_group, response_msg.id)
-
-            # Scan all pagination pages and aggregate entries
-            all_entries = await scan_all_pages_and_get_entries(user_client, target_group, response_msg.id)
-
-            # Select largest MB file size matching quality
-            best_file = filter_highest_mb_file(all_entries, quality=qual_norm)
-            if not best_file:
-                logger.warning(f"No matching MB file found for quality {qual_norm}")
-                continue
-
-            # Step 5: Click deep link / send payload to moviebot
-            deep_link = best_file.get("link")
-            if deep_link:
-                if "?start=" in deep_link and moviebot:
-                    payload = deep_link.split("?start=")[1]
-                    await user_client.send_message(moviebot, f"/start {payload}")
-                elif moviebot:
-                    await user_client.send_message(moviebot, f"/start {deep_link}")
-
-            await asyncio.sleep(4)
-
-            # Step 6: Monitor incoming file from moviebot (up to 30s)
+            # Step 2: Monitor /setmoviebot for incoming file
             incoming_file_msg = None
             if moviebot:
-                for _ in range(10):
+                for _ in range(15):
                     async for m in user_client.get_chat_history(moviebot, limit=5):
-                        if m.media or m.document or m.video or m.audio:
+                        if (m.media or m.document or m.video or m.audio) and m.id not in seen_moviebot_msg_ids:
                             incoming_file_msg = m
+                            seen_moviebot_msg_ids.add(m.id)
                             break
                     if incoming_file_msg:
                         break
                     await asyncio.sleep(2)
 
-            # Step 7: Forward file to linkbot & send formatted command to lgroup_target
-            if incoming_file_msg and linkbot:
-                await incoming_file_msg.forward(linkbot)
-                await asyncio.sleep(4)
+            if not incoming_file_msg:
+                logger.warning(f"No incoming file received from moviebot '{moviebot}' for quality '{qual}'")
+                continue
 
-                # Extract download link from linkbot reply
-                linkbot_reply = None
+            # Step 3: Forward incoming file to /setlink bot
+            if not linkbot:
+                logger.warning(f"No linkbot configured for task '{task_name}'")
+                continue
+
+            fwd_to_linkbot = await incoming_file_msg.forward(linkbot)
+            await asyncio.sleep(3)
+
+            # Step 4: Monitor /setlink bot for reply and extract download link
+            dl_link = None
+            linkbot_msg = None
+            for _ in range(15):
                 async for lmsg in user_client.get_chat_history(linkbot, limit=5):
                     if lmsg.text or lmsg.caption:
-                        linkbot_reply = lmsg
-                        break
+                        linkbot_msg = lmsg
+                        dl_text = lmsg.text or lmsg.caption
+                        entities = lmsg.entities or lmsg.caption_entities
+                        dl_link = extract_download_link(dl_text, entities)
+                        if dl_link and ("http://" in dl_link or "https://" in dl_link):
+                            break
+                if dl_link and ("http://" in dl_link or "https://" in dl_link):
+                    break
+                await asyncio.sleep(2)
 
-                if linkbot_reply:
-                    dl_text = linkbot_reply.text or linkbot_reply.caption
-                    entities = linkbot_reply.entities or linkbot_reply.caption_entities
-                    dl_link = extract_download_link(dl_text, entities)
+            if not dl_link:
+                logger.warning(f"Failed to extract download link from linkbot reply for quality '{qual}'")
+                continue
 
-                    if lgroup_target and dl_link:
-                        cmd_text = format_lgroup_command(prefix, dl_link, task_name, qual_norm)
-                        await user_client.send_message(lgroup_target, cmd_text)
+            # Step 5: Send command format to /setlgroup target
+            # Format: {prefix} {download_link} -e -n {task_name} {quality}.mkv
+            if lgroup_target:
+                cmd_text = format_lgroup_command(prefix, dl_link, task_name, qual)
+                await user_client.send_message(lgroup_target, cmd_text)
+                await asyncio.sleep(3)
+
+            # Step 6: Monitor all configured /monitorbots for matching file
+            # Filename or caption matches '{task_name} {quality}.mkv'
+            matching_file_msg = None
+            active_monitor_targets = list(monitorbots)
+            if lgroup_target and lgroup_target not in active_monitor_targets:
+                active_monitor_targets.append(lgroup_target)
+
+            for _ in range(30): # Loop checking configured monitor bots
+                for bot_target in active_monitor_targets:
+                    try:
+                        async for m in user_client.get_chat_history(bot_target, limit=10):
+                            if (m.media or m.document or m.video or m.audio) and m.id not in seen_monitorbot_msg_ids:
+                                fname = getattr(m.document or m.video or m.audio, "file_name", "") or ""
+                                cap = m.caption or m.text or ""
+                                if is_matching_file(fname, cap, task_name, qual):
+                                    matching_file_msg = m
+                                    seen_monitorbot_msg_ids.add(m.id)
+                                    break
+                        if matching_file_msg:
+                            break
+                    except Exception as me:
+                        logger.error(f"Error checking monitorbot '{bot_target}': {me}")
+
+                if matching_file_msg:
+                    break
+                await asyncio.sleep(2)
+
+            if not matching_file_msg:
+                logger.warning(f"No matching file found on monitorbots for '{task_name} {qual}.mkv'")
+                continue
+
+            # Step 7: Forward matching file to /setbot
+            if not setbot:
+                logger.warning("No /setbot configured")
+                continue
+
+            await matching_file_msg.forward(setbot)
+            await asyncio.sleep(3)
+
+            # Step 8: Monitor /setbot reply and extract generated link for quality
+            generated_link = None
+            for _ in range(15):
+                async for sb_msg in user_client.get_chat_history(setbot, limit=5):
+                    if sb_msg.text or sb_msg.caption:
+                        sb_text = sb_msg.text or sb_msg.caption
+                        sb_entities = sb_msg.entities or sb_msg.caption_entities
+                        parsed = parse_setbot_links(sb_text, sb_entities)
+
+                        # Match quality key
+                        norm_qual_key = qual.upper()
+                        if norm_qual_key in parsed:
+                            generated_link = parsed[norm_qual_key]
+                            break
+
+                        # Direct URL fallback in setbot reply
+                        urls = re.findall(r"https?://[^\s<>\"]+", sb_text)
+                        if urls:
+                            generated_link = urls[0]
+                            break
+                if generated_link:
+                    break
+                await asyncio.sleep(2)
+
+            if generated_link:
+                quality_results[qual] = generated_link
+                logger.info(f"Assigned link for '{qual}' button: {generated_link}")
+            else:
+                logger.warning(f"No generated link received from setbot for quality '{qual}'")
 
     except asyncio.CancelledError:
         raise
     except Exception as e:
         logger.error(f"Error during execute_task_flow for task '{task_name}': {e}")
+
+    return quality_results
 
 task_queue_manager = TaskQueueManager()
