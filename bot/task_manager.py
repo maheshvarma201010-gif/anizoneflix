@@ -196,6 +196,8 @@ def resolve_chat_target(target):
     return target
 
 
+import uuid
+
 class TaskManager:
     def __init__(self):
         self.queue = asyncio.Queue()
@@ -204,20 +206,71 @@ class TaskManager:
         self.prefix_available_event.set()
         self.worker_task = None
         self.active_tasks_count = 0
+        self.active_tasks = {}  # task_id -> {"data": task_data, "task": asyncio_task, "prefix": str}
+        self.queued_tasks = []  # list of task_data dicts
 
     async def add_task(self, task_name: str, page_link: str, group_name: str):
+        task_id = str(uuid.uuid4())[:8]
         task_data = {
+            "task_id": task_id,
             "task_name": task_name,
             "page_link": page_link,
             "group_name": group_name
         }
+        self.queued_tasks.append(task_data)
         await self.queue.put(task_data)
-        logger.info(f"Enqueued task: '{task_name}' (Queue size: {self.queue.qsize()})")
+        logger.info(f"Enqueued task: '{task_name}' [{task_id}] (Queue size: {self.queue.qsize()})")
 
         if self.worker_task is None or self.worker_task.done():
             self.worker_task = asyncio.create_task(self._worker_loop())
 
         return {"position": self.queue.qsize(), "task": task_data}
+
+    def get_all_tasks(self):
+        all_tasks = []
+        for tid, info in self.active_tasks.items():
+            all_tasks.append({
+                "task_id": tid,
+                "task_name": info["data"]["task_name"],
+                "status": f"Running ({info['prefix']})",
+                "running": True
+            })
+        for qt in self.queued_tasks:
+            all_tasks.append({
+                "task_id": qt["task_id"],
+                "task_name": qt["task_name"],
+                "status": "Queued",
+                "running": False
+            })
+        return all_tasks
+
+    async def cancel_task(self, task_id: str):
+        # 1. Check if running
+        if task_id in self.active_tasks:
+            info = self.active_tasks.pop(task_id)
+            info["task"].cancel()
+            self.used_prefixes.discard(info["prefix"])
+            self.active_tasks_count = max(0, self.active_tasks_count - 1)
+            self.prefix_available_event.set()
+            logger.info(f"Canceled running task '{task_id}'")
+            return True, f"Canceled running task '{info['data']['task_name']}'."
+
+        # 2. Check if queued
+        for qt in list(self.queued_tasks):
+            if qt["task_id"] == task_id:
+                self.queued_tasks.remove(qt)
+                # Rebuild queue without this task
+                items = []
+                while not self.queue.empty():
+                    item = self.queue.get_nowait()
+                    if item["task_id"] != task_id:
+                        items.append(item)
+                for item in items:
+                    await self.queue.put(item)
+                logger.info(f"Canceled queued task '{task_id}'")
+                return True, f"Canceled queued task '{qt['task_name']}'."
+
+        return False, "Task not found."
 
     async def _worker_loop(self):
         logger.info("Task Manager worker loop started.")
@@ -250,12 +303,20 @@ class TaskManager:
                     logger.info("All task prefixes busy. Waiting for a prefix to become free...")
                     await self.prefix_available_event.wait()
 
+                # Remove from queued_tasks list as it transitions to active
+                self.queued_tasks = [qt for qt in self.queued_tasks if qt["task_id"] != task_data["task_id"]]
+
                 # Mark prefix as used
                 self.used_prefixes.add(assigned_prefix)
                 self.active_tasks_count += 1
 
-                logger.info(f"Starting task '{task_data['task_name']}' with prefix '{assigned_prefix}'")
-                asyncio.create_task(self._run_task_wrapper(task_data, assigned_prefix))
+                logger.info(f"Starting task '{task_data['task_name']}' [{task_data['task_id']}] with prefix '{assigned_prefix}'")
+                task = asyncio.create_task(self._run_task_wrapper(task_data, assigned_prefix))
+                self.active_tasks[task_data["task_id"]] = {
+                    "data": task_data,
+                    "task": task,
+                    "prefix": assigned_prefix
+                }
 
             except asyncio.CancelledError:
                 break
@@ -264,15 +325,22 @@ class TaskManager:
                 await asyncio.sleep(1)
 
     async def _run_task_wrapper(self, task_data: dict, prefix: str):
+        task_id = task_data["task_id"]
         try:
             await self.execute_task(task_data, prefix)
+        except asyncio.CancelledError:
+            logger.info(f"Task '{task_data['task_name']}' [{task_id}] was cancelled.")
         except Exception as e:
-            logger.error(f"Task '{task_data['task_name']}' failed with error: {e}")
+            logger.error(f"Task '{task_data['task_name']}' [{task_id}] failed with error: {e}")
         finally:
+            self.active_tasks.pop(task_id, None)
             self.used_prefixes.discard(prefix)
-            self.active_tasks_count -= 1
+            self.active_tasks_count = max(0, self.active_tasks_count - 1)
             self.prefix_available_event.set()
-            self.queue.task_done()
+            try:
+                self.queue.task_done()
+            except Exception:
+                pass
             logger.info(f"Task '{task_data['task_name']}' finished. Prefix '{prefix}' is now free.")
 
     async def execute_task(self, task_data: dict, prefix: str):

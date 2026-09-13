@@ -90,3 +90,12 @@ async def test_task_manager_prefix_queue():
 
     assert res1["position"] == 1
     assert res2["position"] == 2
+
+    # Test task listing and cancellation
+    all_tasks = tm.get_all_tasks()
+    assert len(all_tasks) == 2
+
+    t1_id = res1["task"]["task_id"]
+    success, msg = await tm.cancel_task(t1_id)
+    assert success is True
+    assert len(tm.get_all_tasks()) == 1

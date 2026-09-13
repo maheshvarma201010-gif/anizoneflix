@@ -632,8 +632,30 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.command("cancel") & filters.private)
     async def cancel_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
         user_state.pop(message.from_user.id, None)
-        await message.reply("✨ Action cancelled.")
+
+        from bot.task_manager import task_manager
+        all_tasks = task_manager.get_all_tasks()
+
+        if not all_tasks:
+            return await message.reply("✨ No active or queued tasks to cancel.")
+
+        if len(all_tasks) == 1:
+            t = all_tasks[0]
+            success, msg = await task_manager.cancel_task(t["task_id"])
+            return await message.reply(f"❌ **Task Cancelled:** {msg}")
+
+        # Multiple tasks running or queued: show inline keyboard buttons to choose
+        buttons = []
+        for t in all_tasks:
+            btn_text = f"❌ Cancel: {t['task_name']} ({t['status']})"
+            buttons.append([InlineKeyboardButton(btn_text, callback_data=f"cncl_task_{t['task_id']}")])
+
+        await message.reply_text(
+            f"📋 **Active Tasks ({len(all_tasks)}):** Select a task below to cancel:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
 
     # --- Callbacks ---
 
@@ -1254,6 +1276,13 @@ def register_handlers(bot: Client):
         elif data == "cancel_op":
             user_state.pop(uid, None)
             await cb.message.edit_text("✨ Operation cancelled.")
+
+        elif data.startswith("cncl_task_"):
+            task_id = data.replace("cncl_task_", "")
+            from bot.task_manager import task_manager
+            success, msg = await task_manager.cancel_task(task_id)
+            await cb.answer(msg, show_alert=True)
+            await cb.message.edit_text(f"❌ **Task Cancellation:** {msg}")
 
     # --- Interaction Handler ---
 
