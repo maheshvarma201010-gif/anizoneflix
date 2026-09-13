@@ -1,13 +1,15 @@
 import asyncio
 import logging
 import re
+import uuid
 from pyrogram import Client, filters
 from database.db import db
 from utils.task_helpers import (
     parse_file_entries,
     filter_highest_mb_file,
     extract_download_link,
-    format_lgroup_command
+    format_lgroup_command,
+    normalize_font_text
 )
 
 logger = logging.getLogger("MZ_TASK_RUNNER")
@@ -20,6 +22,7 @@ class TaskQueueManager:
         self.user_client = None
         self.user_client_session = None
         self._client_lock = asyncio.Lock()
+        self.tasks = {}  # task_id -> task dict
 
     def start(self):
         if not self.is_running:
@@ -60,21 +63,94 @@ class TaskQueueManager:
                 return None
 
     async def add_task(self, task_data):
-        await self.queue.put(task_data)
+        task_id = task_data.get("id") or f"task_{str(uuid.uuid4())[:8]}"
+        task_data["id"] = task_id
+        task_entry = {
+            "id": task_id,
+            "name": task_data.get("name", "Unnamed Task"),
+            "status": "queued",
+            "prefix": None,
+            "handle": None,
+            "data": task_data
+        }
+        self.tasks[task_id] = task_entry
+        await self.queue.put(task_id)
         self.start()
+        return task_id
+
+    def get_all_tasks(self):
+        """
+        Returns list of active/running or queued tasks.
+        """
+        return [
+            {
+                "id": t_id,
+                "name": t_info["name"],
+                "status": t_info["status"],
+                "prefix": t_info["prefix"]
+            }
+            for t_id, t_info in list(self.tasks.items())
+            if t_info["status"] in ["queued", "running"]
+        ]
+
+    def cancel_task(self, task_id):
+        """
+        Cancels a running or queued task by ID.
+        """
+        if task_id not in self.tasks:
+            return False
+
+        task_entry = self.tasks[task_id]
+        status = task_entry.get("status")
+
+        if status == "running":
+            handle = task_entry.get("handle")
+            prefix = task_entry.get("prefix")
+            if handle and not handle.done():
+                handle.cancel()
+            if prefix:
+                self.release_prefix(prefix)
+            task_entry["status"] = "cancelled"
+            logger.info(f"Cancelled running task '{task_id}'")
+            return True
+        elif status == "queued":
+            task_entry["status"] = "cancelled"
+            logger.info(f"Cancelled queued task '{task_id}'")
+            return True
+
+        return False
 
     async def _process_queue(self):
         while self.is_running:
             try:
-                task_data = await asyncio.wait_for(self.queue.get(), timeout=1.0)
+                task_id = await asyncio.wait_for(self.queue.get(), timeout=1.0)
             except asyncio.TimeoutError:
                 continue
+
+            if task_id not in self.tasks or self.tasks[task_id]["status"] == "cancelled":
+                self.queue.task_done()
+                continue
+
+            task_entry = self.tasks[task_id]
+            task_data = task_entry["data"]
+
             try:
                 prefix = await self._acquire_prefix()
-                logger.info(f"Acquired prefix '{prefix}' for task '{task_data.get('name')}'")
-                asyncio.create_task(self._run_single_task(task_data, prefix))
+                if task_entry["status"] == "cancelled":
+                    self.release_prefix(prefix)
+                    self.queue.task_done()
+                    continue
+
+                task_entry["status"] = "running"
+                task_entry["prefix"] = prefix
+                logger.info(f"Acquired prefix '{prefix}' for task '{task_entry['name']}' ({task_id})")
+
+                async_task = asyncio.create_task(self._run_single_task(task_id, task_data, prefix))
+                task_entry["handle"] = async_task
+
             except Exception as e:
-                logger.error(f"Error starting queued task: {e}")
+                logger.error(f"Error starting queued task '{task_id}': {e}")
+                task_entry["status"] = "failed"
             finally:
                 self.queue.task_done()
 
@@ -102,14 +178,15 @@ class TaskQueueManager:
             await asyncio.sleep(2)
 
     def release_prefix(self, prefix):
-        self.active_prefixes.discard(prefix)
+        if prefix:
+            self.active_prefixes.discard(prefix)
 
-    async def _run_single_task(self, task_data, prefix):
+    async def _run_single_task(self, task_id, task_data, prefix):
         task_name = task_data["name"]
         page_link = task_data.get("page_link")
         group_name = task_data.get("group_name")
 
-        logger.info(f"Starting Task: name='{task_name}', prefix='{prefix}'")
+        logger.info(f"Starting Task: name='{task_name}', prefix='{prefix}', id='{task_id}'")
 
         try:
             target_group = await db.get_setting("setgroup")
@@ -134,8 +211,17 @@ class TaskQueueManager:
                 linkbot=linkbot,
                 lgroup_target=lgroup_target
             )
+            if task_id in self.tasks and self.tasks[task_id]["status"] == "running":
+                self.tasks[task_id]["status"] = "completed"
+        except asyncio.CancelledError:
+            logger.info(f"Task '{task_name}' ({task_id}) was cancelled mid-execution.")
+            if task_id in self.tasks:
+                self.tasks[task_id]["status"] = "cancelled"
+            raise
         except Exception as err:
             logger.error(f"Task '{task_name}' execution error: {err}")
+            if task_id in self.tasks:
+                self.tasks[task_id]["status"] = "failed"
         finally:
             self.release_prefix(prefix)
             logger.info(f"Released prefix '{prefix}' for task '{task_name}'")
@@ -168,7 +254,7 @@ async def scan_all_pages_and_get_entries(user_client, chat_id, message_id):
             if msg.reply_markup and msg.reply_markup.inline_keyboard:
                 for row in msg.reply_markup.inline_keyboard:
                     for btn in row:
-                        btn_label = btn.text.strip().lower()
+                        btn_label = normalize_font_text(btn.text or "").strip().lower()
                         if "next" in btn_label or "▶" in btn_label or "⏩" in btn_label:
                             next_btn = btn
                             break
@@ -213,30 +299,43 @@ async def execute_task_flow(user_client, task_name, page_link, group_name, prefi
             logger.warning(f"No response received in group for task '{task_name}'")
             return
 
-        # Detect quality buttons (e.g., "480P", "720P", "1080P")
+        # Detect quality buttons (e.g., "480P", "720P", "1080P") handling fonts/styles
         quality_buttons = []
         if response_msg.reply_markup and response_msg.reply_markup.inline_keyboard:
             for row in response_msg.reply_markup.inline_keyboard:
                 for btn in row:
-                    txt = btn.text.strip()
-                    if any(q in txt.upper() for q in ["480P", "720P", "1080P", "360P", "2160P", "4K"]):
-                        quality_buttons.append(btn)
+                    raw_txt = btn.text or ""
+                    norm_txt = normalize_font_text(raw_txt).upper()
+                    if any(q in norm_txt for q in ["480P", "720P", "1080P", "360P", "2160P", "4K"]):
+                        quality_buttons.append((btn, norm_txt, raw_txt))
 
         if not quality_buttons:
-            quality_names = ["480P", "720P", "1080P"]
+            qualities_to_process = [("480P", "480P", None)]
         else:
-            quality_names = [b.text.strip() for b in quality_buttons]
+            qualities_to_process = [(norm, norm, raw) for btn, norm, raw in quality_buttons]
 
-        for qual in quality_names:
-            qual_clean = qual.upper()
-
+        for qual_norm, qual_display, raw_btn_text in qualities_to_process:
             # Click quality button if present
-            if response_msg.reply_markup and response_msg.reply_markup.inline_keyboard:
+            if response_msg.reply_markup and response_msg.reply_markup.inline_keyboard and raw_btn_text:
                 try:
-                    await response_msg.click(qual)
+                    await response_msg.click(raw_btn_text)
                     await asyncio.sleep(3)
                 except Exception as ce:
-                    logger.warning(f"Could not click button {qual}: {ce}")
+                    logger.warning(f"Could not click quality button by text '{raw_btn_text}': {ce}")
+                    try:
+                        # Fallback click by row/col position
+                        clicked = False
+                        for r_idx, row in enumerate(response_msg.reply_markup.inline_keyboard):
+                            for c_idx, btn in enumerate(row):
+                                if normalize_font_text(btn.text or "").upper() == qual_norm:
+                                    await response_msg.click(i=r_idx, j=c_idx)
+                                    clicked = True
+                                    await asyncio.sleep(3)
+                                    break
+                            if clicked:
+                                break
+                    except Exception as ce2:
+                        logger.warning(f"Fallback click failed for quality '{qual_norm}': {ce2}")
 
             # Re-fetch response message after clicking quality
             response_msg = await user_client.get_messages(target_group, response_msg.id)
@@ -245,9 +344,9 @@ async def execute_task_flow(user_client, task_name, page_link, group_name, prefi
             all_entries = await scan_all_pages_and_get_entries(user_client, target_group, response_msg.id)
 
             # Select largest MB file size matching quality
-            best_file = filter_highest_mb_file(all_entries, quality=qual_clean)
+            best_file = filter_highest_mb_file(all_entries, quality=qual_norm)
             if not best_file:
-                logger.warning(f"No matching MB file found for quality {qual_clean}")
+                logger.warning(f"No matching MB file found for quality {qual_norm}")
                 continue
 
             # Click deep link
@@ -287,9 +386,11 @@ async def execute_task_flow(user_client, task_name, page_link, group_name, prefi
                     dl_link = extract_download_link(dl_text, entities)
 
                     if lgroup_target and dl_link:
-                        cmd_text = format_lgroup_command(prefix, dl_link, task_name, qual_clean)
+                        cmd_text = format_lgroup_command(prefix, dl_link, task_name, qual_norm)
                         await user_client.send_message(lgroup_target, cmd_text)
 
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         logger.error(f"Error during execute_task_flow for task '{task_name}': {e}")
 

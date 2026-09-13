@@ -519,7 +519,30 @@ def register_handlers(bot: Client):
     @bot.on_message(filters.command("cancel") & filters.private)
     async def cancel_cmd(client, message):
         user_state.pop(message.from_user.id, None)
-        await message.reply("✨ Action cancelled.")
+        from utils.task_runner import task_queue_manager
+
+        active_tasks = task_queue_manager.get_all_tasks()
+        if not active_tasks:
+            return await message.reply("✨ Action cancelled.")
+
+        if len(active_tasks) == 1:
+            t = active_tasks[0]
+            task_queue_manager.cancel_task(t["id"])
+            return await message.reply(f"🛑 Task **{t['name']}** cancelled successfully.")
+
+        buttons = []
+        for t in active_tasks:
+            status_str = f"[{t['status'].upper()}]"
+            buttons.append([
+                InlineKeyboardButton(
+                    f"❌ Cancel {t['name']} {status_str}",
+                    callback_data=f"cancel_task_{t['id']}"
+                )
+            ])
+        await message.reply_text(
+            "📋 **Active Running / Queued Tasks:**\n\nPlease select a task below to stop/cancel:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
 
     def get_cmd_or_reply_value(msg):
         if len(msg.command) > 1:
@@ -1224,6 +1247,32 @@ def register_handlers(bot: Client):
                 [InlineKeyboardButton("📢 Configure Storage Channel", callback_data="song_set_channel", style=ButtonStyle.PRIMARY)]
             ]
             await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+        elif data.startswith("cancel_task_"):
+            task_id = data.replace("cancel_task_", "")
+            from utils.task_runner import task_queue_manager
+            success = task_queue_manager.cancel_task(task_id)
+            if success:
+                await cb.answer("🛑 Task cancelled successfully!", show_alert=True)
+                active_tasks = task_queue_manager.get_all_tasks()
+                if not active_tasks:
+                    await cb.message.edit_text("✨ All selected tasks cancelled. No active tasks running.")
+                else:
+                    buttons = []
+                    for t in active_tasks:
+                        status_str = f"[{t['status'].upper()}]"
+                        buttons.append([
+                            InlineKeyboardButton(
+                                f"❌ Cancel {t['name']} {status_str}",
+                                callback_data=f"cancel_task_{t['id']}"
+                            )
+                        ])
+                    await cb.message.edit_text(
+                        "📋 **Active Running / Queued Tasks:**\n\nPlease select a task below to stop/cancel:",
+                        reply_markup=InlineKeyboardMarkup(buttons)
+                    )
+            else:
+                await cb.answer("⚠️ Task was not found or already stopped.", show_alert=True)
 
         elif data == "cancel_op":
             user_state.pop(uid, None)
