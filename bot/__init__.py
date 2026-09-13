@@ -588,6 +588,19 @@ def register_handlers(bot: Client):
         user_state[message.from_user.id] = {"action": "ask_ss"}
         await message.reply("🔑 Please send your **Pyrogram Session String** for `/SS`:")
 
+    @bot.on_message(filters.command("monitorbots", ["/", "$"]) & filters.private)
+    async def monitorbots_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        val = " ".join(message.command[1:]).strip()
+        if not val and message.reply_to_message:
+            val = message.reply_to_message.text or message.reply_to_message.caption or ""
+        if val:
+            bots_list = [b.strip() for b in val.replace("\n", ",").split(",") if b.strip()]
+            await db.set_setting("monitorbots", ",".join(bots_list))
+            return await message.reply(f"🤖 **MonitorBots Configured:** `{', '.join(bots_list)}`")
+        user_state[message.from_user.id] = {"action": "ask_monitorbots"}
+        await message.reply("🤖 Please send or reply with comma-separated bot usernames/IDs for `/monitorbots`:")
+
     @bot.on_message(filters.command("task", ["/", "$"]) & filters.private)
     async def task_cmd(client, message):
         if not await is_authorized(message.from_user.id): return
@@ -1245,7 +1258,7 @@ def register_handlers(bot: Client):
 
     # --- Interaction Handler ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video | filters.voice) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel", "setgroup", "setmoviebot", "setlink", "setlgroup", "setbot", "ss", "task"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video | filters.voice) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel", "setgroup", "setmoviebot", "setlink", "setlgroup", "setbot", "ss", "task", "monitorbots"]), group=1)
     async def interaction_msg(client, message):
         if message.text and message.text.startswith("/"):
             # Skip if it is a command message
@@ -1613,6 +1626,15 @@ def register_handlers(bot: Client):
             val = message.text.strip()
             await db.set_setting("session_string", val)
             await message.reply("🔐 **Pyrogram Session String Saved Successfully!**")
+            user_state.pop(uid, None)
+
+        elif action == "ask_monitorbots":
+            if message.text and message.text.strip().startswith("/"):
+                return
+            val = message.text.strip()
+            bots_list = [b.strip() for b in val.replace("\n", ",").split(",") if b.strip()]
+            await db.set_setting("monitorbots", ",".join(bots_list))
+            await message.reply(f"🤖 **MonitorBots Configured:** `{', '.join(bots_list)}`")
             user_state.pop(uid, None)
 
         elif action == "ask_task_name":

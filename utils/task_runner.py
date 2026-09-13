@@ -167,12 +167,13 @@ async def run_userbot_task(task: Task):
     2. Monitor /SETLINK response (LinkForge or DD Bypass formats).
     3. Extract download links and quality tags (480p, 720p, 1080p).
     4. Send formatted command to /SETLGROUP: '{command_slot} {download_link} -e -n {NAME} {QUALITY}.mkv'.
-    5. Monitor /SETBOT file results, filtering out non-result commands.
-    6. Extract Telegram deep links and generate final result with 480p | 720p | 1080p buttons sent to task.group_name.
+    5. Monitor configured bots in /MONITORBOTS for generated files matching '{NAME}' and '{QUALITY}.mkv', then forward to /SETBOT.
+    6. Extract Telegram deep links from /SETBOT result messages and generate final result with 480P | 720P | 1080P buttons sent to task.group_name.
     """
     raw_setlink = await db.get_setting("setlink")
     raw_setlgroup = await db.get_setting("setlgroup")
     raw_setbot = await db.get_setting("setbot")
+    raw_monitorbots = await db.get_setting("monitorbots")
 
     if not raw_setlink or not raw_setlgroup or not raw_setbot:
         raise Exception("Required system settings (/SETLINK, /SETLGROUP, /SETBOT) are missing!")
@@ -180,6 +181,15 @@ async def run_userbot_task(task: Task):
     setlink = parse_peer_id(raw_setlink)
     setlgroup = parse_peer_id(raw_setlgroup)
     setbot = parse_peer_id(raw_setbot)
+
+    monitor_bot_list = []
+    if raw_monitorbots:
+        if isinstance(raw_monitorbots, list):
+            monitor_bot_list = [parse_peer_id(b) for b in raw_monitorbots if b]
+        elif isinstance(raw_monitorbots, str):
+            monitor_bot_list = [parse_peer_id(b.strip()) for b in raw_monitorbots.split(",") if b.strip()]
+    if not monitor_bot_list:
+        monitor_bot_list = [setbot]
 
     ub = await get_userbot_client()
     if not ub:
@@ -232,11 +242,47 @@ async def run_userbot_task(task: Task):
                 "1080p": f"https://cdn.example.org/download/{task.id}_1080p"
             }
 
-        # Step 3: Monitor /SETBOT for file results
-        task.current_step = "monitoring_setbot_results"
+        # Step 3: Monitor /MONITORBOTS for matching output files and forward to /SETBOT
+        task.current_step = "monitoring_bot_files"
         setbot_results = {}
 
-        # Wait for valid file result messages from /SETBOT (ignoring normal bot commands)
+        for quality, dl_url in quality_download_links.items():
+            if task.status == "cancelled":
+                raise Exception("Task cancelled by admin.")
+
+            matched_msg = None
+            # Scan monitorbots for file matching task name and quality tag
+            for bot_peer in monitor_bot_list:
+                try:
+                    async for m in ub.get_chat_history(bot_peer, limit=15):
+                        fn = ""
+                        if m.document:
+                            fn = getattr(m.document, "file_name", "") or ""
+                        elif m.video:
+                            fn = getattr(m.video, "file_name", "") or ""
+                        text_to_check = f"{fn} {m.text or ''} {m.caption or ''}".lower()
+
+                        task_name_clean = task.name.lower()
+                        q_clean = quality.lower()
+                        task_id_str = str(task.id).lower()
+
+                        if (task_name_clean in text_to_check or task_id_str in text_to_check) and q_clean in text_to_check:
+                            matched_msg = (bot_peer, m.id)
+                            break
+                except Exception as ex:
+                    logger.warning(f"Error checking bot chat history for {bot_peer}: {ex}")
+
+                if matched_msg:
+                    break
+
+            # If matched file was found from monitorbots, forward it to /SETBOT
+            if matched_msg:
+                b_peer, msg_id = matched_msg
+                await ub.forward_messages(setbot, b_peer, msg_id)
+                await asyncio.sleep(2)
+
+        # Step 4: Monitor /SETBOT for deep link results
+        task.current_step = "monitoring_setbot_results"
         for _ in range(30):
             async for m in ub.get_chat_history(setbot, limit=10):
                 parsed = parse_setbot_result_message(m.text or m.caption or "")
@@ -248,12 +294,12 @@ async def run_userbot_task(task: Task):
             await asyncio.sleep(1)
 
         # Fallback links for /SETBOT if not all received
-        for q in ["480p", "720p", "1080p"]:
-            if q in quality_download_links and q not in setbot_results:
+        for q in quality_download_links.keys():
+            if q not in setbot_results:
                 bot_username = str(raw_setbot).replace("@", "")
                 setbot_results[q] = f"https://telegram.me/{bot_username}?start=get_{task.id}_{q}"
 
-        # Step 4: Final Task Output & Quality Buttons
+        # Step 5: Final Task Output & Quality Buttons
         task.current_step = "posting_final_results"
 
         # Build quality selection buttons showing only available qualities

@@ -101,3 +101,12 @@ async def test_task_queue_slot_assignment():
     task1 = await task_queue_manager.add_task("Movie 1", "https://link1", "Season 1", 12345, files=[(123, 456)])
     assert task1.id in task_queue_manager.tasks
     assert len(task1.files) == 1
+
+@pytest.mark.asyncio
+async def test_monitorbots_setting_persistence():
+    await db.connect()
+    bots = ["@test_bot1", "@test_bot2", "@test_bot3"]
+    await db.set_setting("monitorbots", ",".join(bots))
+
+    res = await db.get_setting("monitorbots")
+    assert res == "@test_bot1,@test_bot2,@test_bot3"
