@@ -4,7 +4,9 @@ from utils.task_helpers import (
     parse_file_entries,
     filter_highest_mb_file,
     extract_download_link,
-    format_lgroup_command
+    format_lgroup_command,
+    parse_setbot_links,
+    is_matching_file
 )
 
 async def test_settings_storage():
@@ -19,6 +21,10 @@ async def test_settings_storage():
     await db.set_setting("setmoviebot", "@my_movie_bot")
     mb = await db.get_setting("setmoviebot")
     assert mb == "@my_movie_bot", f"Expected @my_movie_bot, got {mb}"
+
+    await db.set_setting("monitorbots", ["bot1", "bot2", "bot3"])
+    mbots = await db.get_setting("monitorbots")
+    assert mbots == ["bot1", "bot2", "bot3"], f"Expected ['bot1', 'bot2', 'bot3'], got {mbots}"
 
     await db.set_setting("session_string", "test_session_str")
     ss = await db.get_setting("session_string")
@@ -77,6 +83,72 @@ def test_font_normalization():
     norm = normalize_font_text(styled)
     assert norm == "480P 720P 1080P", f"Expected '480P 720P 1080P', got '{norm}'"
     print("Font normalization test passed successfully!")
+
+def test_extract_download_link_formats():
+    print("--- Test 5: Extract Download Link ---")
+    txt1 = """
+‣ File Name : Salaar.Part.1.Ceasefire.2023.PROPER.480p.BluRay.x264.mkv
+‣ File Size : 750.14 MB
+➙ Download : https://dd-stream.vercel.app/download?path=6aa59561dedfe998dc9c5889
+➙ Watch Online : https://dd-stream.vercel.app/watch?path=6aa59561dedfe998dc9c5889
+💡 Tip :- Use IDM
+"""
+    link1 = extract_download_link(txt1)
+    assert link1 == "https://dd-stream.vercel.app/download?path=6aa59561dedfe998dc9c5889"
+
+    txt2 = """
+📂 Fɪʟᴇ ɴᴀᴍᴇ : Varsham (2004) Telugu AMZN HYBRID WEBRip - 480p - AVC - MP3 .mkv
+📦 Fɪʟᴇ ꜱɪᴢᴇ : 398.91 MiB
+📥 Dᴏᴡɴʟᴏᴀᴅ : https://cdn2.linkforge.dpdns.org/download/AgADsB141272
+🖥ᴡᴀᴛᴄʜ : https://cdn2.linkforge.dpdns.org/watch/AgADsB141272
+"""
+    link2 = extract_download_link(txt2)
+    assert link2 == "https://cdn2.linkforge.dpdns.org/download/AgADsB141272"
+    print("Extract download link test passed successfully!")
+
+def test_parse_setbot_links():
+    print("--- Test 6: Parse Setbot Links ---")
+    setbot_resp = """
+MOVIES:
+First Filename: Geetha Govindam 2018 1080p.mkv
+First Caption: Geetha Govindam 2018 1080p.mkv
+Last Filename: Geetha Govindam 2018 1080p.mkv
+Last Caption: Geetha Govindam 2018 1080p.mkv
+
+Here is your link:
+
+https://telegram.me/MOVIESzoneFLIX_BOT?start=Z2V0LTEzMjE2NTU4NjEwMzExNTY
+
+First Filename: Geetha Govindam 2018 480p.mkv
+First Caption: Geetha Govindam 2018 480p.mkv
+Last Filename: Geetha Govindam 2018 480p.mkv
+Last Caption: Geetha Govindam 2018 480p.mkv
+
+Here is your link:
+
+https://telegram.me/MOVIESzoneFLIX_BOT?start=Z2V0LTEzMjI2NjAxNTg3OTc4OTc
+
+First Filename: Geetha Govindam 2018 720p.mkv
+First Caption: Geetha Govindam 2018 720p.mkv
+Last Filename: Geetha Govindam 2018 720p.mkv
+Last Caption: Geetha Govindam 2018 720p.mkv
+
+Here is your link:
+
+https://telegram.me/MOVIESzoneFLIX_BOT?start=Z2V0LTEzMjM2NjQ0NTY1NjQ2Mzg
+"""
+    parsed = parse_setbot_links(setbot_resp)
+    assert parsed.get("480P") == "https://telegram.me/MOVIESzoneFLIX_BOT?start=Z2V0LTEzMjI2NjAxNTg3OTc4OTc"
+    assert parsed.get("720P") == "https://telegram.me/MOVIESzoneFLIX_BOT?start=Z2V0LTEzMjM2NjQ0NTY1NjQ2Mzg"
+    assert parsed.get("1080P") == "https://telegram.me/MOVIESzoneFLIX_BOT?start=Z2V0LTEzMjE2NTU4NjEwMzExNTY"
+    print("Parse setbot links test passed successfully!")
+
+def test_is_matching_file():
+    print("--- Test 7: Is Matching File ---")
+    assert is_matching_file("Geetha Govindam 2018 480p.mkv", "", "Geetha Govindam 2018", "480p") is True
+    assert is_matching_file("", "Geetha Govindam 2018 720p.mkv", "Geetha Govindam 2018", "720p") is True
+    assert is_matching_file("Other Movie 1080p.mkv", "", "Geetha Govindam 2018", "1080p") is False
+    print("Is matching file test passed successfully!")
 
 async def test_task_cancellation_flow():
     print("--- Test 5: Task Queue Manager Cancellation ---")

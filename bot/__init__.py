@@ -545,7 +545,7 @@ def register_handlers(bot: Client):
         )
 
     def get_cmd_or_reply_value(msg):
-        if len(msg.command) > 1:
+        if getattr(msg, "command", None) and len(msg.command) > 1:
             return " ".join(msg.command[1:]).strip()
         if msg.reply_to_message:
             if msg.reply_to_message.text:
@@ -600,6 +600,21 @@ def register_handlers(bot: Client):
         else:
             user_state[message.from_user.id] = {"action": "ask_setlink"}
             await message.reply("🔗 Please send the **Bot Username** or **Bot ID**:")
+
+    @bot.on_message(filters.command("monitorbots", ["/", "$"]) & filters.private)
+    async def monitorbots_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        val = get_cmd_or_reply_value(message)
+        if val:
+            bots_list = [b.strip() for b in re.split(r"[\s,]+", val) if b.strip()]
+            await db.set_setting("monitorbots", bots_list)
+            await message.reply(f"✅ **Monitoring Bots Configured:** `{', '.join(bots_list)}`")
+        else:
+            user_state[message.from_user.id] = {"action": "ask_monitorbots"}
+            await message.reply(
+                "🤖 **Configure Monitoring Bots**\n\n"
+                "✍️ Please send bot usernames separated by commas (e.g. `username1,username2,username3`):"
+            )
 
     @bot.on_message(filters.command("ss", ["/", "$"]) & filters.private)
     async def ss_cmd(client, message):
@@ -1280,7 +1295,7 @@ def register_handlers(bot: Client):
 
     # --- Interaction Handler ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video | filters.voice) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel", "setgroup", "setbot", "setmoviebot", "setlink", "ss", "setlgroup", "task", "task_name"]), group=1)
+    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video | filters.voice) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel", "setgroup", "setbot", "setmoviebot", "setlink", "monitorbots", "ss", "setlgroup", "task", "task_name"]), group=1)
     async def interaction_msg(client, message):
         state = user_state.get(message.from_user.id)
         if not state: return
@@ -1611,6 +1626,13 @@ def register_handlers(bot: Client):
             await message.reply(f"✅ **Link Bot Configured:** `{val}`")
             user_state.pop(uid, None)
 
+        elif action == "ask_monitorbots":
+            val = get_cmd_or_reply_value(message) or message.text.strip()
+            bots_list = [b.strip() for b in re.split(r"[\s,]+", val) if b.strip()]
+            await db.set_setting("monitorbots", bots_list)
+            await message.reply(f"✅ **Monitoring Bots Configured:** `{', '.join(bots_list)}`")
+            user_state.pop(uid, None)
+
         elif action == "ask_ss":
             val = get_cmd_or_reply_value(message) or message.text.strip()
             await db.set_setting("session_string", val)
@@ -1705,6 +1727,7 @@ async def set_commands(client: Client):
             BotCommand("addbot", "Add a Multi-Bot listener"),
             BotCommand("songs", "Manage Background Songs"),
             BotCommand("uptime", "24/7 Uptime Monitor"),
+            BotCommand("monitorbots", "Configure monitoring bots"),
             BotCommand("cancel", "Cancel Process")
         ])
     except: pass

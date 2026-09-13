@@ -35,7 +35,10 @@ class MediaAPI:
                 if resp.status == 200:
                     return await resp.json()
                 else:
-                    logger.error(f"API Error {resp.status} for {url}")
+                    if resp.status == 401:
+                        logger.warning(f"API Authorization/Key Error 401 for {url}")
+                    else:
+                        logger.error(f"API Error {resp.status} for {url}")
         except Exception as e:
             logger.error(f"Request Error {url}: {e}")
         return None
