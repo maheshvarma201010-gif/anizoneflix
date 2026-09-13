@@ -545,7 +545,7 @@ def register_handlers(bot: Client):
         )
 
     def get_cmd_or_reply_value(msg):
-        if len(msg.command) > 1:
+        if getattr(msg, "command", None) and len(msg.command) > 1:
             return " ".join(msg.command[1:]).strip()
         if msg.reply_to_message:
             if msg.reply_to_message.text:
