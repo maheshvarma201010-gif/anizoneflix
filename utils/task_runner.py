@@ -164,17 +164,20 @@ class TaskRunner:
                 logger.error(f"Error sending file to {dl_bot}: {e}")
                 continue
 
-            # Wait for DL Bot response
+            # Wait for DL Bot response (poll every 4s to avoid GetHistory rate limit)
             dl_url = None
-            for _ in range(30): # wait up to 30 seconds
-                await asyncio.sleep(1)
-                async for response in ub.get_chat_history(dl_bot, limit=5):
-                    if response.from_user and response.from_user.is_bot:
-                        resp_text = response.text or response.caption or ""
-                        url = extract_download_url(resp_text)
-                        if url:
-                            dl_url = url
-                            break
+            for _ in range(12): # wait up to 48 seconds
+                await asyncio.sleep(4)
+                try:
+                    async for response in ub.get_chat_history(dl_bot, limit=3):
+                        if response.from_user and response.from_user.is_bot:
+                            resp_text = response.text or response.caption or ""
+                            url = extract_download_url(resp_text)
+                            if url:
+                                dl_url = url
+                                break
+                except Exception as ex:
+                    logger.error(f"Error fetching chat history from {dl_bot}: {ex}")
                 if dl_url:
                     break
 
@@ -220,22 +223,25 @@ class TaskRunner:
         admin_name = task.get("name")
         generated_links = {} # quality -> telegram deep link
 
-        for _ in range(60): # Wait up to 60 seconds
+        for _ in range(15): # Poll 15 times every 4 seconds (up to 60s)
             if len(generated_links) >= 3:
                 break
-            await asyncio.sleep(2)
-            async for response in ub.get_chat_history(lg_bot, limit=10):
-                if response.from_user and response.from_user.is_bot:
-                    resp_text = response.text or response.caption or ""
-                    # Check for deep link URL
-                    match = re.search(r'https?://(?:t\.me|telegram\.me)/[^\s]+', resp_text)
-                    if match:
-                        deep_link = match.group(0).strip()
-                        # Detect quality from response text
-                        quality = detect_quality(resp_text)
-                        if quality not in generated_links:
-                            generated_links[quality] = deep_link
-                            logger.info(f"Task {task_id} generated link for {quality}: {deep_link}")
+            await asyncio.sleep(4)
+            try:
+                async for response in ub.get_chat_history(lg_bot, limit=3):
+                    if response.from_user and response.from_user.is_bot:
+                        resp_text = response.text or response.caption or ""
+                        # Check for deep link URL
+                        match = re.search(r'https?://(?:t\.me|telegram\.me)/[^\s]+', resp_text)
+                        if match:
+                            deep_link = match.group(0).strip()
+                            # Detect quality from response text
+                            quality = detect_quality(resp_text)
+                            if quality not in generated_links:
+                                generated_links[quality] = deep_link
+                                logger.info(f"Task {task_id} generated link for {quality}: {deep_link}")
+            except Exception as ex:
+                logger.error(f"Error fetching history from {lg_bot}: {ex}")
 
         # Update DB task state
         await db.update_task(task_id, {
@@ -280,14 +286,14 @@ class TaskRunner:
         received_qualities = set()
         received_files = []
 
-        for _ in range(120): # Monitor for up to 120 seconds
+        for _ in range(30): # Poll 30 times every 4 seconds (up to 120s)
             if len(received_qualities) >= 3:
                 break
-            await asyncio.sleep(3)
+            await asyncio.sleep(4)
 
             for bot_username in monitored_bots:
                 try:
-                    async for msg in ub.get_chat_history(bot_username, limit=10):
+                    async for msg in ub.get_chat_history(bot_username, limit=3):
                         # Filter out non-bot / unrelated messages
                         if not (msg.from_user and msg.from_user.is_bot):
                             continue
