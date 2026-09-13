@@ -1247,12 +1247,14 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video | filters.voice) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel", "setgroup", "setmoviebot", "setlink", "setlgroup", "setbot", "ss", "task"]), group=1)
     async def interaction_msg(client, message):
-        if message.text and message.text.startswith("/"):
-            # Skip if it is a command message
-            if message.text.strip().lower() != "/done":
-                return
         state = user_state.get(message.from_user.id)
         if not state: return
+
+        # Allow user inputs starting with / when in specific conversational states like ask_setlgroup_cmds or collecting_task_files
+        action = state.get("action")
+        if message.text and message.text.startswith("/"):
+            if action not in ["ask_setlgroup_cmds", "collecting_task_files"]:
+                return
         uid = message.from_user.id
         action = state["action"]
         slug = state.get("slug")
@@ -1589,8 +1591,6 @@ def register_handlers(bot: Client):
             await message.reply("⚡ Please send the commands to use (e.g. `/l, /l2, /l3, /l4, /l5, /l6, /l7`):")
 
         elif action == "ask_setlgroup_cmds":
-            if message.text and message.text.strip().startswith("/") and not message.text.strip().startswith("/l"):
-                return
             cmds_raw = message.text.strip()
             cmds = [c.strip() for c in cmds_raw.replace("\n", ",").split(",") if c.strip()]
             target = state.get("setlgroup_target")

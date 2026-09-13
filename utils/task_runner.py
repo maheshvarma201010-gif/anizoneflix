@@ -197,16 +197,18 @@ async def run_userbot_task(task: Task):
 
                 # Forward file to /SETLINK
                 fwd_msg = await ub.forward_messages(setlink, from_chat_id, message_id)
+                fwd_id = fwd_msg.id if isinstance(fwd_msg, Message) else (fwd_msg[0].id if isinstance(fwd_msg, list) and fwd_msg else 0)
                 await asyncio.sleep(2)
 
-                # Wait for reply message from /SETLINK
+                # Wait for reply message from /SETLINK (filtering m.id > fwd_id)
                 setlink_reply = None
                 for _ in range(30):
-                    async for m in ub.get_chat_history(setlink, limit=5):
-                        dl_url, q_tag = extract_download_link_and_quality(m.text or m.caption or "")
-                        if dl_url:
-                            setlink_reply = (dl_url, q_tag)
-                            break
+                    async for m in ub.get_chat_history(setlink, limit=10):
+                        if m.id > fwd_id:
+                            dl_url, q_tag = extract_download_link_and_quality(m.text or m.caption or "")
+                            if dl_url:
+                                setlink_reply = (dl_url, q_tag)
+                                break
                     if setlink_reply:
                         break
                     await asyncio.sleep(1)
@@ -232,17 +234,52 @@ async def run_userbot_task(task: Task):
                 "1080p": f"https://cdn.example.org/download/{task.id}_1080p"
             }
 
-        # Step 3: Monitor /SETBOT for file results
+        # Step 3: Monitor incoming files from /setlgroup / /setmoviebot / monitorbots and forward to /SETBOT
+        task.current_step = "monitoring_and_forwarding_incoming_files"
+        monitorbots = await db.get_setting("monitorbots")
+        monitor_sources = [setlgroup]
+        if monitorbots:
+            if isinstance(monitorbots, list): monitor_sources.extend([parse_peer_id(b) for b in monitorbots])
+            elif isinstance(monitorbots, str): monitor_sources.extend([parse_peer_id(b.strip()) for b in monitorbots.split(",") if b.strip()])
+
+        matched_files = []
+        for _ in range(30):
+            for src in monitor_sources:
+                try:
+                    async for m in ub.get_chat_history(src, limit=15):
+                        if m.media and (m.document or m.video or m.audio):
+                            fn = getattr(m.document or m.video or m.audio, "file_name", "") or m.caption or ""
+                            if task.name.lower() in fn.lower():
+                                if (src, m.id) not in matched_files:
+                                    matched_files.append((src, m.id))
+                except Exception as e:
+                    logger.warning(f"Error checking chat history for source {src}: {e}")
+            if len(matched_files) >= len(quality_download_links):
+                break
+            await asyncio.sleep(1)
+
+        # Forward matching files to /SETBOT
+        task.current_step = "forwarding_files_to_setbot"
+        setbot_last_fwd_id = 0
+        if matched_files:
+            for src, mid in matched_files:
+                fwd_b = await ub.forward_messages(setbot, src, mid)
+                fwd_b_id = fwd_b.id if isinstance(fwd_b, Message) else (fwd_b[0].id if isinstance(fwd_b, list) and fwd_b else 0)
+                if fwd_b_id > setbot_last_fwd_id:
+                    setbot_last_fwd_id = fwd_b_id
+                await asyncio.sleep(1)
+
+        # Step 4: Monitor /SETBOT for valid file results (filtering m.id > setbot_last_fwd_id)
         task.current_step = "monitoring_setbot_results"
         setbot_results = {}
 
-        # Wait for valid file result messages from /SETBOT (ignoring normal bot commands)
         for _ in range(30):
             async for m in ub.get_chat_history(setbot, limit=10):
-                parsed = parse_setbot_result_message(m.text or m.caption or "")
-                if parsed["is_valid"] and parsed["link"]:
-                    q_tag = parsed["quality"] or "480p"
-                    setbot_results[q_tag] = parsed["link"]
+                if setbot_last_fwd_id == 0 or m.id > setbot_last_fwd_id:
+                    parsed = parse_setbot_result_message(m.text or m.caption or "")
+                    if parsed["is_valid"] and parsed["link"]:
+                        q_tag = parsed["quality"] or "480p"
+                        setbot_results[q_tag] = parsed["link"]
             if len(setbot_results) >= len(quality_download_links):
                 break
             await asyncio.sleep(1)
