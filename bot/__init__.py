@@ -1557,30 +1557,40 @@ def register_handlers(bot: Client):
             user_state.pop(uid, None)
 
         elif action == "ask_setgroup":
+            if message.text and message.text.strip().startswith("/"):
+                return
             val = message.text.strip()
             await db.set_setting("setgroup", val)
             await message.reply(f"✅ **SetGroup Configured:** `{val}`")
             user_state.pop(uid, None)
 
         elif action == "ask_setmoviebot":
+            if message.text and message.text.strip().startswith("/"):
+                return
             val = message.text.strip()
             await db.set_setting("setmoviebot", val)
             await message.reply(f"🤖 **SetMovieBot Configured:** `{val}`")
             user_state.pop(uid, None)
 
         elif action == "ask_setlink":
+            if message.text and message.text.strip().startswith("/"):
+                return
             val = message.text.strip()
             await db.set_setting("setlink", val)
             await message.reply(f"🔗 **SetLink Configured:** `{val}`")
             user_state.pop(uid, None)
 
         elif action == "ask_setlgroup_target":
+            if message.text and message.text.strip().startswith("/"):
+                return
             val = message.text.strip()
             user_state[uid]["setlgroup_target"] = val
             user_state[uid]["action"] = "ask_setlgroup_cmds"
             await message.reply("⚡ Please send the commands to use (e.g. `/l, /l2, /l3, /l4, /l5, /l6, /l7`):")
 
         elif action == "ask_setlgroup_cmds":
+            if message.text and message.text.strip().startswith("/") and not message.text.strip().startswith("/l"):
+                return
             cmds_raw = message.text.strip()
             cmds = [c.strip() for c in cmds_raw.replace("\n", ",").split(",") if c.strip()]
             target = state.get("setlgroup_target")
@@ -1590,28 +1600,38 @@ def register_handlers(bot: Client):
             user_state.pop(uid, None)
 
         elif action == "ask_setbot":
+            if message.text and message.text.strip().startswith("/"):
+                return
             val = message.text.strip()
             await db.set_setting("setbot", val)
             await message.reply(f"🤖 **SetBot Configured:** `{val}`")
             user_state.pop(uid, None)
 
         elif action == "ask_ss":
+            if message.text and message.text.strip().startswith("/"):
+                return
             val = message.text.strip()
             await db.set_setting("session_string", val)
             await message.reply("🔐 **Pyrogram Session String Saved Successfully!**")
             user_state.pop(uid, None)
 
         elif action == "ask_task_name":
+            if message.text and message.text.strip().startswith("/"):
+                return
             user_state[uid]["task_name"] = message.text.strip()
             user_state[uid]["action"] = "ask_task_page_link"
             await message.reply("🔗 **Task Setup (Step 2/3):** Please send the **Page Link**:")
 
         elif action == "ask_task_page_link":
+            if message.text and message.text.strip().startswith("/"):
+                return
             user_state[uid]["task_page_link"] = message.text.strip()
             user_state[uid]["action"] = "ask_task_group_name"
             await message.reply("📦 **Task Setup (Step 3/3):** Please send the **Group Name**:")
 
         elif action == "ask_task_group_name":
+            if message.text and message.text.strip().startswith("/"):
+                return
             user_state[uid]["task_group_name"] = message.text.strip() if message.text else ""
             user_state[uid]["task_files"] = []
             user_state[uid]["action"] = "collecting_task_files"
