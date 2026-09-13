@@ -285,57 +285,64 @@ async def execute_task_flow(user_client, task_name, page_link, group_name, prefi
     try:
         # Step 1: Send exact task_name to target_group
         sent_msg = await user_client.send_message(target_group, task_name)
-        await asyncio.sleep(3)
+        await asyncio.sleep(2)
 
+        # Step 2: Monitor target_group for result message matching title (up to 30 seconds)
         response_msg = None
-        async for reply in user_client.get_chat_history(target_group, limit=5):
-            if reply.reply_to_message_id == sent_msg.id:
-                response_msg = reply
+        for _ in range(15):
+            async for reply in user_client.get_chat_history(target_group, limit=10):
+                txt = (reply.text or reply.caption or "")
+                norm_txt = normalize_font_text(txt).lower()
+                norm_name = normalize_font_text(task_name).lower()
+
+                if reply.reply_to_message_id == sent_msg.id or norm_name in norm_txt or "requested files" in norm_txt or "ᴛɪᴛʟᴇ" in txt:
+                    response_msg = reply
+                    break
+            if response_msg:
                 break
-            if reply.text or reply.caption:
-                response_msg = reply
+            await asyncio.sleep(2)
 
         if not response_msg:
-            logger.warning(f"No response received in group for task '{task_name}'")
+            logger.warning(f"No result message received in group for task '{task_name}'")
             return
 
-        # Detect quality buttons (e.g., "480P", "720P", "1080P") handling fonts/styles
+        # Step 3: Click inline button in second row if available (e.g., category or file list button)
+        if response_msg.reply_markup and response_msg.reply_markup.inline_keyboard:
+            keyboard = response_msg.reply_markup.inline_keyboard
+            if len(keyboard) >= 2 and len(keyboard[1]) >= 1:
+                try:
+                    await response_msg.click(i=1, j=0)
+                    await asyncio.sleep(2.5)
+                    response_msg = await user_client.get_messages(target_group, response_msg.id)
+                except Exception as ce:
+                    logger.warning(f"Click on row 2 button failed: {ce}")
+
+        # Step 4: Detect quality selection buttons (e.g., "1080P", "720P", "480P")
         quality_buttons = []
         if response_msg.reply_markup and response_msg.reply_markup.inline_keyboard:
-            for row in response_msg.reply_markup.inline_keyboard:
-                for btn in row:
+            for row_idx, row in enumerate(response_msg.reply_markup.inline_keyboard):
+                for col_idx, btn in enumerate(row):
                     raw_txt = btn.text or ""
                     norm_txt = normalize_font_text(raw_txt).upper()
-                    if any(q in norm_txt for q in ["480P", "720P", "1080P", "360P", "2160P", "4K"]):
-                        quality_buttons.append((btn, norm_txt, raw_txt))
+                    if any(q in norm_txt for q in ["1080P", "720P", "480P", "360P", "1440P", "2160P", "4K"]):
+                        quality_buttons.append((row_idx, col_idx, btn, norm_txt, raw_txt))
 
         if not quality_buttons:
-            qualities_to_process = [("480P", "480P", None)]
+            qualities_to_process = [("1080P", "1080P", None, None, None)]
         else:
-            qualities_to_process = [(norm, norm, raw) for btn, norm, raw in quality_buttons]
+            qualities_to_process = [(norm, norm, raw, r_idx, c_idx) for r_idx, c_idx, btn, norm, raw in quality_buttons]
 
-        for qual_norm, qual_display, raw_btn_text in qualities_to_process:
-            # Click quality button if present
+        for qual_norm, qual_display, raw_btn_text, r_idx, c_idx in qualities_to_process:
+            # Click quality button (preferring 1080P if available or row 2 col 2)
             if response_msg.reply_markup and response_msg.reply_markup.inline_keyboard and raw_btn_text:
                 try:
-                    await response_msg.click(raw_btn_text)
+                    if r_idx is not None and c_idx is not None:
+                        await response_msg.click(i=r_idx, j=c_idx)
+                    else:
+                        await response_msg.click(raw_btn_text)
                     await asyncio.sleep(3)
                 except Exception as ce:
                     logger.warning(f"Could not click quality button by text '{raw_btn_text}': {ce}")
-                    try:
-                        # Fallback click by row/col position
-                        clicked = False
-                        for r_idx, row in enumerate(response_msg.reply_markup.inline_keyboard):
-                            for c_idx, btn in enumerate(row):
-                                if normalize_font_text(btn.text or "").upper() == qual_norm:
-                                    await response_msg.click(i=r_idx, j=c_idx)
-                                    clicked = True
-                                    await asyncio.sleep(3)
-                                    break
-                            if clicked:
-                                break
-                    except Exception as ce2:
-                        logger.warning(f"Fallback click failed for quality '{qual_norm}': {ce2}")
 
             # Re-fetch response message after clicking quality
             response_msg = await user_client.get_messages(target_group, response_msg.id)
@@ -349,7 +356,7 @@ async def execute_task_flow(user_client, task_name, page_link, group_name, prefi
                 logger.warning(f"No matching MB file found for quality {qual_norm}")
                 continue
 
-            # Click deep link
+            # Step 5: Click deep link / send payload to moviebot
             deep_link = best_file.get("link")
             if deep_link:
                 if "?start=" in deep_link and moviebot:
@@ -360,15 +367,19 @@ async def execute_task_flow(user_client, task_name, page_link, group_name, prefi
 
             await asyncio.sleep(4)
 
-            # Wait for incoming file from moviebot
+            # Step 6: Monitor incoming file from moviebot (up to 30s)
             incoming_file_msg = None
             if moviebot:
-                async for m in user_client.get_chat_history(moviebot, limit=5):
-                    if m.media:
-                        incoming_file_msg = m
+                for _ in range(10):
+                    async for m in user_client.get_chat_history(moviebot, limit=5):
+                        if m.media or m.document or m.video or m.audio:
+                            incoming_file_msg = m
+                            break
+                    if incoming_file_msg:
                         break
+                    await asyncio.sleep(2)
 
-            # Forward file to linkbot
+            # Step 7: Forward file to linkbot & send formatted command to lgroup_target
             if incoming_file_msg and linkbot:
                 await incoming_file_msg.forward(linkbot)
                 await asyncio.sleep(4)
