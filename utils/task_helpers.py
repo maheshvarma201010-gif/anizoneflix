@@ -38,6 +38,117 @@ def get_utf16_substring(text: str, offset: int, length: int) -> str:
     sub_bytes = utf16_bytes[start_byte:end_byte]
     return sub_bytes.decode("utf-16-le", errors="ignore")
 
+def extract_download_link_and_quality(text: str, filename_override: str = None):
+    """
+    Extracts the download link and quality tag (480p, 720p, 1080p) from /SETLINK replies.
+    Supports LinkForge format (📥 Dᴏᴡɴʟᴏᴀᴅ : <url>) and DD Bypass format (➙ Download : <url>).
+
+    Returns tuple: (download_link, quality)
+    """
+    if not text:
+        return None, None
+
+    normalized_text = normalize_font_text(text)
+
+    # 1. Extract download URL
+    download_link = None
+
+    # LinkForge format: 📥 Dᴏᴡɴʟᴏᴀᴅ : <url>
+    lf_match = re.search(r"(?:DOWNLOAD|Dᴏᴡɴʟᴏᴀᴅ)\s*:\s*(https?://[^\s]+)", normalized_text, re.IGNORECASE)
+    if lf_match:
+        download_link = lf_match.group(1).strip()
+
+    # DD Bypass format: ➙ Download : <url>
+    if not download_link:
+        dd_match = re.search(r"Download\s*:\s*(https?://[^\s]+)", normalized_text, re.IGNORECASE)
+        if dd_match:
+            download_link = dd_match.group(1).strip()
+
+    # Fallback regex for any http/https URL in text
+    if not download_link:
+        urls = re.findall(r"https?://[^\s]+", text)
+        if urls:
+            download_link = urls[0]
+
+    # 2. Extract Quality tag
+    quality = None
+    target_str = f"{filename_override or ''} {normalized_text}".lower()
+
+    if "1080p" in target_str or "1080" in target_str:
+        quality = "1080p"
+    elif "720p" in target_str or "720" in target_str:
+        quality = "720p"
+    elif "480p" in target_str or "480" in target_str:
+        quality = "480p"
+    elif "360p" in target_str or "360" in target_str:
+        quality = "360p"
+    elif "2160p" in target_str or "4k" in target_str:
+        quality = "2160p"
+
+    return download_link, quality
+
+def parse_setbot_result_message(text: str):
+    """
+    Validates /SETBOT output messages and extracts filename and Telegram deep link.
+    Filters out normal Telegram bot commands / unrelated messages.
+
+    Expected format contains fields like:
+      First Filename: ...
+      First Caption: ...
+      Last Filename: ...
+      Last Caption: ...
+      Here is your link:
+      https://telegram.me/...
+
+    Returns dict:
+      {
+        "is_valid": bool,
+        "filename": str or None,
+        "quality": str or None,
+        "link": str or None
+      }
+    """
+    if not text:
+        return {"is_valid": False, "filename": None, "quality": None, "link": None}
+
+    # Filter out normal commands
+    if text.strip().startswith("/"):
+        return {"is_valid": False, "filename": None, "quality": None, "link": None}
+
+    normalized = normalize_font_text(text)
+
+    # Check for expected /SETBOT marker strings
+    has_filename_marker = "FIRST FILENAME:" in normalized.upper() or "LAST FILENAME:" in normalized.upper() or "FILENAME:" in normalized.upper()
+    has_link_marker = "HERE IS YOUR LINK:" in normalized.upper() or "LINK:" in normalized.upper() or "TELEGRAM.ME" in normalized.lower() or "T.ME" in normalized.lower()
+
+    if not (has_filename_marker or has_link_marker):
+        return {"is_valid": False, "filename": None, "quality": None, "link": None}
+
+    # Extract filename
+    fn_match = re.search(r"(?:FIRST FILENAME|LAST FILENAME|FILENAME)\s*:\s*(.+)", normalized, re.IGNORECASE)
+    filename = fn_match.group(1).strip() if fn_match else None
+
+    # Extract Telegram deep link
+    link_match = re.search(r"(https?://t(?:elegram)?\.me/[^\s]+)", text)
+    link = link_match.group(1).strip() if link_match else None
+
+    # Detect quality from filename or text
+    quality = None
+    target_str = f"{filename or ''} {text}".lower()
+    if "1080p" in target_str or "1080" in target_str:
+        quality = "1080p"
+    elif "720p" in target_str or "720" in target_str:
+        quality = "720p"
+    elif "480p" in target_str or "480" in target_str:
+        quality = "480p"
+
+    return {
+        "is_valid": True,
+        "filename": filename,
+        "quality": quality,
+        "link": link
+    }
+
 def parse_file_options(text: str, entities=None):
     """
     Parses file entries from the Telegram result message.

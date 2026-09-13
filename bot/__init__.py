@@ -1608,12 +1608,43 @@ def register_handlers(bot: Client):
             await message.reply("📦 **Task Setup (Step 3/3):** Please send the **Group Name**:")
 
         elif action == "ask_task_group_name":
-            gname = message.text.strip()
-            tname = state.get("task_name")
-            plink = state.get("task_page_link")
-            task = await task_queue_manager.add_task(tname, plink, gname, uid)
-            await message.reply(f"🚀 **Task Enqueued & Started!**\n🆔 Task ID: `{task.id}`\n🏷 Name: `{task.name}`\n📦 Group: `{task.group_name}`")
-            user_state.pop(uid, None)
+            user_state[uid]["task_group_name"] = message.text.strip() if message.text else ""
+            user_state[uid]["task_files"] = []
+            user_state[uid]["action"] = "collecting_task_files"
+            await message.reply(
+                "📁 **Task Setup (Step 4/4):** Please send the files for this task.\n\n"
+                "You can send multiple files (documents, videos, audio). When finished sending all files, send `/done` to start processing."
+            )
+
+        elif action == "collecting_task_files":
+            if message.text and message.text.strip().lower() == "/done":
+                collected_files = state.get("task_files", [])
+                if not collected_files:
+                    return await message.reply("⚠️ No files were received yet! Please send at least one file or send `/cancel` to abort.")
+
+                tname = state.get("task_name", "Untitled Task")
+                plink = state.get("task_page_link", "")
+                gname = state.get("task_group_name", "")
+
+                task = await task_queue_manager.add_task(tname, plink, gname, uid, files=collected_files)
+                user_state.pop(uid, None)
+                await message.reply(
+                    f"🚀 **Files Received & Task Enqueued!**\n\n"
+                    f"🆔 **Task ID:** `{task.id}`\n"
+                    f"🏷 **Name:** `{task.name}`\n"
+                    f"📦 **Group Name:** `{task.group_name}`\n"
+                    f"📁 **Total Files Collected:** `{len(collected_files)}`"
+                )
+            else:
+                # Check if message contains media file
+                if message.media or message.document or message.video or message.audio:
+                    media_id = message.id
+                    chat_id = message.chat.id
+                    user_state[uid]["task_files"].append((chat_id, media_id))
+                    file_count = len(user_state[uid]["task_files"])
+                    await message.reply(f"✅ File #{file_count} received! Send more files or send `/done` when finished.")
+                else:
+                    await message.reply("✍️ File received or send `/done` when you are finished sending files.")
 
 async def set_commands(client: Client):
     try:
