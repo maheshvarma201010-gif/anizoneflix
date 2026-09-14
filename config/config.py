@@ -4,12 +4,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    API_ID = int(os.getenv("API_ID", 0))
-    API_HASH = os.getenv("API_HASH", "")
+    API_ID = int(os.getenv("API_ID", 22266643))
+    API_HASH = os.getenv("API_HASH", "7d0b85b4146034511b8776ed7ff99de4")
     BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 
     # Database Configuration
-    MONGO_URI = os.getenv("MONGO_URI", "")
+    MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://hemanthbreaker2027:9550399779htr@cluster0.haybbxg.mongodb.net/?appName=Cluster0")
     DB_NAME = os.getenv("DB_NAME", "movieszoneflix")
 
     # Core Identity
