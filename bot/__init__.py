@@ -1192,10 +1192,10 @@ def register_handlers(bot: Client):
                 if final_u:
                     resolved_links.append(final_u)
             if resolved_links:
-                reply_text = "🔗 **Bypassed Final URL(s):**\n\n"
-                for link in resolved_links:
-                    reply_text += f"👉 `{link}`\n"
-                await msg.edit_text(reply_text)
+                reply_text = "🔗 <b>Bypassed Final Destination Link(s):</b>\n\n"
+                for i, link in enumerate(resolved_links, 1):
+                    reply_text += f"👉 <a href=\"{link}\">🚀 Click Here to Open Final Link {i}</a>\n"
+                await msg.edit_text(reply_text, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=False)
                 raise ContinuePropagation
             else:
                 await msg.delete()
