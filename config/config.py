@@ -10,7 +10,7 @@ class Config:
 
     # Database Configuration
     MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://hemanthbreaker2027:9550399779htr@cluster0.haybbxg.mongodb.net/?appName=Cluster0")
-    DB_NAME = os.getenv("DB_NAME", "movieszoneflix")
+    DB_NAME = os.getenv("DB_NAME", "Cluster0")
 
     # Core Identity
     BASE_URL = os.getenv("BASE_URL", "https://movieszoneflix.vercel.app")
