@@ -48,22 +48,30 @@ async def lifespan(app: FastAPI):
             logger.error(f"Async Task Error: {msg}")
         loop.set_exception_handler(loop_exception_handler)
 
-        register_handlers(bot)
-        await bot.start()
-        await set_commands(bot)
+        # Attempt Pyrogram Bot startup if BOT_TOKEN and API credentials are set
+        if Config.BOT_TOKEN and Config.API_ID and Config.API_HASH:
+            try:
+                register_handlers(bot)
+                await bot.start()
+                await set_commands(bot)
 
-        # Dynamic load added bots
-        from bot.bot_manager import added_bot_manager
-        asyncio.create_task(added_bot_manager.start_all())
+                # Dynamic load added bots
+                from bot.bot_manager import added_bot_manager
+                asyncio.create_task(added_bot_manager.start_all())
 
-        # Start continuous 1-second Uptime Monitoring Worker
-        from utils.uptime import start_uptime_monitor
-        start_uptime_monitor()
+                # Start continuous 1-second Uptime Monitoring Worker
+                from utils.uptime import start_uptime_monitor
+                start_uptime_monitor()
 
-        me = await bot.get_me()
-        logger.info(f"Production Suite LIVE -> @{me.username}")
+                me = await bot.get_me()
+                logger.info(f"Production Suite LIVE -> @{me.username}")
+            except Exception as bot_err:
+                logger.warning(f"Telegram Bot Startup skipped or failed (Serverless / Credentials): {bot_err}")
+        else:
+            logger.info("Telegram Bot credentials not fully configured; web server operating in standalone web mode.")
+
     except Exception as e:
-        logger.critical(f"STARTUP FAILURE: {e}")
+        logger.error(f"STARTUP NON-FATAL WARNING: {e}")
         logger.error(traceback.format_exc())
 
     yield
@@ -73,7 +81,7 @@ async def lifespan(app: FastAPI):
     try:
         from bot.bot_manager import added_bot_manager
         await added_bot_manager.stop_all()
-        if bot.is_connected:
+        if hasattr(bot, "is_connected") and bot.is_connected:
             await bot.stop()
         await anime_api.close()
     except Exception as e:

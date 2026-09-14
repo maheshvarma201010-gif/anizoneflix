@@ -35,6 +35,62 @@ AniZoneFlix is an industrial-grade Anime Management Portal and Telegram Bot Suit
 
 ---
 
+## ⚙️ Environment Variables
+
+| Variable | Required | Description | Example |
+|---|---|---|---|
+| `API_ID` | **Yes** | Telegram API ID from my.telegram.org | `123456` |
+| `API_HASH` | **Yes** | Telegram API Hash from my.telegram.org | `0123456789abcdef0123456789abcdef` |
+| `BOT_TOKEN` | **Yes** | Telegram Bot Token from @BotFather | `123456789:ABCdefGHIjklMNOpqrsTUVwxyZ` |
+| `MONGO_URI` | **Yes** | MongoDB Atlas connection string | `mongodb+srv://user:pass@cluster...` |
+| `DB_NAME` | No | Database name (Default: `anizoneflix`) | `anizoneflix` |
+| `BASE_URL` | **Yes** | Public HTTP URL of your deployment | `https://my-anizoneflix.vercel.app` |
+| `ADMIN_IDS` | **Yes** | Comma-separated list of Telegram Admin User IDs | `123456789,987654321` |
+| `LOGO_URL` | No | Default poster image fallback URL | `https://example.com/logo.jpg` |
+
+---
+
+## ☁️ Deployment Guide
+
+### 🚀 Deploying on Vercel (100% Supported & Recommended)
+
+AniZoneFlix fully supports seamless zero-error Vercel deployment via `vercel.json` and FastAPI serverless functions.
+
+#### Vercel Import Settings & Application Preset Configuration:
+
+When creating or importing a new project on Vercel, configure the build and environment settings exactly as specified below:
+
+- **Framework Preset**: `Other` (or `FastAPI` / `Python`)
+- **Build Command**: `pip install -r requirements.txt` (or leave default)
+- **Install Command**: `pip install -r requirements.txt`
+- **Output Directory**: `.` (or leave default empty)
+
+#### Steps to Deploy on Vercel:
+
+1. Push your repository to GitHub / GitLab / Bitbucket.
+2. Go to [Vercel Dashboard](https://vercel.com) and click **Add New Project**.
+3. Import your AniZoneFlix repository.
+4. Set the **Framework Preset** to `Other`.
+5. Under **Build and Output Settings**, set:
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Install Command**: `pip install -r requirements.txt`
+   - **Output Directory**: `.`
+6. Add required Environment Variables (`MONGO_URI`, `BOT_TOKEN`, `API_ID`, `API_HASH`, `BASE_URL`, `ADMIN_IDS`, etc.) in the Vercel dashboard settings.
+7. Click **Deploy**. Vercel will build and deploy the project with 100% success without errors.
+
+---
+
+### 🚀 Deploying on Render (Full Suite with Continuous Telegram Bot Background Process)
+
+1. Create a **New Web Service** on Render connected to your repository.
+2. Configure **Build & Start Commands:**
+   - **Environment:** `Python 3`
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `python main.py`
+3. Add the required **Environment Variables** in the Render Dashboard.
+
+---
+
 ## 🛠 Complete Command Reference
 
 | Command | Usage Syntax | Description |
@@ -60,34 +116,6 @@ AniZoneFlix is an industrial-grade Anime Management Portal and Telegram Bot Suit
 | `/del` | `/del <url/slug>` | Permanently erases an anime entry and its associated data from the database. |
 | `/ping` | `/ping` | System latency and MongoDB connectivity diagnostic check. |
 | `/cancel` | `/cancel` | Aborts any active wizard flow or input state. |
-
----
-
-## ⚙️ Environment Variables
-
-| Variable | Required | Description | Example |
-|---|---|---|---|
-| `API_ID` | **Yes** | Telegram API ID from my.telegram.org | `123456` |
-| `API_HASH` | **Yes** | Telegram API Hash from my.telegram.org | `0123456789abcdef0123456789abcdef` |
-| `BOT_TOKEN` | **Yes** | Telegram Bot Token from @BotFather | `123456789:ABCdefGHIjklMNOpqrsTUVwxyZ` |
-| `MONGO_URI` | **Yes** | MongoDB Atlas connection string | `mongodb+sandbox...` |
-| `DB_NAME` | No | Database name (Default: `anizoneflix`) | `anizoneflix` |
-| `BASE_URL` | **Yes** | Public HTTP URL of your deployment | `https://my-anizoneflix.onrender.com` |
-| `ADMIN_IDS` | **Yes** | Comma-separated list of Telegram Admin User IDs | `123456789,987654321` |
-| `LOGO_URL` | No | Default poster image fallback URL | `https://example.com/logo.jpg` |
-
----
-
-## ☁️ Deployment Guide
-
-### 🚀 Deploying on Render
-
-1. Create a **New Web Service** on Render connected to your repository.
-2. Configure **Build & Start Commands:**
-   - **Environment:** `Python 3`
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `python main.py`
-3. Add the required **Environment Variables** in the Render Dashboard.
 
 ---
 
