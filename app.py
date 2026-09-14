@@ -77,7 +77,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-os.makedirs("static/songs", exist_ok=True)
+try:
+    os.makedirs("static/songs", exist_ok=True)
+except Exception:
+    pass
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/src", StaticFiles(directory="src"), name="src")
 

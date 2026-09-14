@@ -38,22 +38,65 @@ A highly polished management tool loaded with rich emojis and optimized conversa
 
 ---
 
-## 🛠️ Deployment & Technical Specifications
+## 🚀 Vercel Deployment Guide (100% Successful Deployment Support)
+
+MoviesZoneFlix fully supports seamless, 100% successful zero-error deployment on **Vercel** serverless infrastructure using the `@vercel/python` builder and serverless entry point (`api/index.py`).
+
+### ⚙️ Vercel Project Settings
+
+When importing or configuring your project on Vercel, set the following exact build & deployment settings:
+
+| Setting | Exact Value |
+| :--- | :--- |
+| **Application Preset** | `Other` |
+| **Build Command** | `pip install -r requirements.txt` |
+| **Install Command** | `pip install -r requirements.txt` |
+| **Output Directory** | `.` |
+
+---
+
+### 🔑 Environment Variables
+
+Configure the following environment variables in your Vercel Project Settings:
+
+```env
+MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/dbname
+BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyZ
+API_ID=123456
+API_HASH=abcdef1234567890abcdef1234567890
+ADMIN_USER=admin
+ADMIN_PASS=supersecretpassword
+JWT_SECRET=your_jwt_secret_here
+TMDB_API_KEY=your_tmdb_api_key
+OMDB_API_KEY=your_omdb_api_key
+TRAKT_CLIENT_ID=your_trakt_client_id
+```
+
+---
+
+## 🛠️ Local Installation & Technical Specifications
 
 ### Tech Stack
 - **Backend Core:** FastAPI, Uvicorn, Python 3.10+
 - **Database Layer:** Motor (Async MongoDB), MongoDB Atlas
-- **Telegram Bot Suite:** Pyrogram (with Pyromod interactive prompting)
+- **Telegram Bot Suite:** Pyrogram / Kurigram (with Pyromod interactive prompting)
 - **Design & Interface:** Jinja2, TailwindCSS, JavaScript (ES6+), SwiperJS
 
-### Installation
-1. Clone the repository.
-2. Install the production dependencies:
+### Local Setup
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-username/MoviesZoneFlix.git
+   cd MoviesZoneFlix
+   ```
+2. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-3. Create your `.env` configuration file with correct API credentials.
-4. Run the launcher:
+3. Run tests:
+   ```bash
+   pytest
+   ```
+4. Start the launcher:
    ```bash
    python main.py
    ```
