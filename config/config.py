@@ -4,27 +4,27 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    API_ID = int(os.getenv("API_ID", 22266643))
-    API_HASH = os.getenv("API_HASH", "7d0b85b4146034511b8776ed7ff99de4")
-    BOT_TOKEN = os.getenv("BOT_TOKEN", "7718434227:AAE8eUh3AxmlmvoSRliSk4k3rzoFnuHubT4")
+    API_ID = int(os.getenv("API_ID", 0))
+    API_HASH = os.getenv("API_HASH", "")
+    BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 
     # Database Configuration
-    MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://hemanthbreaker2027:9550399779htr@cluster0.haybbxg.mongodb.net/?appName=Cluster0")
-    DB_NAME = os.getenv("DB_NAME", "Cluster0")
+    MONGO_URI = os.getenv("MONGO_URI", "")
+    DB_NAME = os.getenv("DB_NAME", "movieszoneflix")
 
     # Core Identity
-    BASE_URL = os.getenv("BASE_URL", "https://movieszoneflix.vercel.app")
+    BASE_URL = os.getenv("BASE_URL", "https://movieszoneflix.onrender.com")
     PORT = int(os.getenv("PORT", 10000))
-    LOGO_URL = os.getenv("LOGO_URL", "https://i.postimg.cc/fy0r3pZN/IMG-20260514-215929-933.jpg")
+    LOGO_URL = os.getenv("LOGO_URL", "https://telegra.ph/file/0c1737e466395b3531b78.jpg")
 
     # Security & Intelligence
-    SECRET_KEY = os.getenv("SECRET_KEY", "ALONEX")
-    ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "ALONEX")
-    ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "8663988850,5778136067,6138776364,7083779209").split(",") if x]
-    TMDB_API_KEY = os.getenv("TMDB_API_KEY", "b1048f453055b9944a23e8fd411bb469")
-    OMDB_API_KEY = os.getenv("OMDB_API_KEY", "http://www.omdbapi.com/?i=tt3896198&apikey=8c907f89")
+    SECRET_KEY = os.getenv("SECRET_KEY", "executive-suite-secret-key-v2")
+    ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "admin-api-key")
+    ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x]
+    TMDB_API_KEY = os.getenv("TMDB_API_KEY", "")
+    OMDB_API_KEY = os.getenv("OMDB_API_KEY", "")
     TRAKT_CLIENT_ID = os.getenv("TRAKT_CLIENT_ID", "")
-    SIMKL_ID = os.getenv("SIMKL_ID", "f4b817b188dd51674f71293d68c070b61ab05e80220a54e9d4fd6a6368f892a2")
+    SIMKL_ID = os.getenv("SIMKL_ID", "")
 
     DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 

@@ -70,13 +70,24 @@ def build_search_page(cache_id, results, page=1, items_per_page=6):
 
     return text, InlineKeyboardMarkup(buttons)
 
+_auth_cache = {}
+
 async def is_authorized(user_id):
     if not user_id: return False
     if user_id in Config.ADMIN_IDS: return True
+    import time
+    now = time.time()
+    if user_id in _auth_cache:
+        val, expire = _auth_cache[user_id]
+        if now < expire:
+            return val
+
     try:
         if not await db.ping(): return False
         user = await db.users.find_one({"user_id": user_id, "is_admin": True})
-        return user is not None
+        is_admin = user is not None
+        _auth_cache[user_id] = (is_admin, now + 60)
+        return is_admin
     except: return False
 
 def extract_slug(text):

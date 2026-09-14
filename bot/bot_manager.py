@@ -83,6 +83,9 @@ class MultiBotManager:
                     matches = []
                     matched_query = ""
 
+                    # Fetch catalog in a single batch (with 60s cache fallback or fast cursor)
+                    all_media = await db.get_all_media(limit=500)
+
                     # Decreasing word count algorithm (N words, N-1 words, ..., 1 word)
                     max_words = len(words)
                     for k in range(max_words, 0, -1):
@@ -95,19 +98,18 @@ class MultiBotManager:
                             if len(candidate) == 1 and candidate.lower() in ["a", "i"] and len(words) > 1:
                                 continue
 
-                            # Single-character queries (e.g. "p", "b"): search titles starting with or containing letter
+                            # Fast in-memory filtering against cached catalog
+                            pattern = re.compile(re.escape(candidate), re.IGNORECASE)
                             if len(candidate) == 1:
-                                cursor = db.media.find({"title": {"$regex": f"^{re.escape(candidate)}", "$options": "i"}})
-                                found = await cursor.to_list(length=15)
+                                start_pattern = re.compile(f"^{re.escape(candidate)}", re.IGNORECASE)
+                                found = [m for m in all_media if start_pattern.search(m.get("title", ""))]
                                 if not found:
-                                    cursor = db.media.find({"title": {"$regex": f".*{re.escape(candidate)}.*", "$options": "i"}})
-                                    found = await cursor.to_list(length=15)
+                                    found = [m for m in all_media if pattern.search(m.get("title", ""))]
                             else:
-                                cursor = db.media.find({"title": {"$regex": f".*{re.escape(candidate)}.*", "$options": "i"}})
-                                found = await cursor.to_list(length=15)
+                                found = [m for m in all_media if pattern.search(m.get("title", ""))]
 
                             if found:
-                                matches = found
+                                matches = found[:15]
                                 matched_query = candidate
                                 break
                         if matches:
