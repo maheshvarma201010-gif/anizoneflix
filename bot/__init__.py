@@ -1180,22 +1180,25 @@ def register_handlers(bot: Client):
 
     @bot.on_message(filters.private & filters.text & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel", "monitor", "session", "task", "done"]), group=0)
     async def nicktrick_handler(client, message):
-        from utils.nicktrick import extract_nicktrick_urls, resolve_nicktrick_url
+        from utils.nicktrick import extract_nicktrick_urls, resolve_nicktrick_url_async
         text = message.text or message.caption or ""
         entities = message.entities or message.caption_entities
         detected = extract_nicktrick_urls(text, entities=entities)
         if detected:
+            msg = await message.reply_text("⏳ **Bypassing URL...**")
             resolved_links = []
             for u in detected:
-                final_u = resolve_nicktrick_url(u)
-                if final_u and final_u != u:
+                final_u = await resolve_nicktrick_url_async(u)
+                if final_u:
                     resolved_links.append(final_u)
             if resolved_links:
                 reply_text = "🔗 **Bypassed Final URL(s):**\n\n"
                 for link in resolved_links:
                     reply_text += f"👉 `{link}`\n"
-                await message.reply_text(reply_text)
+                await msg.edit_text(reply_text)
                 raise ContinuePropagation
+            else:
+                await msg.delete()
 
     @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video | filters.voice) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel", "monitor", "session", "task", "done"]), group=1)
     async def interaction_msg(client, message):

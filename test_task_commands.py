@@ -2,6 +2,17 @@ import pytest
 import asyncio
 from database.db import Database
 from utils.task_runner import detect_quality, extract_download_url
+from utils.nicktrick import extract_nicktrick_urls, resolve_nicktrick_url_async
+
+@pytest.mark.asyncio
+async def test_nicktrick_extraction_and_resolver():
+    sample = "Check this link: https://urllinkshort.in/links?nicktrick=https://example.com/final-download-target"
+    urls = extract_nicktrick_urls(sample)
+    assert len(urls) == 1
+    assert "urllinkshort.in" in urls[0]
+
+    res = await resolve_nicktrick_url_async("https://urllinkshort.in/links?nicktrick=https://example.com/final-download-target")
+    assert "example.com" in res
 
 @pytest.mark.asyncio
 async def test_detect_quality():
