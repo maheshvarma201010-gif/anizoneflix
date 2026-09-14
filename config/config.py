@@ -13,7 +13,7 @@ class Config:
     DB_NAME = os.getenv("DB_NAME", "movieszoneflix")
 
     # Core Identity
-    BASE_URL = os.getenv("BASE_URL", "https://movieszoneflix.onrender.com")
+    BASE_URL = os.getenv("BASE_URL", "https://movieszoneflix.vercel.app")
     PORT = int(os.getenv("PORT", 10000))
     LOGO_URL = os.getenv("LOGO_URL", "https://i.postimg.cc/fy0r3pZN/IMG-20260514-215929-933.jpg")
 
