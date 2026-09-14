@@ -37,6 +37,7 @@ class Database:
         self._bots = None
         self._songs = None
         self._uptime_bots = None
+        self._tasks = None
 
     async def connect(self):
         """Initialize connection with absolute persistence focus and retries"""
@@ -71,6 +72,7 @@ class Database:
                 self._bots = self._db.bots
                 self._songs = self._db.songs
                 self._uptime_bots = self._db.uptime_bots
+                self._tasks = self._db.tasks
 
                 logger.info(f"Database Persistence Verified: {Config.DB_NAME} is active.")
                 await self._seed_mock_data_if_empty()
@@ -96,6 +98,7 @@ class Database:
             self._bots = self._db.bots
             self._songs = self._db.songs
             self._uptime_bots = self._db.uptime_bots
+            self._tasks = self._db.tasks
             logger.info("Mock Database connected successfully.")
             await self._seed_mock_data_if_empty()
         except Exception as e:
@@ -250,6 +253,10 @@ class Database:
     @property
     def uptime_bots(self):
         return self._uptime_bots if self._uptime_bots is not None else self.MockCollection("uptime_bots")
+
+    @property
+    def tasks(self):
+        return self._tasks if self._tasks is not None else self.MockCollection("tasks")
 
     class MockCollection:
         """Emergency layer to prevent system crashes if Atlas is unreachable"""
@@ -592,6 +599,86 @@ class Database:
             return doc.get("value") if doc else None
         except Exception as e:
             logger.error(f"Read Error (get_song_channel): {e}")
+            return None
+
+    # --- Generic Key-Value Settings Management ---
+
+    async def get_setting(self, key, default=None):
+        try:
+            if self._settings is None: return default
+            doc = await self._settings.find_one({"key": key})
+            if doc and "value" in doc:
+                return doc["value"]
+            return default
+        except Exception as e:
+            logger.error(f"Read Error (get_setting {key}): {e}")
+            return default
+
+    async def set_setting(self, key, value):
+        try:
+            if self._settings is None: return None
+            return await self._settings.update_one({"key": key}, {"$set": {"key": key, "value": value}}, upsert=True)
+        except Exception as e:
+            logger.error(f"Persistence Error (set_setting {key}): {e}")
+            return None
+
+    # --- Task State Management CRUD ---
+
+    async def add_task(self, task_data):
+        try:
+            if self._tasks is None: return None
+            import time
+            if "created_at" not in task_data:
+                task_data["created_at"] = time.time()
+            task_id = task_data.get("task_id")
+            return await self._tasks.update_one({"task_id": task_id}, {"$set": task_data}, upsert=True)
+        except Exception as e:
+            logger.error(f"Persistence Error (add_task): {e}")
+            return None
+
+    async def update_task(self, task_id, updates):
+        try:
+            if self._tasks is None: return None
+            return await self._tasks.update_one({"task_id": task_id}, {"$set": updates})
+        except Exception as e:
+            logger.error(f"Persistence Error (update_task): {e}")
+            return None
+
+    async def get_task(self, task_id):
+        try:
+            if self._tasks is None: return None
+            doc = await self._tasks.find_one({"task_id": task_id})
+            return clean_doc(doc)
+        except Exception as e:
+            logger.error(f"Read Error (get_task): {e}")
+            return None
+
+    async def get_active_tasks(self):
+        try:
+            if self._tasks is None: return []
+            cursor = self._tasks.find({"status": {"$ne": "COMPLETED"}}).sort("created_at", -1)
+            docs = await cursor.to_list(length=1000)
+            return clean_doc(docs) or []
+        except Exception as e:
+            logger.error(f"Read Error (get_active_tasks): {e}")
+            return []
+
+    async def get_all_tasks(self):
+        try:
+            if self._tasks is None: return []
+            cursor = self._tasks.find().sort("created_at", -1)
+            docs = await cursor.to_list(length=1000)
+            return clean_doc(docs) or []
+        except Exception as e:
+            logger.error(f"Read Error (get_all_tasks): {e}")
+            return []
+
+    async def delete_task(self, task_id):
+        try:
+            if self._tasks is None: return None
+            return await self._tasks.delete_one({"task_id": task_id})
+        except Exception as e:
+            logger.error(f"Persistence Error (delete_task): {e}")
             return None
 
     async def import_data(self, data):

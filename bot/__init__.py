@@ -516,6 +516,41 @@ def register_handlers(bot: Client):
             "✍️ **Step 1:** Please send the **Bot Token**:"
         )
 
+    @bot.on_message(filters.command("monitor") & filters.private)
+    async def monitor_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        user_state[message.from_user.id] = {"action": "ask_monitor_bots"}
+        await message.reply("Send bot usernames separated by commas.")
+
+    @bot.on_message(filters.command("session") & filters.private)
+    async def session_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        user_state[message.from_user.id] = {"action": "ask_userbot_session"}
+        await message.reply("Send your Userbot session string.")
+
+    @bot.on_message(filters.command("task") & filters.private)
+    async def task_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        import uuid
+        task_id = str(uuid.uuid4())[:8]
+        user_state[message.from_user.id] = {
+            "action": "task_wizard",
+            "task_id": task_id,
+            "step": "WAITING_NAME",
+            "collected_files": []
+        }
+        await message.reply("Send the name.")
+
+    @bot.on_message(filters.command("done") & filters.private)
+    async def done_cmd(client, message):
+        if not await is_authorized(message.from_user.id): return
+        state = user_state.get(message.from_user.id)
+        if not state or state.get("action") != "task_wizard" or state.get("step") != "COLLECTING_FILES":
+            return await message.reply("❌ You are not currently in Collect Mode of a task wizard.")
+
+        state["step"] = "WAITING_DL_BOT"
+        await message.reply("Send the Download Link Bot username.")
+
     @bot.on_message(filters.command("cancel") & filters.private)
     async def cancel_cmd(client, message):
         user_state.pop(message.from_user.id, None)
@@ -1143,7 +1178,29 @@ def register_handlers(bot: Client):
 
     # --- Interaction Handler ---
 
-    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video | filters.voice) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel"]), group=1)
+    @bot.on_message(filters.private & filters.text & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel", "monitor", "session", "task", "done"]), group=0)
+    async def nicktrick_handler(client, message):
+        from utils.nicktrick import extract_nicktrick_urls, resolve_nicktrick_url_async
+        text = message.text or message.caption or ""
+        entities = message.entities or message.caption_entities
+        detected = extract_nicktrick_urls(text, entities=entities)
+        if detected:
+            msg = await message.reply_text("⏳ **Bypassing URL...**")
+            resolved_links = []
+            for u in detected:
+                final_u = await resolve_nicktrick_url_async(u)
+                if final_u:
+                    resolved_links.append(final_u)
+            if resolved_links:
+                reply_text = "🔗 <b>Bypassed Final Destination Link(s):</b>\n\n"
+                for i, link in enumerate(resolved_links, 1):
+                    reply_text += f"👉 <a href=\"{link}\">🚀 Click Here to Open Final Link {i}</a>\n"
+                await msg.edit_text(reply_text, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=False)
+                raise ContinuePropagation
+            else:
+                await msg.delete()
+
+    @bot.on_message(filters.private & (filters.text | filters.document | filters.audio | filters.video | filters.voice) & ~filters.command(["start", "ping", "help", "search", "edit", "edit_m", "save", "del", "categories", "add_movie", "add_series", "addbot", "songs", "cancel", "monitor", "session", "task", "done"]), group=1)
     async def interaction_msg(client, message):
         state = user_state.get(message.from_user.id)
         if not state: return
@@ -1450,6 +1507,127 @@ def register_handlers(bot: Client):
             await message.reply(f"🚀 **Song Storage Channel Configured:** `{cid}`")
             user_state.pop(uid, None)
 
+        elif action == "ask_monitor_bots":
+            raw_text = message.text.strip()
+            if not raw_text:
+                return await message.reply("❌ Please send valid bot usernames.")
+            raw_list = [b.strip() for b in raw_text.split(",") if b.strip()]
+            bots_list = []
+            for b in raw_list:
+                username = b if b.startswith("@") else f"@{b}"
+                bots_list.append(username)
+            if not bots_list:
+                return await message.reply("❌ Please send valid bot usernames.")
+            await db.set_setting("monitorbots", bots_list)
+            formatted = ", ".join(bots_list)
+            await message.reply(f"✅ **Monitoring Bots Configured Successfully!**\n\nMonitored Bots: `{formatted}`")
+            user_state.pop(uid, None)
+
+        elif action == "ask_userbot_session":
+            session_str = message.text.strip()
+            if not session_str:
+                return await message.reply("❌ Please send a valid Userbot session string.")
+            await db.set_setting("userbot_session", session_str)
+            await message.reply("✅ **Userbot Session Configured and Saved Permanently!**")
+            user_state.pop(uid, None)
+
+        elif action == "task_wizard":
+            step = state.get("step")
+            if step == "WAITING_NAME":
+                state["name"] = message.text.strip()
+                state["step"] = "WAITING_PAGE"
+                await message.reply("Send the page link.")
+
+            elif step == "WAITING_PAGE":
+                state["page_link"] = message.text.strip()
+                state["step"] = "WAITING_GROUP"
+                await message.reply("Send the group name.")
+
+            elif step == "WAITING_GROUP":
+                state["group_name"] = message.text.strip()
+                state["step"] = "COLLECTING_FILES"
+                await message.reply("Send the files now. I will collect incoming files until you use /done.")
+
+            elif step == "COLLECTING_FILES":
+                # Collect files sent/forwarded by the admin
+                file_obj = message.document or message.video or message.audio
+                if file_obj:
+                    file_name = getattr(file_obj, "file_name", None) or getattr(file_obj, "title", None) or "file.mkv"
+                    file_size = getattr(file_obj, "file_size", 0)
+                    state["collected_files"].append({
+                        "chat_id": message.chat.id,
+                        "message_id": message.id,
+                        "file_id": file_obj.file_id,
+                        "file_name": file_name,
+                        "caption": message.caption or "",
+                        "file_size": file_size
+                    })
+                    await message.reply(f"📦 Collected: `{file_name}` ({len(state['collected_files'])} files collected so far)")
+                else:
+                    await message.reply("⚠️ Please send or forward a media file, or type /done when finished.")
+
+            elif step == "WAITING_DL_BOT":
+                dl_bot = message.text.strip()
+                if not dl_bot.startswith("@"):
+                    dl_bot = f"@{dl_bot}"
+                state["dl_bot_username"] = dl_bot
+                state["step"] = "WAITING_GROUP_LINK"
+                await message.reply("Send the group link where generated download links should be sent.")
+
+            elif step == "WAITING_GROUP_LINK":
+                state["output_group_link"] = message.text.strip()
+                state["step"] = "WAITING_PREFIX"
+                await message.reply("Send the prefix command.")
+
+            elif step == "WAITING_PREFIX":
+                state["prefix_cmd"] = message.text.strip()
+                state["step"] = "WAITING_LINK_GEN_BOT"
+                await message.reply("Send the Link Generator Bot username.")
+
+            elif step == "WAITING_LINK_GEN_BOT":
+                lg_bot = message.text.strip()
+                if not lg_bot.startswith("@"):
+                    lg_bot = f"@{lg_bot}"
+                state["link_gen_bot_username"] = lg_bot
+
+                # Construct final task object
+                task_doc = {
+                    "task_id": state["task_id"],
+                    "admin_id": uid,
+                    "name": state["name"],
+                    "page_link": state["page_link"],
+                    "group_name": state["group_name"],
+                    "collected_files": state["collected_files"],
+                    "dl_bot_username": state["dl_bot_username"],
+                    "output_group_link": state["output_group_link"],
+                    "prefix_cmd": state["prefix_cmd"],
+                    "link_gen_bot_username": state["link_gen_bot_username"],
+                    "status": "PROCESSING_FILES",
+                    "step": "PROCESSING_FILES",
+                    "extracted_dl_links": [],
+                    "generated_links": {},
+                    "received_final_files": []
+                }
+
+                await db.add_task(task_doc)
+                user_state.pop(uid, None)
+
+                confirmation = (
+                    f"Task Started\n\n"
+                    f"Name: \"{task_doc['name']}\"\n"
+                    f"Page: \"{task_doc['page_link']}\"\n"
+                    f"Group: \"{task_doc['group_name']}\"\n"
+                    f"Download Bot: \"{task_doc['dl_bot_username']}\"\n"
+                    f"Output Group: \"{task_doc['output_group_link']}\"\n"
+                    f"Prefix: \"{task_doc['prefix_cmd']}\"\n"
+                    f"Link Generator: \"{task_doc['link_gen_bot_username']}\""
+                )
+                await message.reply(confirmation)
+
+                # Trigger automated task execution
+                from utils.task_runner import task_runner
+                asyncio.create_task(task_runner.run_task(task_doc['task_id']))
+
 async def set_commands(client: Client):
     try:
         await client.set_bot_commands([
@@ -1464,6 +1642,10 @@ async def set_commands(client: Client):
             BotCommand("addbot", "Add a Multi-Bot listener"),
             BotCommand("songs", "Manage Background Songs"),
             BotCommand("uptime", "24/7 Uptime Monitor"),
+            BotCommand("monitor", "Configure Monitoring Bots"),
+            BotCommand("session", "Configure Userbot Session"),
+            BotCommand("task", "Start Automation Task Wizard"),
+            BotCommand("done", "Finish Collect Mode"),
             BotCommand("cancel", "Cancel Process")
         ])
     except: pass
